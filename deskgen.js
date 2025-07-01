@@ -2,6 +2,7 @@ var settings;
 const ss = SpreadsheetApp.getActiveSpreadsheet();
 const templateSheet = ss.getSheetByName('TEMPLATE');
 var token = null;
+/* not used, remove? or change to interface?*/
 const templateCellNames = {
     date: '$$date',
     picTimeStart: '$$picTimeStart',
@@ -67,13 +68,25 @@ function buildDeskSchedule(tomorrow = false) {
     log('deskSchedDate: ' + deskSchedDate);
     const wiwData = getWiwData(token, deskSchedDate);
     var deskSchedule = new DeskSchedule(deskSchedDate, wiwData);
+    deskSchedule.displayEvents(displayCells);
+    deskSchedule.timelineInit();
     ui.alert(JSON.stringify(deskSchedule));
+    deskSchedule.popupDeskDataLog();
 }
 class DeskSchedule {
+    //history:
     constructor(date, wiwData) {
         this.dayStartHour = 8.5;
         this.dayEndHour = 20;
+        this.eventsErrorLog = []; //test if this works?
+        this.annotationEvents = [];
+        this.annotationShifts = [];
+        this.annotationUser = [];
+        this.logDeskDataRecord = [];
         this.date = date;
+        this.shifts = [];
+        this.eventsErrorLog = [];
+        this.logDeskDataRecord = [];
         this.annotationsString = wiwData.annotations
             .filter(a => {
             // log("a.all_locations: ", a.all_locations, " a.locations: ", a.locations, " location_id:", location_id)
@@ -85,7 +98,7 @@ class DeskSchedule {
             .reduce((acc, cur) => acc + (cur.business_closed ? 'Closed: ' : '') + cur.title + (cur.message.length > 1 ? ' - ' + cur.message : '') + '\n', '');
         let annotationEvents = [];
         let annotationShifts = [];
-        let annotationUser = [];
+        const annotationUser = [{ id: 0, first_name: "📣", last_name: ' ', positions: ['0'], role: 0 }];
         wiwData.annotations
             .filter(a => {
             if (a.all_locations == true)
@@ -140,7 +153,6 @@ class DeskSchedule {
                     }
                 ]
             });
-            annotationUser.push({ id: '0', first_name: "📣", last_name: ' ', positions: [0] });
         }
         log('annotationEvents:\n' + JSON.stringify(annotationEvents));
         log('annotationShifts:\n' + JSON.stringify(annotationShifts));
@@ -164,12 +176,13 @@ class DeskSchedule {
             { "id": 11614115, "name": "Floating" },
             { "id": 11614116, "name": "Meeting" },
             { "id": 11614117, "name": "Program" },
-            { "id": 11614118, "name": "Off-desk" }
+            { "id": 11614118, "name": "Off-desk" },
+            { "id": 0, "name": "Annotation Event" }
         ];
         var eventErrorLog = [];
-        wiwData.shifts.forEach(s => {
+        wiwData.shifts.concat(annotationShifts).forEach(s => {
             let eventsFormatted;
-            let wiwUserObj = wiwData.users.filter(u => u.id == s.user_id)[0];
+            let wiwUserObj = wiwData.users.concat(annotationUser).filter(u => u.id == s.user_id)[0];
             let wiwTagsNameArr = wiwData.tagsUsers.filter(u => u.id == s.user_id)[0] == undefined ? [] : (wiwData.tagsUsers.filter(u => u.id == s.user_id)[0].tags || []).map(t => wiwData.tags.filter(obj => obj.id == t)[0].name);
             if (wiwUserObj != undefined) {
                 if (s.notes.length > 0) {
@@ -196,17 +209,16 @@ class DeskSchedule {
                     let timeTo5 = Math.abs((endTime.getHours() + startTime.getHours()) / 2 - 17);
                     mealHour = timeTo12 < timeTo5 ? 12 : 16;
                 }
-                this.shifts.push(new Shift(s.user_id, wiwUserObj.first_name + ' ' + wiwUserObj.last_name, startTime, endTime, eventsFormatted, mealHour, false, wiwUserObj.positions[0], positionHierarchy.filter(obj => obj.id == wiwUserObj.positions[0])[0].group || 'unknown posotion group', wiwTagsNameArr));
+                this.shifts.push(new Shift(s.user_id, wiwUserObj.first_name + ' ' + wiwUserObj.last_name, startTime, endTime, eventsFormatted, mealHour, false, wiwUserObj.positions[0], positionHierarchy.filter(obj => obj.id == wiwUserObj.positions[0])[0].group || 'unknown position group', wiwTagsNameArr));
             }
         });
-        wiwData.users.forEach(u => {
-            if (wiwData.shifts.filter(shift => { return shift.user_id == u.id; }).length == 0) { //if this user doesn't exist in shifts...
+        wiwData.users.concat(annotationUser).forEach(u => {
+            if (wiwData.shifts.concat(annotationShifts).filter(shift => { return shift.user_id == u.id; }).length == 0) { //if this user doesn't exist in shifts...
                 if (settings.alwaysShowAllStaff || (settings.alwaysShowBranchManager && u.role == 1) || (settings.alwaysShowAssistantBranchManager && u.role == 2)) {
                     this.shifts.push(new Shift(u.id, u.first_name + ' ' + u.last_name));
                 }
             }
         });
-        log('shifts:\n' + JSON.stringify(this.shifts));
         if (eventErrorLog.length > 0) {
             log('eventErrorLog:\n' + eventErrorLog);
             SpreadsheetApp.getUi().alert(`Cannot parse events:
@@ -236,10 +248,84 @@ Creighton Zine class/program @ 4-5`);
             earliestEndHour = this.dayEndHour;
         if (this.dayStartHour < latestStartHour)
             latestStartHour = this.dayStartHour;
+        log('shifts:\n' + JSON.stringify(this.shifts));
+    }
+    displayEvents(displayCells) {
+        let eventString = '';
+        this.shifts.forEach(s => {
+            if (s.events != undefined && s.events.length > 0 && s.user_id != 0) {
+                eventString += s.name.split(' ')[0] + ': ' + s.events.reduce((acc, cur) => acc.concat(cur.displayString), []).join(', ') + '\n';
+            }
+        });
+        let boldStyle = SpreadsheetApp.newTextStyle().setBold(true).build();
+        let happeningTodayRT = SpreadsheetApp.newRichTextValue().setText((this.annotationsString.length > 0 ? '\n' : ``) + this.annotationsString + (eventString.length > 0 ? '\n' : ``) + eventString);
+        if ((this.annotationsString + eventString).length == 0)
+            happeningTodayRT.setText("\n-\n");
+        if (this.annotationsString.length > 0)
+            happeningTodayRT = happeningTodayRT.setTextStyle(0, this.annotationsString.length, boldStyle);
+        // happeningTodayRT = happeningTodayRT.build()
+        displayCells.getByName('happeningToday').setRichTextValue(happeningTodayRT.build());
+    }
+    timelineInit() {
+        for (let row = 0; row < this.shifts.length; row++) {
+            let shift = this.shifts[row];
+            for (let col = 0; this.dayStartHour + col * 0.5 < this.dayEndHour; col++) {
+                shift.stationTimeline.push(0);
+                shift.picTimeline.push(0);
+            }
+        }
+        for (let row = 0; row < this.shifts.length; row++) {
+            let shift = this.shifts[row];
+            for (let col = 0; this.dayStartHour + col * 0.5 < this.dayEndHour; col++) {
+                let time = new Date(this.date).setHours(this.dayStartHour + col * 0.5);
+            }
+        }
+        this.logDeskData('after initializaiton');
+    }
+    logDeskData(description) {
+        if (!settings.verboseLog)
+            return;
+        // let emojis = ["⬛","⬜","🟩","⬜","⬜","⬜","⬜","⬜","⬜","⬜","⬜",]
+        let s = this.shifts.map(x => x.name.substring(0, 4).replace(' ', '_') + ' ' + x.stationTimeline.join('')).join('\n').replaceAll("0", "⬛").replaceAll("1", "⬜").replaceAll("2", "🟩").replaceAll("3", "🟨").replaceAll("4", "🟫").replaceAll("5", "🟥").replaceAll("6", "🟦").replaceAll("7", "☎️").replaceAll("8", "🟪");
+        // let s = this.shifts.map(s=>s.name.substring(0, 4).replace(' ','_')) + this.shifts.map(s=>s.stationTimeline.join(''))
+        // log('     ' + description + ':\n' + s)
+        this.logDeskDataRecord.push('     ' + description + '\n\n' + s);
+    }
+    popupDeskDataLog() {
+        if (settings.verboseLog) {
+            var htmlTemplate = HtmlService.createTemplate(`<div id="animDisplay" style="font-family: monospace; font-size: large;">
+          loading...
+          </div>
+          <br>
+          <input type="range" id="animSlider" name="step" min="0" max="10" style="width: 550px;"/>
+          <script>
+          var logDeskDataRecord = <?!= JSON.stringify(logDeskDataRecord) ?>;
+          function initialize(){
+            let animDisplay = document.getElementById("animDisplay")
+            let animSlider = document.getElementById("animSlider")
+            animSlider.min = 0
+            animSlider.max = logDeskDataRecord.length-1
+            animSlider.value = logDeskDataRecord.length-1
+            animDisplay.innerText = "initializing"
+            animDisplay.innerText = logDeskDataRecord[logDeskDataRecord.length-1]
+            animSlider.addEventListener("input", (e) =>{
+              animDisplay.innerText = logDeskDataRecord[animSlider.value]
+            })
+          }
+          window.onload = initialize
+          </script>`);
+            htmlTemplate.logDeskDataRecord = this.logDeskDataRecord;
+            // log(htmlTemplate)
+            var htmlOutput = htmlTemplate.evaluate().setSandboxMode(HtmlService.SandboxMode.IFRAME).setWidth(600).setHeight(400);
+            // log(htmlOutput)
+            SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Timeline Debug');
+        }
     }
 }
+class ShiftEvent {
+}
 class Shift {
-    constructor(user_id, name, startTime = undefined, endTime = undefined, events = [], mealHour = 12, assignedPIC = false, position = undefined, positionGroup = undefined, tags = []) {
+    constructor(user_id, name, startTime = undefined, endTime = undefined, events = [], mealHour = 12, assignedPIC = false, position = undefined, positionGroup = undefined, tags = [], stationTimeline = [], picTimeline = []) {
         this.user_id = user_id;
         this.name = name;
         this.startTime = startTime;
@@ -249,7 +335,18 @@ class Shift {
         this.assignedPIC = assignedPIC;
         this.position = position;
         this.positionGroup = positionGroup;
-        tags: [];
+        this.tags = tags;
+        this.stationTimeline = stationTimeline;
+        this.picTimeline = picTimeline;
+    }
+}
+class WiwData {
+    constructor() {
+        this.shifts = [];
+        this.annotations = [];
+        this.users = [];
+        this.tagsUsers = [];
+        this.tags = [];
     }
 }
 class CellCoords {
@@ -306,6 +403,11 @@ class DisplayCells {
             'shiftStationGridStart',
             'timeStart',
             'happeningToday',
+            'stationColor',
+            'stationName',
+            'openingDutyTitle',
+            'openingDutyName',
+            'openingDutyCheck',
             'testreq'
         ];
         requiredDisplayCells.forEach(n => {
@@ -350,18 +452,32 @@ function loadSettings() {
     var settings = Object.fromEntries(getSettingsBlock('Settings Name', settingsTrimmed).map(([k, v]) => [k, v]));
     var openingDutiesData = getSettingsBlock('Opening Duties', settingsTrimmed);
     settings.openingDutiesData = openingDutiesData.map((line) => ({ "name": line[0], "requirePIC": line[1] }));
-    settings.stations = getSettingsBlock('Cell Style', settingsTrimmed);
+    settings.stations = getSettingsBlock('Cell Style', settingsSheetAllData)
+        .map((line) => ({ "color": line[0], "name": line[1] }));
+    let startRow = 0;
+    for (let j = 0; j < settingsSheetAllData.length; j++) {
+        if (settingsSheetAllData[j][0] == 'Cell Style' && j + 1 < settingsSheetAllData.length) {
+            startRow = j + 1;
+            console.log(startRow);
+            break;
+        }
+    }
+    for (let i = 0; i < settings.stations.length; i++) {
+        settings.stations[i].color = settingsSheet.getRange(startRow + 1 + i, 1).getBackground();
+    }
     function getSettingsBlock(string, settingsTrimmed) {
         let start = undefined;
         let end = undefined;
         for (let i = 0; i < settingsTrimmed.length; i++) {
-            if (settingsTrimmed[i][0] == string && i + 1 < settingsTrimmed.length)
+            if (settingsTrimmed[i][0] == string && i + 1 < settingsTrimmed.length) {
                 start = i + 1;
+                break;
+            }
         }
         if (start !== undefined) {
             for (let i = start; i < settingsTrimmed.length; i++) {
-                if (settingsTrimmed[i][0] == undefined || i == settingsTrimmed.length - 1) {
-                    end = i;
+                if (settingsTrimmed[i].every(e => e == undefined || e == '') || i == settingsTrimmed.length - 1) {
+                    end = i + 1;
                     break;
                 }
             }
@@ -369,6 +485,8 @@ function loadSettings() {
         if (start !== undefined && end !== undefined) {
             return settingsTrimmed.slice(start, end);
         }
+        else
+            console.error(`can't find start/end point in settings for ${string}. start:${start}, end:${end}`);
     }
     if (settings.verboseLog)
         console.log("settings loaded from sheet:\n" + JSON.stringify(settings));
@@ -379,7 +497,7 @@ function sheetNameFromDate(date) {
 }
 function getWiwData(token, deskSchedDate) {
     let ui = SpreadsheetApp.getUi();
-    let wiwData;
+    let wiwData = new WiwData();
     //Get Token
     if (token == null) {
         const data = {

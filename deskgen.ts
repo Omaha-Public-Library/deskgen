@@ -2,6 +2,8 @@ var settings
 const ss = SpreadsheetApp.getActiveSpreadsheet()
 const templateSheet = ss.getSheetByName('TEMPLATE')
 var token: string = null
+
+/* not used, remove? or change to interface?*/
 const templateCellNames = {
     date:'$$date',
     picTimeStart:'$$picTimeStart',
@@ -75,19 +77,34 @@ function buildDeskSchedule(tomorrow: Boolean=false){
   const wiwData = getWiwData(token, deskSchedDate)
 
   var deskSchedule = new DeskSchedule(deskSchedDate, wiwData)
+  
+  deskSchedule.displayEvents(displayCells)
+  
+  deskSchedule.timelineInit()
+
   ui.alert(JSON.stringify(deskSchedule))
+
+  deskSchedule.popupDeskDataLog()
 }
 
 class DeskSchedule{
   date: Date
-  annotationsString: string
   dayStartHour: number = 8.5
   dayEndHour: number = 20
   shifts: Shift[]
-  eventsErrorLog: [] //test if this works?
+  eventsErrorLog = [] //test if this works?
+  annotationsString: string
+  annotationEvents = []
+  annotationShifts = []
+  annotationUser = []
+  logDeskDataRecord = []
+  //history:
 
   constructor(date:Date, wiwData:WiwData){
     this.date = date
+    this.shifts=[]
+    this.eventsErrorLog=[]
+    this.logDeskDataRecord = []
 
     this.annotationsString = wiwData.annotations
     .filter(a=>{
@@ -99,7 +116,7 @@ class DeskSchedule{
 
     let annotationEvents = []
     let annotationShifts = []
-    let annotationUser = []
+    const annotationUser = [{id:0,first_name:"📣",last_name:' ',positions:['0'],role:0}]
 
     wiwData.annotations
     .filter(a=>{
@@ -153,7 +170,6 @@ class DeskSchedule{
                   }
               ]
       })
-      annotationUser.push({id:'0',first_name:"📣",last_name:' ',positions:[0]})
     }
     log('annotationEvents:\n'+ JSON.stringify(annotationEvents))
     log('annotationShifts:\n'+ JSON.stringify(annotationShifts))
@@ -178,14 +194,15 @@ class DeskSchedule{
       {"id":11614115,"name":"Floating"},
       {"id":11614116,"name":"Meeting"},
       {"id":11614117,"name":"Program"},
-      {"id":11614118,"name":"Off-desk"}
+      {"id":11614118,"name":"Off-desk"},
+      {"id":0,"name":"Annotation Event"}
     ]
 
     var eventErrorLog = []
 
-    wiwData.shifts.forEach(s=>{
+    wiwData.shifts.concat(annotationShifts).forEach(s=>{
       let eventsFormatted
-      let wiwUserObj = wiwData.users.filter(u => u.id == s.user_id)[0]
+      let wiwUserObj = wiwData.users.concat(annotationUser).filter(u => u.id == s.user_id)[0]
       let wiwTagsNameArr=wiwData.tagsUsers.filter(u=> u.id == s.user_id)[0]==undefined?[]:(wiwData.tagsUsers.filter(u=> u.id == s.user_id)[0].tags || []).map(t=>wiwData.tags.filter(obj=>obj.id==t)[0].name)
 
       if (wiwUserObj != undefined){
@@ -224,13 +241,13 @@ class DeskSchedule{
           mealHour,
           false,
           wiwUserObj.positions[0],
-          positionHierarchy.filter(obj=>obj.id == wiwUserObj.positions[0])[0].group || 'unknown posotion group',
+          positionHierarchy.filter(obj=>obj.id == wiwUserObj.positions[0])[0].group || 'unknown position group',
           wiwTagsNameArr,
         ))}
     })
 
-    wiwData.users.forEach(u=>{
-      if(wiwData.shifts.filter(shift=>{return shift.user_id == u.id}).length==0){ //if this user doesn't exist in shifts...
+    wiwData.users.concat(annotationUser).forEach(u=>{
+      if(wiwData.shifts.concat(annotationShifts).filter(shift=>{return shift.user_id == u.id}).length==0){ //if this user doesn't exist in shifts...
         if(settings.alwaysShowAllStaff || (settings.alwaysShowBranchManager && u.role == 1) || (settings.alwaysShowAssistantBranchManager && u.role ==2)){
           this.shifts.push(new Shift(
             u.id,
@@ -239,9 +256,7 @@ class DeskSchedule{
         }
       }
     })
-
-    log('shifts:\n'+ JSON.stringify(this.shifts))
-
+    
     if(eventErrorLog.length>0){
       log('eventErrorLog:\n'+ eventErrorLog)
       SpreadsheetApp.getUi().alert(
@@ -269,23 +284,110 @@ Creighton Zine class/program @ 4-5`
     })
     if(this.dayEndHour>earliestEndHour)earliestEndHour=this.dayEndHour
     if(this.dayStartHour<latestStartHour)latestStartHour=this.dayStartHour
+
+    log('shifts:\n'+ JSON.stringify(this.shifts))
+  }
+
+  displayEvents(displayCells: DisplayCells){
+    let eventString = ''
+  
+    this.shifts.forEach(s=>{
+      if(s.events!=undefined && s.events.length>0 && s.user_id!=0){
+        eventString += s.name.split(' ')[0] + ': ' + s.events.reduce((acc,cur)=>acc.concat(cur.displayString),[]).join(', ') + '\n'
+      }
+    })
+    let boldStyle = SpreadsheetApp.newTextStyle().setBold(true).build()
+    let happeningTodayRT = SpreadsheetApp.newRichTextValue().setText((this.annotationsString.length>0?'\n':``) + this.annotationsString + (eventString.length>0?'\n':``) + eventString)
+    if ((this.annotationsString+eventString).length==0) happeningTodayRT.setText("\n-\n")
+    if(this.annotationsString.length>0)happeningTodayRT = happeningTodayRT.setTextStyle(0, this.annotationsString.length, boldStyle)
+    // happeningTodayRT = happeningTodayRT.build()
+
+    displayCells.getByName('happeningToday').setRichTextValue(happeningTodayRT.build())
+  }
+
+  timelineInit(){
+    for(let row=0; row<this.shifts.length; row++){
+      let shift = this.shifts[row]
+      for(let col=0; this.dayStartHour+col*0.5 < this.dayEndHour; col++){
+        shift.stationTimeline.push(0)
+        shift.picTimeline.push(0)
+      }
+    }
+    for(let row=0; row<this.shifts.length; row++){
+      let shift = this.shifts[row]
+      for(let col=0; this.dayStartHour+col*0.5 < this.dayEndHour; col++){
+        let time = new Date(this.date).setHours(this.dayStartHour+col*0.5)
+      }
+    }
+    this.logDeskData('after initializaiton')
+  }
+
+  logDeskData(description:string){
+    if (!settings.verboseLog) return
+    // let emojis = ["⬛","⬜","🟩","⬜","⬜","⬜","⬜","⬜","⬜","⬜","⬜",]
+    let s = this.shifts.map(x => x.name.substring(0, 4).replace(' ','_') + ' ' + x.stationTimeline.join('')).join('\n').replaceAll("0", "⬛").replaceAll("1", "⬜").replaceAll("2", "🟩").replaceAll("3", "🟨").replaceAll("4", "🟫").replaceAll("5", "🟥").replaceAll("6", "🟦").replaceAll("7", "☎️").replaceAll("8", "🟪")
+    // let s = this.shifts.map(s=>s.name.substring(0, 4).replace(' ','_')) + this.shifts.map(s=>s.stationTimeline.join(''))
+    // log('     ' + description + ':\n' + s)
+    this.logDeskDataRecord.push('     ' + description + '\n\n' + s)
+  }
+
+  popupDeskDataLog(){
+    if(settings.verboseLog){
+      var htmlTemplate = HtmlService.createTemplate(
+          `<div id="animDisplay" style="font-family: monospace; font-size: large;">
+          loading...
+          </div>
+          <br>
+          <input type="range" id="animSlider" name="step" min="0" max="10" style="width: 550px;"/>
+          <script>
+          var logDeskDataRecord = <?!= JSON.stringify(logDeskDataRecord) ?>;
+          function initialize(){
+            let animDisplay = document.getElementById("animDisplay")
+            let animSlider = document.getElementById("animSlider")
+            animSlider.min = 0
+            animSlider.max = logDeskDataRecord.length-1
+            animSlider.value = logDeskDataRecord.length-1
+            animDisplay.innerText = "initializing"
+            animDisplay.innerText = logDeskDataRecord[logDeskDataRecord.length-1]
+            animSlider.addEventListener("input", (e) =>{
+              animDisplay.innerText = logDeskDataRecord[animSlider.value]
+            })
+          }
+          window.onload = initialize
+          </script>`,
+          )
+      htmlTemplate.logDeskDataRecord = this.logDeskDataRecord
+      // log(htmlTemplate)
+      var htmlOutput = htmlTemplate.evaluate().setSandboxMode(HtmlService.SandboxMode.IFRAME).setWidth(600).setHeight(400);
+      // log(htmlOutput)
+      SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Timeline Debug');
+    }
   }
 }
 
+class ShiftEvent{
+  title: string
+  startTime: Date
+  endTime: Date
+  displayString: string
+}
+
 class Shift{
-  user_id: string
+  user_id: number
   name: string
   startTime: Date
   endTime: Date
-  events: []
+  events: ShiftEvent[]
   mealHour: number
   assignedPIC: Boolean
   position: string
   positionGroup: string
   tags: string[]
+  stationTimeline:number[]
+  picTimeline:number[]
 
   constructor(
-    user_id: string,
+    user_id: number,
     name: string,
     startTime: Date = undefined,
     endTime: Date = undefined,
@@ -294,10 +396,12 @@ class Shift{
     assignedPIC: Boolean = false,
     position: string = undefined,
     positionGroup: string = undefined,
-    tags: string[] = []
+    tags: string[] = [],
+    stationTimeline: number[] = [],
+    picTimeline: number[] = []
   ){
     this.user_id = user_id
-    this. name = name
+    this.name = name
     this.startTime = startTime
     this.endTime = endTime
     this.events = events
@@ -305,42 +409,50 @@ class Shift{
     this.assignedPIC = assignedPIC
     this.position = position
     this.positionGroup = positionGroup
-    tags: []
+    this.tags = tags
+    this.stationTimeline = stationTimeline
+    this.picTimeline = picTimeline
   }
 }
 
-interface WiwData{
-  shifts:[{
-    user_id:string
+class WiwData{
+  shifts:{
+    user_id:number
     notes:string
     start_time:string
     end_time:string
-  }]
-  annotations:[{
-    locations:[{id:string}]
-    location_id:string
+  }[]
+  annotations:{
+    locations:[{id:number}]
+    location_id:number
     all_locations:Boolean
     business_closed:Boolean
     title:string
     message:string
-  }]
-  users:[{
-    id:string
+  }[]
+  users:{
+    id:number
     first_name:string
     last_name:string
     positions:any
     role:number
-  }]
-  tagsUsers:[{
-    id:string
-    tags:string[]
-  }]
-  tags:[{
-    id:string
+  }[]
+  tagsUsers:{
+    id:number
+    tags:number[]
+  }[]
+  tags:{
+    id:number
     name:string
-  }]
+  }[]
+  constructor(){
+    this.shifts=[]
+    this.annotations=[]
+    this.users=[]
+    this.tagsUsers=[]
+    this.tags=[]
+  }
 }
-
 class CellCoords{
   row: number
   col: number
@@ -400,6 +512,11 @@ class DisplayCells{
       'shiftStationGridStart',
       'timeStart',
       'happeningToday',
+      'stationColor',
+      'stationName',
+      'openingDutyTitle',
+      'openingDutyName',
+      'openingDutyCheck',
       'testreq'
     ]
     requiredDisplayCells.forEach(n=>{
@@ -439,26 +556,46 @@ function loadSettings(){
 
   var settings = Object.fromEntries(getSettingsBlock('Settings Name', settingsTrimmed).map(([k,v])=>[k,v]))
   var openingDutiesData = getSettingsBlock('Opening Duties', settingsTrimmed)
+
   settings.openingDutiesData = openingDutiesData.map((line)=>({"name":line[0], "requirePIC":line[1]}))
-  settings.stations=getSettingsBlock('Cell Style', settingsTrimmed)
+
+  settings.stations = getSettingsBlock('Cell Style', settingsSheetAllData)
+  .map((line)=>({"color":line[0], "name":line[1]}))
+  let startRow = 0
+  for (let j=0; j<settingsSheetAllData.length; j++){
+    if (settingsSheetAllData[j][0]=='Cell Style' && j+1<settingsSheetAllData.length){
+      startRow = j+1
+      console.log(startRow)
+      break
+    }
+  }
+  for (let i=0; i<settings.stations.length; i++){
+    settings.stations[i].color = settingsSheet.getRange(startRow+1+i,1).getBackground()
+  }
 
   function getSettingsBlock(string: string, settingsTrimmed){
     let start = undefined
     let end = undefined
     for (let i=0; i<settingsTrimmed.length; i++){
-        if (settingsTrimmed[i][0]==string && i+1<settingsTrimmed.length)start = i+1
+      if (settingsTrimmed[i][0]==string && i+1<settingsTrimmed.length)
+        {start = i+1
+        break
+      }
     }
     if (start!==undefined){
         for (let i=start; i<settingsTrimmed.length; i++){
-            if (settingsTrimmed[i][0]==undefined || i==settingsTrimmed.length-1){
-                end = i
+            if (settingsTrimmed[i].every(e=>e==undefined||e=='') || i==settingsTrimmed.length-1){
+                end = i+1
                 break
     }}}
     if (start!==undefined && end!==undefined) {
         return settingsTrimmed.slice(start,end)
-    }}
+    }else console.error(`can't find start/end point in settings for ${string}. start:${start}, end:${end}`)
+  }
+
 
   if (settings.verboseLog) console.log("settings loaded from sheet:\n"+JSON.stringify(settings))
+
   return settings
 }
 
@@ -468,7 +605,7 @@ function sheetNameFromDate(date: Date):string{
 
 function getWiwData(token:string, deskSchedDate:Date):WiwData{
   let ui = SpreadsheetApp.getUi()
-  let wiwData:WiwData
+  let wiwData:WiwData = new WiwData()
   //Get Token
   if(token==null){
     const data = {
