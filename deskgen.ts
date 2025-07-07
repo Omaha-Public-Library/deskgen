@@ -1,3 +1,5 @@
+//next steps - display station legend (use setvalues array to batch), render initialized board (also using batching figured out for dt)
+
 var settings
 const ss = SpreadsheetApp.getActiveSpreadsheet()
 const templateSheet = ss.getSheetByName('TEMPLATE')
@@ -76,21 +78,23 @@ function buildDeskSchedule(tomorrow: Boolean=false){
 
   const wiwData = getWiwData(token, deskSchedDate)
 
-  var deskSchedule = new DeskSchedule(deskSchedDate, wiwData)
+  var deskSchedule = new DeskSchedule(deskSchedDate, wiwData, settings)
   
   deskSchedule.displayEvents(displayCells)
   
   deskSchedule.timelineInit()
 
-  ui.alert(JSON.stringify(deskSchedule))
+  deskSchedule.timelineGenerate()
 
+  ui.alert(JSON.stringify(deskSchedule))
   deskSchedule.popupDeskDataLog()
 }
 
 class DeskSchedule{
   date: Date
-  dayStartHour: number = 8.5
-  dayEndHour: number = 20
+  dayStartTime: Date
+  dayEndTime: Date
+  stations: Station[]
   shifts: Shift[]
   eventsErrorLog = [] //test if this works?
   annotationsString: string
@@ -98,13 +102,33 @@ class DeskSchedule{
   annotationShifts = []
   annotationUser = []
   logDeskDataRecord = []
+  private defaultStations = {off:"Off", available:"Available", programMeeting:"Program/Meeting", mealBreak:"Meal/Break"}
   //history:
 
-  constructor(date:Date, wiwData:WiwData){
+  constructor(date:Date, wiwData:WiwData, settings){
     this.date = date
+    this.dayStartTime = new Date(this.date)
+    this.dayStartTime.setHours(8, 30)
+    this.dayEndTime = new Date(this.date)
+    this.dayEndTime.setHours(20)
     this.shifts=[]
+    this.stations=[]
     this.eventsErrorLog=[]
     this.logDeskDataRecord = []
+    this.stations = [
+      //required stations
+      new Station(this.defaultStations.off, `#666666`),
+      new Station(this.defaultStations.available, `#ffffff`),
+      new Station(this.defaultStations.mealBreak, `#cccccc`),
+    ]
+    settings.stations.forEach(s => {
+      let existingStation = this.stations.find(station => station.name == s.name)
+      let newStation = new Station(s.name,s.color,s.positionPriority,s.durationType,s.startTime,s.endTime,s.group)
+      if(existingStation){
+        existingStation = newStation
+      }
+      else this.stations.push(newStation)
+    });
 
     this.annotationsString = wiwData.annotations
     .filter(a=>{
@@ -116,7 +140,7 @@ class DeskSchedule{
 
     let annotationEvents = []
     let annotationShifts = []
-    const annotationUser = [{id:0,first_name:"📣",last_name:' ',positions:['0'],role:0}]
+    const annotationUser = [{id:0,first_name:"📣",last_name:'        ',positions:['0'],role:0}]
 
     wiwData.annotations
     .filter(a=>{
@@ -272,20 +296,19 @@ Martha mtg @ 2:30 - 3:30
 Creighton Zine class/program @ 4-5`
       )
     }
-    var latestStartHour = 8.5 //default start of schedule timeline
-    var earliestEndHour = 20 //default end of schedule timeline
     this.shifts.forEach(s=>{
       if(s.startTime!=undefined && s.endTime!=undefined){
-        let startHourDecimal = s.startTime.getHours()+s.startTime.getMinutes()/60
-        let endHourDecimal = s.endTime.getHours()+s.endTime.getMinutes()/60
-        if(endHourDecimal>this.dayEndHour)this.dayEndHour=endHourDecimal
-        if(startHourDecimal<this.dayStartHour)this.dayStartHour=startHourDecimal
-      }
+        if(s.startTime<this.dayStartTime) this.dayStartTime = s.startTime
+        if(s.endTime>this.dayEndTime)     this.dayEndTime = s.endTime
+      } 
     })
-    if(this.dayEndHour>earliestEndHour)earliestEndHour=this.dayEndHour
-    if(this.dayStartHour<latestStartHour)latestStartHour=this.dayStartHour
-
     log('shifts:\n'+ JSON.stringify(this.shifts))
+  }
+
+  getStation(name:string):Station{
+    let matches: Station[] = this.stations.filter(d=>d.name==name)
+    if (matches.length<1) console.error(`no stations with name '${name}' in stations:\n${JSON.stringify(this.stations)}`)
+    else return matches[0]
   }
 
   displayEvents(displayCells: DisplayCells){
@@ -306,35 +329,51 @@ Creighton Zine class/program @ 4-5`
   }
 
   timelineInit(){
-    for(let row=0; row<this.shifts.length; row++){
-      let shift = this.shifts[row]
-      for(let col=0; this.dayStartHour+col*0.5 < this.dayEndHour; col++){
-        shift.stationTimeline.push(0)
-        shift.picTimeline.push(0)
+    this.shifts.forEach(shift=>{
+      for(let time = new Date(this.dayStartTime); time<this.dayEndTime; time.addTime(0, 30)){
+        shift.stationTimeline.push(this.defaultStations.off)
+        shift.picTimeline.push(this.defaultStations.off)
       }
-    }
-    for(let row=0; row<this.shifts.length; row++){
-      let shift = this.shifts[row]
-      for(let col=0; this.dayStartHour+col*0.5 < this.dayEndHour; col++){
-        let time = new Date(this.date).setHours(this.dayStartHour+col*0.5)
+    })
+    this.logDeskData("initialized empty")
+  }
+
+  timelineGenerate(){
+    //fill in availability and events
+    this.shifts.forEach(shift=> {
+      for(let time = new Date(this.dayStartTime); time < this.dayEndTime; time.addTime(0, 30)){
+        //set all blocks to 
+        if(time >= shift.startTime && time < shift.endTime) shift.setStationAtTime(time,this.dayStartTime, this.defaultStations.available)
+        else shift.setStationAtTime(time, this.dayStartTime, this.defaultStations.off)
+        if(shift.events.length>0){
+          shift.events.forEach(event=>{
+            if(time >= event.startTime && time < event.endTime) shift.setStationAtTime(time, this.dayStartTime, this.defaultStations.programMeeting)
+          })
+        }
       }
-    }
-    this.logDeskData('after initializaiton')
+    })
+    this.logDeskData('after initializing availability and events')
   }
 
   logDeskData(description:string){
     if (!settings.verboseLog) return
-    // let emojis = ["⬛","⬜","🟩","⬜","⬜","⬜","⬜","⬜","⬜","⬜","⬜",]
-    let s = this.shifts.map(x => x.name.substring(0, 4).replace(' ','_') + ' ' + x.stationTimeline.join('')).join('\n').replaceAll("0", "⬛").replaceAll("1", "⬜").replaceAll("2", "🟩").replaceAll("3", "🟨").replaceAll("4", "🟫").replaceAll("5", "🟥").replaceAll("6", "🟦").replaceAll("7", "☎️").replaceAll("8", "🟪")
-    // let s = this.shifts.map(s=>s.name.substring(0, 4).replace(' ','_')) + this.shifts.map(s=>s.stationTimeline.join(''))
-    // log('     ' + description + ':\n' + s)
-    this.logDeskDataRecord.push('     ' + description + '\n\n' + s)
+    let s = this.shifts.map(shift =>shift.name.substring(0, 8).replaceAll(' ','.') + ' ' + shift.stationTimeline.map((station, i)=>`<span class="outline" title="${
+      new Date(this.dayStartTime.getTime()+i*1000*60*30).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    }&#10${station}"; style="color:${this.getStation(station).color}">◼</span>`).join('')).join('<br>')
+    this.logDeskDataRecord.push('     ' + description + '<br><br>' + s)
   }
 
   popupDeskDataLog(){
     if(settings.verboseLog){
       var htmlTemplate = HtmlService.createTemplate(
-          `<div id="animDisplay" style="font-family: monospace; font-size: large;">
+          `<style>
+            .outline {
+          color: white;
+          background-color: white;
+          text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+          font-size: 30px;
+        }
+        </style><div id="animDisplay" style="font-family: monospace; font-size: large; line-height: 0.9">
           loading...
           </div>
           <br>
@@ -342,26 +381,54 @@ Creighton Zine class/program @ 4-5`
           <script>
           var logDeskDataRecord = <?!= JSON.stringify(logDeskDataRecord) ?>;
           function initialize(){
+            logDeskDataRecord = logDeskDataRecord.map(s=>s.replaceAll('&lt;','<').replaceAll('&gt;','>'))
             let animDisplay = document.getElementById("animDisplay")
             let animSlider = document.getElementById("animSlider")
             animSlider.min = 0
             animSlider.max = logDeskDataRecord.length-1
             animSlider.value = logDeskDataRecord.length-1
             animDisplay.innerText = "initializing"
-            animDisplay.innerText = logDeskDataRecord[logDeskDataRecord.length-1]
+            animDisplay.innerHTML = logDeskDataRecord[logDeskDataRecord.length-1]
             animSlider.addEventListener("input", (e) =>{
-              animDisplay.innerText = logDeskDataRecord[animSlider.value]
+              animDisplay.innerHTML = logDeskDataRecord[animSlider.value]
+              console.log()
             })
           }
           window.onload = initialize
           </script>`,
           )
       htmlTemplate.logDeskDataRecord = this.logDeskDataRecord
-      // log(htmlTemplate)
-      var htmlOutput = htmlTemplate.evaluate().setSandboxMode(HtmlService.SandboxMode.IFRAME).setWidth(600).setHeight(400);
-      // log(htmlOutput)
+      var htmlOutput = htmlTemplate.evaluate().setSandboxMode(HtmlService.SandboxMode.IFRAME).setWidth(700).setHeight(700);
       SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Timeline Debug');
     }
+  }
+}
+
+class Station{
+  name: string
+  color: `#${string}`
+  positionPriority: string[]
+  durationType: string
+  startTime: Date
+  endTime: Date
+  group: string
+
+  constructor(
+    name: string,
+    color: `#${string}` = `#ffffff`,
+    positionPriority: string[] = [], //position[] when implemented
+    durationType: string = "Always",
+    startTime: Date = undefined,
+    endTime: Date = undefined,
+    group: string = ""
+  ){
+    this.name=name
+    this.color=color
+    this.positionPriority=positionPriority
+    this.durationType=durationType
+    this.startTime=startTime
+    this.endTime=endTime
+    this.group=group
   }
 }
 
@@ -383,8 +450,8 @@ class Shift{
   position: string
   positionGroup: string
   tags: string[]
-  stationTimeline:number[]
-  picTimeline:number[]
+  stationTimeline:string[]
+  picTimeline:string[]
 
   constructor(
     user_id: number,
@@ -397,8 +464,8 @@ class Shift{
     position: string = undefined,
     positionGroup: string = undefined,
     tags: string[] = [],
-    stationTimeline: number[] = [],
-    picTimeline: number[] = []
+    stationTimeline: string[] = [],
+    picTimeline: string[] = []
   ){
     this.user_id = user_id
     this.name = name
@@ -412,6 +479,17 @@ class Shift{
     this.tags = tags
     this.stationTimeline = stationTimeline
     this.picTimeline = picTimeline
+  }
+
+  getStationAtTime(time:Date, startTime:Date):string{
+    let halfHoursSinceStartTime = Math.round(Math.abs(time.getTime() - startTime.getTime())/1000/60/60*2)
+    return this.stationTimeline[halfHoursSinceStartTime]
+  }
+
+  setStationAtTime(time:Date, startTime:Date, station:string){
+    let halfHoursSinceStartTime = Math.round(Math.abs(time.getTime() - startTime.getTime())/1000/60/60*2)
+    console.log(startTime, time, halfHoursSinceStartTime)
+    this.stationTimeline[halfHoursSinceStartTime] = station
   }
 }
 
@@ -484,7 +562,7 @@ class DisplayCells{
   // get row() {retrun this.data.}
   update(){
     let template = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('TEMPLATE')
-    let notes = template.getDataRange().getNotes()
+    let notes = template.getRange(1,1,template.getMaxRows(),template.getMaxColumns()).getNotes()
     this.list = (()=>{
       let result = []
       for(let row = 0; row<notes.length; row++){
@@ -523,7 +601,6 @@ class DisplayCells{
       if(this.list.filter(dc=> n===dc.name).length<1) console.error(`display cell name '${n}' is required and isn't found in loaded cells: ${JSON.stringify(this.list)}`)
     })
     this.list.forEach(dc => {
-      // console.log(dc.row, dc.col, dc.a1)
       if(typeof dc.name !== 'string' || dc.name.length<1)console.error(`display cell name is not a string longer than 0: ${JSON.stringify(dc)}`)
       if(typeof dc.row !== 'number' || dc.row <1)console.error(`display cell row is not a number greater than 0: ${JSON.stringify(dc)}`)
       if(typeof dc.col !== 'number' || dc.row <1)console.error(`display cell col is not a number greater than 0: ${JSON.stringify(dc)}`)
@@ -531,7 +608,7 @@ class DisplayCells{
   }
   getByName(name:string, group:string=''):GoogleAppsScript.Spreadsheet.Range{
     let matches: DisplayCell[] = this.list.filter(d=>d.name==name)
-    console.log(matches[0], matches[0].a1)
+    // console.log(matches[0], matches[0].a1)
     if (matches.length<1) console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`)
     else return SpreadsheetApp.getActiveSheet().getRange(matches[0].a1)
   }
@@ -551,6 +628,7 @@ function log(arg?:any){
 function loadSettings(){
   const settingsSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS")
   var settingsSheetAllData = settingsSheet.getDataRange().getValues()
+  var settingsSheetAllColors = settingsSheet.getDataRange().getBackgrounds()
 
   var settingsTrimmed = settingsSheetAllData.map(s=> s.filter(s=>s!==''))
 
@@ -558,14 +636,21 @@ function loadSettings(){
   var openingDutiesData = getSettingsBlock('Opening Duties', settingsTrimmed)
 
   settings.openingDutiesData = openingDutiesData.map((line)=>({"name":line[0], "requirePIC":line[1]}))
-
-  settings.stations = getSettingsBlock('Cell Style', settingsSheetAllData)
-  .map((line)=>({"color":line[0], "name":line[1]}))
+  // SpreadsheetApp.getUi().alert(JSON.stringify(settingsSheetAllData))
+  settings.stations = getSettingsBlock('Color', settingsSheetAllData)
+  .map((line)=>({
+    "color":line[0],
+    "name":line[1],
+    "positionPriority":line[2],
+    "durationType":line[3],
+    "startTime":line[4],
+    "endTime":line[5],
+    "group":line[6]
+  }))
   let startRow = 0
   for (let j=0; j<settingsSheetAllData.length; j++){
-    if (settingsSheetAllData[j][0]=='Cell Style' && j+1<settingsSheetAllData.length){
+    if (settingsSheetAllData[j][0]=='Color' && j+1<settingsSheetAllData.length){
       startRow = j+1
-      console.log(startRow)
       break
     }
   }
@@ -577,8 +662,8 @@ function loadSettings(){
     let start = undefined
     let end = undefined
     for (let i=0; i<settingsTrimmed.length; i++){
-      if (settingsTrimmed[i][0]==string && i+1<settingsTrimmed.length)
-        {start = i+1
+      if (settingsTrimmed[i][0]==string && i+1<settingsTrimmed.length){
+        start = i+1
         break
       }
     }
@@ -589,6 +674,11 @@ function loadSettings(){
                 break
     }}}
     if (start!==undefined && end!==undefined) {
+        if (string=="Color"){
+          for(let i=start; i<end; i++){
+            settingsTrimmed[i][0] = settingsSheetAllColors[i][0]
+          }
+        }
         return settingsTrimmed.slice(start,end)
     }else console.error(`can't find start/end point in settings for ${string}. start:${start}, end:${end}`)
   }
@@ -625,7 +715,6 @@ function getWiwData(token:string, deskSchedDate:Date):WiwData{
   if (!settings.locationID) ui.alert(`location id missing from settings - go to the SETTINGS sheet and make sure the setting "locationID" has a value from the following:\n\n${JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/locations`, options).getContentText()).locations.map(l=>l.name+': '+l.id).join('\n')}`, ui.ButtonSet.OK)
 
   wiwData.shifts = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/shifts?location_id=${settings.locationID}&start=${deskSchedDate.toISOString()}&end=${new Date(deskSchedDate.getTime()+86399000).toISOString()}`, options).getContentText()).shifts //change to setDate, getDate+1, currently will break on daylight savings... or make seperate deskSchedDateEnd where you set the time to 23:59:59
-  //ui.alert(wiwData.shifts)
 
   wiwData.annotations = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/annotations?&start_date=${deskSchedDate.toISOString()}&end_date=${new Date(deskSchedDate.getTime()+86399000).toISOString()}`, options).getContentText()).annotations //change to setDate, getDate+1, currently will break on daylight savings
   log("wiwData.annotations:\n"+JSON.stringify(wiwData.annotations))
@@ -636,7 +725,6 @@ function getWiwData(token:string, deskSchedDate:Date):WiwData{
   }
 
   wiwData.users = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/users`, options).getContentText()).users
-  //ui.alert(JSON.stringify(wiwUsers))
 
   wiwData.tagsUsers = JSON.parse(UrlFetchApp.fetch(`https://worktags.api.wheniwork-production.com/users`, 
     {
@@ -660,7 +748,6 @@ function getWiwData(token:string, deskSchedDate:Date):WiwData{
   }).getContentText()).data
   log('wiwTags:\n'+ JSON.stringify(wiwData.tags))
 
-  // ui.alert(JSON.stringify(wiwData))
   return wiwData
 }
 
@@ -676,4 +763,12 @@ function parseDate(deskScheduleDate:Date, timeString:string, earliestHour:number
     let date = new Date(deskScheduleDate)
     date.setHours(h, m)
     return date
+}
+
+interface Date{
+  addTime: (hours:number,minutes?:number,seconds?:number)=>Date
+}
+Date.prototype.addTime = function(hours:number,minutes:number=0,seconds:number=0){
+  this.setTime(this.getTime()+ hours*60*60*1000 + minutes*60*1000 + seconds*1000)
+  return this
 }
