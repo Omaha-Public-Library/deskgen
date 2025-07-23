@@ -1,24 +1,9 @@
 //next steps - display station legend (use setvalues array to batch), render initialized board (also using batching figured out for dt)
 var settings;
+var displayCells;
 const ss = SpreadsheetApp.getActiveSpreadsheet();
 const templateSheet = ss.getSheetByName('TEMPLATE');
 var token = null;
-/* not used, remove? or change to interface?*/
-const templateCellNames = {
-    date: '$$date',
-    picTimeStart: '$$picTimeStart',
-    timeStart: '$$timeStart',
-    shiftPosition: '$$shiftPosition',
-    shiftName: '$$shiftName',
-    shiftTime: '$$shiftTime',
-    stationGrid: '$$stationGrid',
-    happeningToday: '$$happeningToday',
-    stationColor: '$$stationColor',
-    stationName: '$$stationName',
-    openingDutyTitle: '$$openingDutyTitle',
-    openingDutyName: '$$openingDutyName',
-    openingDutyCheck: '$$openingDutyCheck'
-};
 function onOpen() {
     SpreadsheetApp.getUi().createMenu('Generator')
         .addItem('Redo Schedule for current date', 'deskgen.buildDeskSchedule')
@@ -31,8 +16,13 @@ function buildDeskSchedule(tomorrow = false) {
     var deskSheet = ss.getActiveSheet();
     const ui = SpreadsheetApp.getUi();
     settings = loadSettings();
-    var displayCells = new DisplayCells();
+    displayCells = new DisplayCells(ss.getSheetByName('TEMPLATE'));
     var deskSchedDate;
+    //Make sure not running on template
+    if (deskSheet.getSheetName() == 'TEMPLATE') {
+        ui.alert(`The generator can't be run from the template. Choose another sheet, or make a blank one with a date in cell A1.`);
+        return;
+    }
     //Make sure date is present in sheet
     var dateCell = displayCells.getByName('date').getValue();
     if (isNaN(Date.parse(dateCell))) {
@@ -69,9 +59,10 @@ function buildDeskSchedule(tomorrow = false) {
     log('deskSchedDate: ' + deskSchedDate);
     const wiwData = getWiwData(token, deskSchedDate);
     var deskSchedule = new DeskSchedule(deskSchedDate, wiwData, settings);
-    deskSchedule.displayEvents(displayCells);
     deskSchedule.timelineInit();
     deskSchedule.timelineGenerate();
+    deskSchedule.timelineDisplay();
+    deskSchedule.displayEvents(displayCells);
     ui.alert(JSON.stringify(deskSchedule));
     deskSchedule.popupDeskDataLog();
 }
@@ -178,7 +169,7 @@ class DeskSchedule {
         log('annotationEvents:\n' + JSON.stringify(annotationEvents));
         log('annotationShifts:\n' + JSON.stringify(annotationShifts));
         log('annotationUser:\n' + JSON.stringify(annotationUser));
-        const positionHierarchy = [
+        this.positionHierarchy = [
             { "id": 11534158, "name": "Branch Manager", "group": "Reference", "picTime": 3 },
             { "id": 11534159, "name": "Assistant Branch Manager", "group": "Reference", "picTime": 3 },
             { "id": 11534161, "name": "Specialist", "group": "Reference", "picTime": 2 },
@@ -230,7 +221,7 @@ class DeskSchedule {
                     let timeTo5 = Math.abs((endTime.getHours() + startTime.getHours()) / 2 - 17);
                     mealHour = timeTo12 < timeTo5 ? 12 : 16;
                 }
-                this.shifts.push(new Shift(s.user_id, wiwUserObj.first_name + ' ' + wiwUserObj.last_name, startTime, endTime, eventsFormatted, mealHour, false, wiwUserObj.positions[0], positionHierarchy.filter(obj => obj.id == wiwUserObj.positions[0])[0].group || 'unknown position group', wiwTagsNameArr));
+                this.shifts.push(new Shift(s.user_id, wiwUserObj.first_name + ' ' + wiwUserObj.last_name, startTime, endTime, eventsFormatted, mealHour, false, wiwUserObj.positions[0], this.positionHierarchy.filter(obj => obj.id == wiwUserObj.positions[0])[0].group || 'unknown position group', wiwTagsNameArr));
             }
         });
         wiwData.users.concat(annotationUser).forEach(u => {
@@ -271,6 +262,7 @@ Creighton Zine class/program @ 4-5`);
             return matches[0];
     }
     displayEvents(displayCells) {
+        displayCells.update(SpreadsheetApp.getActiveSheet());
         let eventString = '';
         this.shifts.forEach(s => {
             if (s.events != undefined && s.events.length > 0 && s.user_id != 0) {
@@ -313,6 +305,53 @@ Creighton Zine class/program @ 4-5`);
             }
         });
         this.logDeskData('after initializing availability and events');
+    }
+    timelineDisplay() {
+        const sheet = ss.getActiveSheet();
+        //Sort shifts for display - alphabetially, then by position group, then by whether they are working
+        this.shifts
+            .sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }))
+            .sort((a, b) => this.positionHierarchy.map(h => h.id).indexOf(a.position) - this.positionHierarchy.map(h => h.id).indexOf(b.position));
+        //then sort by whether person is working, if there's a setting for showing staff that aren't working
+        //Add times to timeline - need to test if this works for <830am >8pm timelines
+        displayCells.getAllByName('timeStart').getRanges().forEach(startRange => {
+            let values = [];
+            for (let time = new Date(this.dayStartTime); time < this.dayEndTime; time.addTime(0, 30)) {
+                values.push(time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }).replace('AM', '').replace('PM', '').replace(' ', ''));
+            }
+            let row = sheet.getRange(startRange.getRow(), startRange.getColumn(), 1, values.length);
+            row.setValues([values]);
+        });
+        //Add rows to match number of shifts
+        sheet.insertRowsAfter(displayCells.getByName('shiftName').getRow(), this.shifts.length - 1);
+        displayCells.update(SpreadsheetApp.getActiveSheet());
+        //Fill in columns
+        mergeConsecutiveInColumn(//hate this syntax, but can't extend GAS classes
+        displayCells.getByNameColumn('shiftPosition', '', this.shifts.length)
+            .setValues(this.shifts.map(s => [s.positionGroup])));
+        displayCells.getByNameColumn('shiftName', '', this.shifts.length)
+            .setValues(this.shifts.map(s => [this.shortenFullName(s.name)]));
+        displayCells.getByNameColumn('shiftTime', '', this.shifts.length)
+            .setValues(this.shifts.map(s => [
+            s.startTime.toLocaleTimeString().split(':').slice(0, 2).join(':')
+                + '-' +
+                s.endTime.toLocaleTimeString().split(':').slice(0, 2).join(':')
+        ]));
+        displayCells.getByNameColumn('stationColor', '', this.stations.length)
+            .setBackgrounds(this.stations.map(s => [s.color]));
+        displayCells.getByNameColumn('stationName', '', this.stations.length)
+            .setValues(this.stations.map(s => [s.name]));
+        //replace once opening duties are generatred in deskSchedule
+        displayCells.getByNameColumn('openingDutyTitle', '', settings.openingDuties.length)
+            .setValues(settings.openingDuties.map(d => [d.name]));
+        displayCells.getByNameColumn('openingDutyName', '', settings.openingDuties.length)
+            .setValues(settings.openingDuties.map(d => ['staff name']));
+        displayCells.getByNameColumn('openingDutyCheck', '', settings.openingDuties.length)
+            .insertCheckboxes();
+        //Display station colors
+        let colorArr = this.shifts.map(shift => shift.stationTimeline.map(station => this.getStation(station).color));
+        let timelineRange = displayCells.getByName2D('shiftStationGridStart', '', this.shifts.length, this.shifts[0].stationTimeline.length);
+        timelineRange.setBackgrounds(colorArr);
     }
     logDeskData(description) {
         if (!settings.verboseLog)
@@ -357,6 +396,16 @@ Creighton Zine class/program @ 4-5`);
             SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Timeline Debug');
         }
     }
+    shortenFullName(name) {
+        let nameList = this.shifts.map(s => s.name);
+        for (let i = 0; i < name.length; i++) {
+            if (i == name.length - 1)
+                return name.split(' ')[0];
+            if (nameList.filter(n => n.split(' ')[0] + n.split(' ')[1].substring(0, i) == name.split(' ')[0] + name.split(' ')[1].substring(0, i)).length > 1)
+                continue;
+            return name.split(' ')[0] + ' ' + name.split(' ')[1].substring(0, i).trim();
+        }
+    }
 }
 class Station {
     constructor(name, color = `#ffffff`, positionPriority = [], //position[] when implemented
@@ -393,7 +442,7 @@ class Shift {
     }
     setStationAtTime(time, startTime, station) {
         let halfHoursSinceStartTime = Math.round(Math.abs(time.getTime() - startTime.getTime()) / 1000 / 60 / 60 * 2);
-        console.log(startTime, time, halfHoursSinceStartTime);
+        // console.log(startTime, time, halfHoursSinceStartTime)
         this.stationTimeline[halfHoursSinceStartTime] = station;
     }
 }
@@ -424,15 +473,15 @@ class DisplayCell {
     get a1() { return this.cellCoords.a1; }
 }
 class DisplayCells {
-    constructor() {
+    constructor(sheet) {
         this.list = [];
-        this.update();
+        this.update(sheet);
     }
     // get list() {return this.data}
     // get row() {retrun this.data.}
-    update() {
-        let template = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('TEMPLATE');
-        let notes = template.getRange(1, 1, template.getMaxRows(), template.getMaxColumns()).getNotes();
+    update(sheet) {
+        // let template = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('TEMPLATE')
+        let notes = sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).getNotes();
         this.list = (() => {
             let result = [];
             for (let row = 0; row < notes.length; row++) {
@@ -488,6 +537,22 @@ class DisplayCells {
         else
             return SpreadsheetApp.getActiveSheet().getRange(matches[0].a1);
     }
+    getByNameColumn(name, group = '', columnLength) {
+        let matches = this.list.filter(d => d.name == name);
+        // console.log(matches[0], matches[0].a1)
+        if (matches.length < 1)
+            console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`);
+        else
+            return SpreadsheetApp.getActiveSheet().getRange(matches[0].row, matches[0].col, columnLength, 1);
+    }
+    getByName2D(name, group = '', numRows, numColumns) {
+        let matches = this.list.filter(d => d.name == name);
+        // console.log(matches[0], matches[0].a1)
+        if (matches.length < 1)
+            console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`);
+        else
+            return SpreadsheetApp.getActiveSheet().getRange(matches[0].row, matches[0].col, numRows, numColumns);
+    }
     getAllByName(name, group = '') {
         let matches = this.list.filter(d => d.name == name);
         if (matches.length < 1)
@@ -507,8 +572,8 @@ function loadSettings() {
     var settingsSheetAllColors = settingsSheet.getDataRange().getBackgrounds();
     var settingsTrimmed = settingsSheetAllData.map(s => s.filter(s => s !== ''));
     var settings = Object.fromEntries(getSettingsBlock('Settings Name', settingsTrimmed).map(([k, v]) => [k, v]));
-    var openingDutiesData = getSettingsBlock('Opening Duties', settingsTrimmed);
-    settings.openingDutiesData = openingDutiesData.map((line) => ({ "name": line[0], "requirePIC": line[1] }));
+    var openingDuties = getSettingsBlock('Opening Duties', settingsTrimmed);
+    settings.openingDuties = openingDuties.map((line) => ({ "name": line[0], "requirePIC": line[1] }));
     // SpreadsheetApp.getUi().alert(JSON.stringify(settingsSheetAllData))
     settings.stations = getSettingsBlock('Color', settingsSheetAllData)
         .map((line) => ({
@@ -617,7 +682,47 @@ function getWiwData(token, deskSchedDate) {
 function IndexToA1(num) {
     return (num / 26 <= 1 ? '' : String.fromCharCode(((Math.floor((num - 1) / 26) - 1) % 26) + 65)) + String.fromCharCode(((num - 1) % 26) + 65);
 }
-//
+function mergeConsecutiveInRow(range) {
+    let values = range.getValues();
+    // console.log("mergevalues: ", values)
+    let startCol = 0;
+    for (let col = 0; col < range.getNumColumns(); col++) {
+        // console.log(values[0][col], values[0][col+1], values[0][col] == values[0][col+1])
+        if (values[0][col] == values[0][col + 1]) { }
+        else {
+            // console.log('col and col+1 not equal')
+            if (startCol < col) {
+                // console.log('startCol < col, ',startCol, col, ' merging range: ', range.getRow(), range.getColumn()+startCol, 1, col-startCol+1)
+                range.getSheet().getRange(range.getRow(), range.getColumn() + startCol, 1, col - startCol + 1)
+                    .mergeAcross();
+            }
+            startCol = col + 1;
+            // console.log('startCol increment, ', startCol, col)
+        }
+    }
+}
+function mergeConsecutiveInColumn(range) {
+    let values = range.getValues();
+    // console.log("mergevalues: ", values)
+    let startRow = 0;
+    for (let row = 0; row < range.getNumRows(); row++) {
+        if (values[row][0] == (values[row + 1] || [undefined])[0]) { }
+        else {
+            // console.log('row and row+1 not equal')
+            if (startRow < row) {
+                // console.log('startRow < row, ',startRow, row, ' merging range: ', range.getRow(), range.getRow()+startRow, 1, row-startRow+1)
+                range.getSheet().getRange(range.getRow() + startRow, range.getColumn(), row - startRow + 1, 1)
+                    .mergeVertically();
+            }
+            else { //if not consecutive, don't merge and shorten to single letter (Clerk=>C)
+                let r = range.getSheet().getRange(range.getRow() + startRow, range.getColumn(), row - startRow + 1, 1);
+                r.setValue(r.getValue().substring(0, 1));
+            }
+            startRow = row + 1;
+            // console.log('startRow increment, ', startRow, row)
+        }
+    }
+}
 function parseDate(deskScheduleDate, timeString, earliestHour) {
     let h = parseInt(timeString.split(':')[0]);
     let m = parseInt(timeString.split(':').length > 1 ? timeString.split(':')[1] : '00');
