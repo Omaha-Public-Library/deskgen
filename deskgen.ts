@@ -1,8 +1,12 @@
-//next steps - display station legend (use setvalues array to batch), render initialized board (also using batching figured out for dt)
-
-var settings
+//======== to do ========
+//PIC timeline
+//
+//explore using branch calendar for event/meeting handling instead of WIW notes
+var settings: Settings
 var displayCells: DisplayCells
-const ss = SpreadsheetApp.getActiveSpreadsheet()
+var ss = SpreadsheetApp.getActiveSpreadsheet()
+var deskSheet = ss.getActiveSheet()
+const ui = SpreadsheetApp.getUi()
 const templateSheet = ss.getSheetByName('TEMPLATE')
 var token: string = null
 
@@ -18,7 +22,6 @@ function buildDeskScheduleTomorrow(){
 
 function buildDeskSchedule(tomorrow: Boolean=false){
   var deskSheet = ss.getActiveSheet()
-  const ui = SpreadsheetApp.getUi()
   settings = loadSettings()
   displayCells = new DisplayCells(ss.getSheetByName('TEMPLATE'))
   var deskSchedDate: Date
@@ -28,7 +31,6 @@ function buildDeskSchedule(tomorrow: Boolean=false){
     ui.alert(`The generator can't be run from the template. Choose another sheet, or make a blank one with a date in cell A1.`)
     return
   }
-
   //Make sure date is present in sheet
   var dateCell = displayCells.getByName('date').getValue()
   if(isNaN(Date.parse(dateCell))){
@@ -37,7 +39,6 @@ function buildDeskSchedule(tomorrow: Boolean=false){
   }else deskSchedDate = new Date(dateCell.setHours(0,0,0,0))
 
   //If making schedule for tomorrow, check if tomorrow sheet exists, if not, make it
-
   if(tomorrow) deskSchedDate = new Date(deskSchedDate.setDate(deskSchedDate.getDate() + 1))
   
   var newSheetName = sheetNameFromDate(deskSchedDate)
@@ -45,7 +46,6 @@ function buildDeskSchedule(tomorrow: Boolean=false){
 
   //if sheet exists but is not the active sheet, open it
   if(ss.getSheetByName(newSheetName)!==null && ss.getActiveSheet().getName() !== newSheetName) {
-    const ui = SpreadsheetApp.getUi()
     let result = ui.alert("A sheet for "+newSheetName+" already exists.","Open this sheet?",ui.ButtonSet.YES_NO)
     if (result == ui.Button.YES){
       deskSheet=ss.getSheetByName(newSheetName)
@@ -70,15 +70,16 @@ function buildDeskSchedule(tomorrow: Boolean=false){
 
   var deskSchedule = new DeskSchedule(deskSchedDate, wiwData, settings)
   
+  //generate timeline
   deskSchedule.timelineInit()
-  
-  deskSchedule.timelineGenerate()
-  
+  deskSchedule.timelineAddAvailabilityAndEvents()
+  deskSchedule.timelineAddMeals()
+  //display timeline
   deskSchedule.timelineDisplay()
-  
+  //other displays
   deskSchedule.displayEvents(displayCells)
 
-  ui.alert(JSON.stringify(deskSchedule))
+  // ui.alert(JSON.stringify(deskSchedule))
   deskSchedule.popupDeskDataLog()
 }
 
@@ -105,7 +106,6 @@ class DeskSchedule{
     this.dayEndTime = new Date(this.date)
     this.dayEndTime.setHours(20)
     this.shifts=[]
-    this.stations=[]
     this.eventsErrorLog=[]
     this.logDeskDataRecord = []
     this.stations = [
@@ -242,11 +242,14 @@ class DeskSchedule{
 
         let startTime = new Date(s.start_time)
         let endTime = new Date(s.end_time)
-        let mealHour //if working more than four hours, check if halfway point of shift is closer to 12 or 5
+        let idealMealTime = undefined
+        //if working 8+ hours, assign whichever mealtime is closest to midpoint of shift
         if (endTime.getHours()-startTime.getHours()>=8){
-          let timeTo12 = Math.abs((endTime.getHours()+startTime.getHours())/2-12)
-          let timeTo5 = Math.abs((endTime.getHours()+startTime.getHours())/2-17)
-          mealHour = timeTo12 < timeTo5 ? 12 : 16
+          let timeToEarlyMeal = Math.abs((endTime.getHours()+startTime.getHours())/2-settings.idealEarlyMealHour)
+          let timeToLateMeal = Math.abs((endTime.getHours()+startTime.getHours())/2-settings.idealLateMealHour)
+          let hour = timeToEarlyMeal < timeToLateMeal ? settings.idealEarlyMealHour : settings.idealLateMealHour
+          idealMealTime = new Date(this.date)
+          idealMealTime.setHours(hour, Math.round((hour-Math.floor(hour))*60))
         }
 
         this.shifts.push(new Shift(
@@ -255,14 +258,13 @@ class DeskSchedule{
           startTime,
           endTime,
           eventsFormatted,
-          mealHour,
+          idealMealTime,
           false,
           wiwUserObj.positions[0],
           this.positionHierarchy.filter(obj=>obj.id == wiwUserObj.positions[0])[0].group || 'unknown position group',
           wiwTagsNameArr,
         ))}
     })
-
     wiwData.users.concat(annotationUser).forEach(u=>{
       if(wiwData.shifts.concat(annotationShifts).filter(shift=>{return shift.user_id == u.id}).length==0){ //if this user doesn't exist in shifts...
         if(settings.alwaysShowAllStaff || (settings.alwaysShowBranchManager && u.role == 1) || (settings.alwaysShowAssistantBranchManager && u.role ==2)){
@@ -276,7 +278,7 @@ class DeskSchedule{
     
     if(eventErrorLog.length>0){
       log('eventErrorLog:\n'+ eventErrorLog)
-      SpreadsheetApp.getUi().alert(
+      ui.alert(
 `Cannot parse events:
 -----
 ${eventErrorLog.join(',\n\n')}
@@ -295,13 +297,22 @@ Creighton Zine class/program @ 4-5`
         if(s.endTime>this.dayEndTime)     this.dayEndTime = s.endTime
       } 
     })
-    log('shifts:\n'+ JSON.stringify(this.shifts))
+    // log('shifts:\n'+ JSON.stringify(this.shifts))
   }
 
-  getStation(name:string):Station{
-    let matches: Station[] = this.stations.filter(d=>d.name==name)
-    if (matches.length<1) console.error(`no stations with name '${name}' in stations:\n${JSON.stringify(this.stations)}`)
+  getStation(stationName:string):Station{
+    let matches: Station[] = this.stations.filter(d=>d.name==stationName)
+    if (matches.length<1) console.error(`no stations with name '${stationName}' in stations:\n${JSON.stringify(this.stations)}`)
     else return matches[0]
+  }
+
+  getStationCountAtTime(stationName:string, time:Date, dayStartTime:Date){
+    let count = 0
+    this.shifts.forEach(s=>{
+      if(s.getStationAtTime(time, dayStartTime)==stationName)
+        count++
+    })
+    return count
   }
 
   displayEvents(displayCells: DisplayCells){
@@ -331,21 +342,58 @@ Creighton Zine class/program @ 4-5`
     this.logDeskData("initialized empty")
   }
 
-  timelineGenerate(){
+  timelineAddAvailabilityAndEvents(){
     //fill in availability and events
-    this.shifts.forEach(shift=> {
-      for(let time = new Date(this.dayStartTime); time < this.dayEndTime; time.addTime(0, 30)){
-        //set all blocks to 
-        if(time >= shift.startTime && time < shift.endTime) shift.setStationAtTime(time,this.dayStartTime, this.defaultStations.available)
-        else shift.setStationAtTime(time, this.dayStartTime, this.defaultStations.off)
-        if(shift.events.length>0){
-          shift.events.forEach(event=>{
-            if(time >= event.startTime && time < event.endTime) shift.setStationAtTime(time, this.dayStartTime, this.defaultStations.programMeeting)
-          })
-        }
-      }
+    this.forEachShiftBlock((shift, time)=>{
+      if(time >= shift.startTime && time < shift.endTime)
+        shift.setStationAtTime(time, this.dayStartTime, this.defaultStations.available)
+      else
+        shift.setStationAtTime(time, this.dayStartTime, this.defaultStations.off)
+      shift.events.forEach(event=>{
+        if(time >= event.startTime && time < event.endTime)
+          shift.setStationAtTime(time, this.dayStartTime, this.defaultStations.programMeeting)
+      })
     })
     this.logDeskData('after initializing availability and events')
+  }
+
+  timelineAddMeals(){
+      //sort shifts by longest time worked before meal
+      this.shifts.sort((a,b)=>
+        (b.idealMealTime?.getTime()-b.startTime.getTime()) - (a.idealMealTime?.getTime()-a.startTime.getTime())
+      )
+      //for each shift...
+      this.shifts.forEach(shift=>{
+        if(!shift.idealMealTime) return //idealMealTime will be undefined if <8hr shift
+        let highestAvailabilityTimes: {time:Date, availabilityTotal:number}[] = []
+        //in 30 minute increments, step alternating forward/back (0, 30, -30, 60, -60) to possible start times, in decreasing proximity to ideal
+        for(let startMinutes = 0; startMinutes<=settings.idealMealTimePlusMinusHours*60; startMinutes = startMinutes>0 ? startMinutes*-1 : startMinutes*-1+30){
+          let startTime = new Date(shift.idealMealTime).addTime(0, startMinutes)
+          let availabilityTotal = 0
+          //for each start time, count total available staff for each half hour over length of break
+          for(let minutes = 0; minutes<settings.mealBreakLength*60; minutes+=30){
+            let time = new Date(shift.idealMealTime).addTime(0, startMinutes+minutes)
+            availabilityTotal += this.getStationCountAtTime(this.defaultStations.available, time, this.dayStartTime)
+          }
+          //add count to array
+          highestAvailabilityTimes.push({time: startTime, availabilityTotal: availabilityTotal})
+        }
+        //sort resulting array by availability total (tie broken by existing proximity to ideal order)
+        highestAvailabilityTimes.sort((a,b)=>b.availabilityTotal-a.availabilityTotal)
+        //assign staff to best meal time
+        for(let minutes = 0; minutes<settings.mealBreakLength*60; minutes+=30){
+          shift.setStationAtTime(highestAvailabilityTimes[0].time.addTime(0,minutes), this.dayStartTime, this.defaultStations.mealBreak)
+        }
+      })
+      this.logDeskData('after adding meal breaks')
+  }
+
+  forEachShiftBlock(func: (shift:Shift, time:Date)=>void){
+    this.shifts.forEach(shift=> {
+      for(let time = new Date(this.dayStartTime); time < this.dayEndTime; time.addTime(0, 30)){
+        func(shift, time)
+      }
+    })
   }
 
   timelineDisplay(){
@@ -446,7 +494,7 @@ Creighton Zine class/program @ 4-5`
           )
       htmlTemplate.logDeskDataRecord = this.logDeskDataRecord
       var htmlOutput = htmlTemplate.evaluate().setSandboxMode(HtmlService.SandboxMode.IFRAME).setWidth(700).setHeight(700);
-      SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Timeline Debug');
+      ui.showModalDialog(htmlOutput, 'Timeline Debug');
     }
   }
 
@@ -465,6 +513,7 @@ type ColorHex = `#${string}`
 class Station{
   name: string
   color: ColorHex
+  numOfStaff: number
   positionPriority: string[]
   durationType: string
   startTime: Date
@@ -474,6 +523,7 @@ class Station{
   constructor(
     name: string,
     color: `#${string}` = `#ffffff`,
+    numOfStaff = 1,
     positionPriority: string[] = [], //position[] when implemented
     durationType: string = "Always",
     startTime: Date = undefined,
@@ -482,6 +532,7 @@ class Station{
   ){
     this.name=name
     this.color=color
+    this.numOfStaff = numOfStaff
     this.positionPriority=positionPriority
     this.durationType=durationType
     this.startTime=startTime
@@ -503,7 +554,7 @@ class Shift{
   startTime: Date
   endTime: Date
   events: ShiftEvent[]
-  mealHour: number
+  idealMealTime: Date
   assignedPIC: Boolean
   position: number
   positionGroup: string
@@ -517,7 +568,7 @@ class Shift{
     startTime: Date = undefined,
     endTime: Date = undefined,
     events: [] = [],
-    mealHour: number = 12,
+    idealMealTime: Date = undefined,
     assignedPIC: Boolean = false,
     position: number = undefined,
     positionGroup: string = undefined,
@@ -530,7 +581,7 @@ class Shift{
     this.startTime = startTime
     this.endTime = endTime
     this.events = events
-    this.mealHour = mealHour
+    this.idealMealTime = idealMealTime
     this.assignedPIC = assignedPIC
     this.position = position
     this.positionGroup = positionGroup
@@ -539,15 +590,15 @@ class Shift{
     this.picTimeline = picTimeline
   }
 
-  getStationAtTime(time:Date, startTime:Date):string{
-    let halfHoursSinceStartTime = Math.round(Math.abs(time.getTime() - startTime.getTime())/1000/60/60*2)
-    return this.stationTimeline[halfHoursSinceStartTime]
+  getStationAtTime(time:Date, dayStartTime:Date):string{
+    let halfHoursSinceDayStartTime = Math.round(Math.abs(time.getTime() - dayStartTime.getTime())/1000/60/60*2)
+    return this.stationTimeline[halfHoursSinceDayStartTime]
   }
 
-  setStationAtTime(time:Date, startTime:Date, station:string){
-    let halfHoursSinceStartTime = Math.round(Math.abs(time.getTime() - startTime.getTime())/1000/60/60*2)
+  setStationAtTime(time:Date, dayStartTime:Date,station:string){
+    let halfHoursSinceDayStartTime = Math.round(Math.abs(time.getTime() - dayStartTime.getTime())/1000/60/60*2)
     // console.log(startTime, time, halfHoursSinceStartTime)
-    this.stationTimeline[halfHoursSinceStartTime] = station
+    this.stationTimeline[halfHoursSinceDayStartTime] = station
   }
 }
 
@@ -633,7 +684,7 @@ class DisplayCells{
           }
         }
       } 
-      log(result)
+      // log(result)
       return result
     })()
     //check that required display cells are marked, ui alert if not... loopthrough, make sure all names exist and have int row/col
@@ -653,7 +704,6 @@ class DisplayCells{
       'openingDutyTitle',
       'openingDutyName',
       'openingDutyCheck',
-      'testreq'
     ]
     requiredDisplayCells.forEach(n=>{
       if(this.list.filter(dc=> n===dc.name).length<1) console.error(`display cell name '${n}' is required and isn't found in loaded cells: ${JSON.stringify(this.list)}`)
@@ -695,7 +745,21 @@ function log(arg?:any){
     }
 }
 
-function loadSettings(){
+class Settings{
+  stations: Station[]
+  locationID: number
+  alwaysShowAllStaff: boolean
+  alwaysShowBranchManager: boolean
+  alwaysShowAssistantBranchManager: boolean
+  openingDuties: any
+  verboseLog: boolean
+  idealEarlyMealHour: number
+  idealLateMealHour: number
+  mealBreakLength: number
+  idealMealTimePlusMinusHours: number
+}
+
+function loadSettings(): Settings {
   const settingsSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS")
   var settingsSheetAllData = settingsSheet.getDataRange().getValues()
   var settingsSheetAllColors = settingsSheet.getDataRange().getBackgrounds()
@@ -706,7 +770,7 @@ function loadSettings(){
   var openingDuties = getSettingsBlock('Opening Duties', settingsTrimmed)
 
   settings.openingDuties = openingDuties.map((line)=>({"name":line[0], "requirePIC":line[1]}))
-  // SpreadsheetApp.getUi().alert(JSON.stringify(settingsSheetAllData))
+  // ui.alert(JSON.stringify(settingsSheetAllData))
   settings.stations = getSettingsBlock('Color', settingsSheetAllData)
   .map((line)=>({
     "color":line[0],
@@ -756,7 +820,7 @@ function loadSettings(){
 
   if (settings.verboseLog) console.log("settings loaded from sheet:\n"+JSON.stringify(settings))
 
-  return settings
+  return settings as Settings
 }
 
 function sheetNameFromDate(date: Date):string{
@@ -764,7 +828,6 @@ function sheetNameFromDate(date: Date):string{
 }
 
 function getWiwData(token:string, deskSchedDate:Date):WiwData{
-  let ui = SpreadsheetApp.getUi()
   let wiwData:WiwData = new WiwData()
   //Get Token
   if(token==null){
@@ -790,7 +853,7 @@ function getWiwData(token:string, deskSchedDate:Date):WiwData{
   log("wiwData.annotations:\n"+JSON.stringify(wiwData.annotations))
 
   if(wiwData.shifts.length<1 && wiwData.annotations.length<0){
-    ui.alert(`There are no shifts or announcements (annotations) published in WhenIWork at location: \n—${settings.ocation_id} (${settings.locationID})\nbetween\n—${deskSchedDate.toString()}\nand\n—${new Date(deskSchedDate.getTime()+86399000).toString()}`)
+    ui.alert(`There are no shifts or announcements (annotations) published in WhenIWork at location: \n—${settings.locationID} (${settings.locationID})\nbetween\n—${deskSchedDate.toString()}\nand\n—${new Date(deskSchedDate.getTime()+86399000).toString()}`)
     return
   }
 
