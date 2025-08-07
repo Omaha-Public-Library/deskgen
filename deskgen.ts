@@ -1,7 +1,9 @@
 //======== to do ========
+//numOfStaff for positions
+//meals - assign to not-open times if possible (sundays)
 //PIC timeline
-//
 //explore using branch calendar for event/meeting handling instead of WIW notes
+
 var settings: Settings
 var displayCells: DisplayCells
 var ss = SpreadsheetApp.getActiveSpreadsheet()
@@ -22,10 +24,9 @@ function buildDeskScheduleTomorrow(){
 
 function buildDeskSchedule(tomorrow: Boolean=false){
   var deskSheet = ss.getActiveSheet()
-  settings = loadSettings()
   displayCells = new DisplayCells(ss.getSheetByName('TEMPLATE'))
   var deskSchedDate: Date
-
+  
   //Make sure not running on template
   if(deskSheet.getSheetName()=='TEMPLATE'){
     ui.alert(`The generator can't be run from the template. Choose another sheet, or make a blank one with a date in cell A1.`)
@@ -38,12 +39,15 @@ function buildDeskSchedule(tomorrow: Boolean=false){
     return
   }else deskSchedDate = new Date(dateCell.setHours(0,0,0,0))
 
+  //Load settings
+  settings = loadSettings(deskSchedDate)
+  
   //If making schedule for tomorrow, check if tomorrow sheet exists, if not, make it
   if(tomorrow) deskSchedDate = new Date(deskSchedDate.setDate(deskSchedDate.getDate() + 1))
-  
+    
   var newSheetName = sheetNameFromDate(deskSchedDate)
   log(`setting up sheet:${deskSchedDate}, ${newSheetName}, ${ss.getSheetByName(newSheetName)}`)
-
+  
   //if sheet exists but is not the active sheet, open it
   if(ss.getSheetByName(newSheetName)!==null && ss.getActiveSheet().getName() !== newSheetName) {
     let result = ui.alert("A sheet for "+newSheetName+" already exists.","Open this sheet?",ui.ButtonSet.YES_NO)
@@ -62,22 +66,28 @@ function buildDeskSchedule(tomorrow: Boolean=false){
     deskSheet=ss.getSheetByName(newSheetName)
     deskSheet.activate()
   }
-
+  
   displayCells.getByName('date').setValue(deskSchedDate.toDateString())
   log('deskSchedDate: '+deskSchedDate)
-
+  
   const wiwData = getWiwData(token, deskSchedDate)
-
+  
   var deskSchedule = new DeskSchedule(deskSchedDate, wiwData, settings)
   
   //generate timeline
   deskSchedule.timelineInit()
   deskSchedule.timelineAddAvailabilityAndEvents()
   deskSchedule.timelineAddMeals()
+  deskSchedule.timelineAddStations()
+
   //display timeline
   deskSchedule.timelineDisplay()
+
   //other displays
   deskSchedule.displayEvents(displayCells)
+
+  //cleanup - clear template notes used for displayCells
+  deskSheet.getDataRange().clearNote()
 
   // ui.alert(JSON.stringify(deskSchedule))
   deskSchedule.popupDeskDataLog()
@@ -108,15 +118,19 @@ class DeskSchedule{
     this.shifts=[]
     this.eventsErrorLog=[]
     this.logDeskDataRecord = []
-    this.stations = [
-      //required stations
-      new Station(this.defaultStations.off, `#666666`),
+    this.stations = []
+
+    settings.stations.forEach(s => {
+      this.stations.push(new Station(s.name,s.color,s.numOfStaff, s.positionPriority,s.durationType,s.startTime,s.endTime,s.group))
+    });
+    [ //add required stations if they don't already exist
+      new Station(this.defaultStations.programMeeting, `#ffd966`),
       new Station(this.defaultStations.available, `#ffffff`),
       new Station(this.defaultStations.mealBreak, `#cccccc`),
-    ]
-    settings.stations.forEach(s => {
+      new Station(this.defaultStations.off, `#666666`),
+    ].forEach(s => {
       let existingStation = this.stations.find(station => station.name == s.name)
-      let newStation = new Station(s.name,s.color,s.positionPriority,s.durationType,s.startTime,s.endTime,s.group)
+      let newStation = new Station(s.name,s.color)
       if(existingStation){
         existingStation = newStation
       }
@@ -297,12 +311,14 @@ Creighton Zine class/program @ 4-5`
         if(s.endTime>this.dayEndTime)     this.dayEndTime = s.endTime
       } 
     })
+
+    if(this.shifts.length<1) ui.alert('No shifts found for today, and no closure marked in WIW. If the branch is closed today, that day should have a closure annotation in WIW.')
     // log('shifts:\n'+ JSON.stringify(this.shifts))
   }
 
   getStation(stationName:string):Station{
     let matches: Station[] = this.stations.filter(d=>d.name==stationName)
-    if (matches.length<1) console.error(`no stations with name '${stationName}' in stations:\n${JSON.stringify(this.stations)}`)
+    if (matches.length<1) ui.alert(`station '${stationName}' is required and does not exist in stations:\n${JSON.stringify(this.stations)}`)
     else return matches[0]
   }
 
@@ -344,14 +360,14 @@ Creighton Zine class/program @ 4-5`
 
   timelineAddAvailabilityAndEvents(){
     //fill in availability and events
-    this.forEachShiftBlock((shift, time)=>{
+    this.forEachShiftBlock(this.dayStartTime, this.dayEndTime, (shift, time)=>{
       if(time >= shift.startTime && time < shift.endTime)
-        shift.setStationAtTime(time, this.dayStartTime, this.defaultStations.available)
+        shift.setStationAtTime(this.defaultStations.available, time, this.dayStartTime)
       else
-        shift.setStationAtTime(time, this.dayStartTime, this.defaultStations.off)
+        shift.setStationAtTime(this.defaultStations.off, time, this.dayStartTime)
       shift.events.forEach(event=>{
         if(time >= event.startTime && time < event.endTime)
-          shift.setStationAtTime(time, this.dayStartTime, this.defaultStations.programMeeting)
+          shift.setStationAtTime(this.defaultStations.programMeeting, time, this.dayStartTime)
       })
     })
     this.logDeskData('after initializing availability and events')
@@ -382,18 +398,41 @@ Creighton Zine class/program @ 4-5`
         highestAvailabilityTimes.sort((a,b)=>b.availabilityTotal-a.availabilityTotal)
         //assign staff to best meal time
         for(let minutes = 0; minutes<settings.mealBreakLength*60; minutes+=30){
-          shift.setStationAtTime(highestAvailabilityTimes[0].time.addTime(0,minutes), this.dayStartTime, this.defaultStations.mealBreak)
+          shift.setStationAtTime(this.defaultStations.mealBreak, highestAvailabilityTimes[0].time.addTime(0,minutes), this.dayStartTime)
         }
       })
       this.logDeskData('after adding meal breaks')
   }
 
-  forEachShiftBlock(func: (shift:Shift, time:Date)=>void){
-    this.shifts.forEach(shift=> {
-      for(let time = new Date(this.dayStartTime); time < this.dayEndTime; time.addTime(0, 30)){
-        func(shift, time)
+  timelineAddStations(){
+    this.stations.forEach(station=>{
+      //skip default stations
+      if(Object.values(this.defaultStations).includes(station.name)) return
+
+      let startTime = settings.openHours.open
+      let endTime = settings.openHours.close
+      for(let time = new Date(startTime); time < endTime; time.addTime(0, 30)){
+        this.shifts.forEach(shift=> {
+          let stationCount = this.getStationCountAtTime(station.name, time, this.dayStartTime)
+          let currentStation = shift.getStationAtTime(time, this.dayStartTime)
+          let prevStation = shift.getPrevStationAtTime(time, this.dayStartTime)
+          let timeOnPrevStation = shift.countHowLongAtStation(new Date(time).addTime(0,-30), this.dayStartTime)
+          console.log(`at ${time.getHours()}:${time.getMinutes()}, ${shift.name} has been ${prevStation} for ${timeOnPrevStation}hours.`)
+          if(currentStation == this.defaultStations.available && stationCount<1){
+            shift.setStationAtTime(station.name, time, this.dayStartTime)
+          }
+        })
       }
+      this.logDeskData('after assigning ' + station.name)
     })
+  }
+
+  forEachShiftBlock(startTime:Date=settings.openHours.open, endTime:Date=settings.openHours.close, func: (shift:Shift, time:Date)=>void){
+    for(let time = new Date(startTime); time < endTime; time.addTime(0, 30)){
+      this.shifts.forEach(shift=> {
+        func(shift, time)
+      })
+    }
   }
 
   timelineDisplay(){
@@ -516,8 +555,8 @@ class Station{
   numOfStaff: number
   positionPriority: string[]
   durationType: string
-  startTime: Date
-  endTime: Date
+  limitToStartTime: Date
+  limitToEndTime: Date
   group: string
 
   constructor(
@@ -526,8 +565,8 @@ class Station{
     numOfStaff = 1,
     positionPriority: string[] = [], //position[] when implemented
     durationType: string = "Always",
-    startTime: Date = undefined,
-    endTime: Date = undefined,
+    limitToStartTime: Date = undefined,
+    limitToEndTime: Date = undefined,
     group: string = ""
   ){
     this.name=name
@@ -535,8 +574,8 @@ class Station{
     this.numOfStaff = numOfStaff
     this.positionPriority=positionPriority
     this.durationType=durationType
-    this.startTime=startTime
-    this.endTime=endTime
+    this.limitToStartTime=limitToStartTime
+    this.limitToEndTime=limitToEndTime
     this.group=group
   }
 }
@@ -595,10 +634,26 @@ class Shift{
     return this.stationTimeline[halfHoursSinceDayStartTime]
   }
 
-  setStationAtTime(time:Date, dayStartTime:Date,station:string){
+  getPrevStationAtTime(time:Date, dayStartTime:Date):string{
+    let prevTime = new Date(time).addTime(0,-30)
+    let halfHoursSinceDayStartTime = Math.round(Math.abs(prevTime.getTime() - dayStartTime.getTime())/1000/60/60*2)
+    return this.stationTimeline[halfHoursSinceDayStartTime]
+  }
+
+  setStationAtTime(station:string, time:Date, dayStartTime:Date){
     let halfHoursSinceDayStartTime = Math.round(Math.abs(time.getTime() - dayStartTime.getTime())/1000/60/60*2)
     // console.log(startTime, time, halfHoursSinceStartTime)
     this.stationTimeline[halfHoursSinceDayStartTime] = station
+  }
+
+  countHowLongAtStation(time:Date, dayStartTime:Date):number{
+    let count = 0
+    let currentStation = this.getStationAtTime(time, dayStartTime)
+    for(let prevTime = new Date(time); prevTime >= this.startTime; prevTime.addTime(0,-30)){
+      if(this.getStationAtTime(prevTime, dayStartTime)===currentStation) count += 0.5
+      else break
+    }
+    return count
   }
 }
 
@@ -748,18 +803,21 @@ function log(arg?:any){
 class Settings{
   stations: Station[]
   locationID: number
-  alwaysShowAllStaff: boolean
-  alwaysShowBranchManager: boolean
   alwaysShowAssistantBranchManager: boolean
+  alwaysShowBranchManager: boolean
+  alwaysShowAllStaff: boolean
+  changeOnTheHour: boolean
+  assignmentLength: boolean
   openingDuties: any
   verboseLog: boolean
   idealEarlyMealHour: number
   idealLateMealHour: number
   mealBreakLength: number
   idealMealTimePlusMinusHours: number
+  openHours: {open:Date,close:Date}
 }
 
-function loadSettings(): Settings {
+function loadSettings(deskSchedDate: Date): Settings {
   const settingsSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS")
   var settingsSheetAllData = settingsSheet.getDataRange().getValues()
   var settingsSheetAllColors = settingsSheet.getDataRange().getBackgrounds()
@@ -775,11 +833,12 @@ function loadSettings(): Settings {
   .map((line)=>({
     "color":line[0],
     "name":line[1],
-    "positionPriority":line[2],
-    "durationType":line[3],
-    "startTime":line[4],
-    "endTime":line[5],
-    "group":line[6]
+    "group":line[2],
+    "positionPriority":line[3],
+    "durationType":line[4],
+    "startTime":line[5],
+    "endTime":line[6],
+    "numOfStaff":line[7]
   }))
   let startRow = 0
   for (let j=0; j<settingsSheetAllData.length; j++){
@@ -817,6 +876,13 @@ function loadSettings(): Settings {
     }else console.error(`can't find start/end point in settings for ${string}. start:${start}, end:${end}`)
   }
 
+  //horrible. need a better way to input time from settings and validate
+  let openHoursString = settings.openHours.replace(/\s/g, "").split(',')[deskSchedDate.getDay()] // should return in format "10-6"
+  let openString = openHoursString.split('-')[0]
+  let closeString = openHoursString.split('-')[1]
+  settings.openHours = {open:new Date(deskSchedDate), close:new Date(deskSchedDate)}
+  settings.openHours.open.setHours(openString, Math.round((openString-Math.floor(openString))*60))
+  settings.openHours.close.setHours(closeString, Math.round((closeString-Math.floor(closeString))*60))
 
   if (settings.verboseLog) console.log("settings loaded from sheet:\n"+JSON.stringify(settings))
 
