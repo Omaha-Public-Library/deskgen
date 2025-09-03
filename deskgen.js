@@ -1,8 +1,41 @@
-//======== to do ========
-//numOfStaff for positions
-//meals - assign to not-open times if possible (sundays)
-//PIC timeline
-//explore using branch calendar for event/meeting handling instead of WIW notes
+/*
+======== to do ========
+numOfStaff for positions
+ChangeOnTheHour
+meals - assign to not-open times if possible (sundays)
+PIC timeline
+explore using branch calendar for event/meeting handling instead of WIW notes
+don't display before/after times (like late night events that don't need to be on sched)
+  downside - can't see scheduled staff in GCAL when making events... unless, could you use "meet with" to see staff? would they have to import wiw cal?
+  consolidate events involving multiple people so they take up less space in Happening Today - or for all staff events, just say All instead of listing each
+more testing for parseDate (12pm noon)
+
+Station gen - want to revisit this later and try less agressive sorting with more neutral 0 outcomes, to prevent last sorts from having outsized impact, OR switch to using a value sorting system where lots of different factors contribute to a single sorting value
+
+======== aaron meeting notes ========
+seperate data structure from logic
+consider whether your data format matches the storage medium
+check if appscript ui has good sorting/query stuff  you're not making use of
+state seperate from logic in desksched - move generation functions elsewhere
+even station assignment stuff should be unit testable - needs definite inputs and outputs
+consider framework for ui settings - yup for form validation, grid something for station input
+
+======== wiw bugs? ========
+there are tags on users that don't exist in https://worktags.api.wheniwork-production.com/tags... could they have been assigned, then the tag deleted? see Julie's tag 4fec1268-8989-44a1-87d3-830de8d21462
+maybe I should just never assume that any data referenced in old shifts matches current data in WIW... users, tags, positions, etc
+
+
+======== bethany matt meeting ========
+one calender includes
+events
+programs being delivered in the branch
+meetings
+volunteers
+
+ft pic of any position on opening, closing
+
+doc for all of scheduling - wiw deskgen gcal
+*/
 var settings;
 var displayCells;
 var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -67,15 +100,15 @@ function buildDeskSchedule(tomorrow = false) {
     //generate timeline
     deskSchedule.timelineInit();
     deskSchedule.timelineAddAvailabilityAndEvents();
-    deskSchedule.timelineAddMeals();
-    deskSchedule.timelineAddStations();
+    // deskSchedule.timelineAddMeals()
+    // deskSchedule.timelineAddStations()
     //display timeline
     deskSchedule.timelineDisplay();
     //other displays
     deskSchedule.displayEvents(displayCells);
     //cleanup - clear template notes used for displayCells
     deskSheet.getDataRange().clearNote();
-    // ui.alert(JSON.stringify(deskSchedule))
+    ui.alert(JSON.stringify(deskSchedule));
     deskSchedule.popupDeskDataLog();
 }
 class DeskSchedule {
@@ -86,7 +119,7 @@ class DeskSchedule {
         this.annotationShifts = [];
         this.annotationUser = [];
         this.logDeskDataRecord = [];
-        this.defaultStations = { off: "Off", available: "Available", programMeeting: "Program/Meeting", mealBreak: "Meal/Break" };
+        this.defaultStations = { undefined: "undefined", off: "Off", available: "Available", programMeeting: "Program/Meeting", mealBreak: "Meal/Break" };
         this.date = date;
         this.dayStartTime = new Date(this.date);
         this.dayStartTime.setHours(8, 30);
@@ -97,21 +130,18 @@ class DeskSchedule {
         this.logDeskDataRecord = [];
         this.stations = [];
         settings.stations.forEach(s => {
-            this.stations.push(new Station(s.name, s.color, s.numOfStaff, s.positionPriority, s.durationType, s.startTime, s.endTime, s.group));
+            this.stations.push(new Station(s.name, s.color, s.numOfStaff, s.positionPriority.split(', ').filter(str => /\S/.test(str)), s.durationType, s.startTime, s.endTime, s.group));
         });
         [
+            new Station(this.defaultStations.undefined, `#000000`),
             new Station(this.defaultStations.programMeeting, `#ffd966`),
-            new Station(this.defaultStations.available, `#ffffff`),
+            new Station(this.defaultStations.available, `#ffffff`, 99),
             new Station(this.defaultStations.mealBreak, `#cccccc`),
             new Station(this.defaultStations.off, `#666666`),
-        ].forEach(s => {
-            let existingStation = this.stations.find(station => station.name == s.name);
-            let newStation = new Station(s.name, s.color);
-            if (existingStation) {
-                existingStation = newStation;
-            }
-            else
-                this.stations.push(newStation);
+        ].forEach(requiredStation => {
+            let existingStation = this.stations.find(station => station.name == requiredStation.name);
+            if (!existingStation)
+                this.stations.push(requiredStation);
         });
         this.annotationsString = wiwData.annotations
             .filter(a => {
@@ -180,20 +210,22 @@ class DeskSchedule {
                 ]
             });
         }
-        log('annotationEvents:\n' + JSON.stringify(annotationEvents));
-        log('annotationShifts:\n' + JSON.stringify(annotationShifts));
-        log('annotationUser:\n' + JSON.stringify(annotationUser));
+        // log('annotationEvents:\n'+ JSON.stringify(annotationEvents))
+        // log('annotationShifts:\n'+ JSON.stringify(annotationShifts))
+        // log('annotationUser:\n'+ JSON.stringify(annotationUser))
         this.positionHierarchy = [
             { "id": 11534158, "name": "Branch Manager", "group": "Reference", "picTime": 3 },
             { "id": 11534159, "name": "Assistant Branch Manager", "group": "Reference", "picTime": 3 },
             { "id": 11534161, "name": "Specialist", "group": "Reference", "picTime": 2 },
             { "id": 11566533, "name": "Part-Time Specialist", "group": "Reference", "picTime": 2 },
             { "id": 11534164, "name": "Associate Specialist", "group": "Reference", "picTime": 0 },
+            { "id": 11656177, "name": "Part-Time Associate Specialist", "group": "Reference", "picTime": 0 },
             { "id": 11534162, "name": "Senior Clerk", "group": "Clerk", "picTime": 0 },
             { "id": 11534163, "name": "Clerk II", "group": "Clerk", "picTime": 0 },
             { "id": 11534165, "name": "Aide", "group": "Aide", "picTime": 0 },
-            //not job titles
+            //in wiw, not job titles
             { "id": 11613647, "name": "Reference Desk" },
+            { "id": 11621015, "name": "PIC " }, //remove from WIW, now a tag
             { "id": 11614106, "name": "Opening Duties" },
             { "id": 11614107, "name": "1st floor" },
             { "id": 11614108, "name": "2nd floor" },
@@ -203,13 +235,24 @@ class DeskSchedule {
             { "id": 11614116, "name": "Meeting" },
             { "id": 11614117, "name": "Program" },
             { "id": 11614118, "name": "Off-desk" },
+            //custom, not in WIW, for annotation events
             { "id": 0, "name": "Annotation Event" }
         ];
         var eventErrorLog = [];
         wiwData.shifts.concat(annotationShifts).forEach(s => {
             let eventsFormatted;
             let wiwUserObj = wiwData.users.concat(annotationUser).filter(u => u.id == s.user_id)[0];
-            let wiwTagsNameArr = wiwData.tagsUsers.filter(u => u.id == s.user_id)[0] == undefined ? [] : (wiwData.tagsUsers.filter(u => u.id == s.user_id)[0].tags || []).map(t => wiwData.tags.filter(obj => obj.id == t)[0].name);
+            let wiwTagsNameArr = [];
+            if (wiwData.tagsUsers.filter(u => u.id == s.user_id)[0] !== undefined) {
+                let user = wiwData.tagsUsers.filter(u => u.id == s.user_id)[0];
+                if (user.tags !== undefined)
+                    user.tags.forEach(ut => {
+                        wiwData.tags.forEach(tag => {
+                            if (tag.id == ut)
+                                wiwTagsNameArr.push(tag);
+                        });
+                    });
+            }
             if (wiwUserObj != undefined) {
                 if (s.notes.length > 0) {
                     // log('s.notes:\n'+ JSON.stringify(s.notes))
@@ -238,7 +281,7 @@ class DeskSchedule {
                     idealMealTime = new Date(this.date);
                     idealMealTime.setHours(hour, Math.round((hour - Math.floor(hour)) * 60));
                 }
-                this.shifts.push(new Shift(s.user_id, wiwUserObj.first_name + ' ' + wiwUserObj.last_name, startTime, endTime, eventsFormatted, idealMealTime, false, wiwUserObj.positions[0], this.positionHierarchy.filter(obj => obj.id == wiwUserObj.positions[0])[0].group || 'unknown position group', wiwTagsNameArr));
+                this.shifts.push(new Shift(s.user_id, wiwUserObj.first_name + ' ' + wiwUserObj.last_name, startTime, endTime, eventsFormatted, idealMealTime, false, this.getHighestPosition(wiwUserObj.positions).id, this.positionHierarchy.filter(obj => obj.id == wiwUserObj.positions[0])[0].group || 'unknown position group', wiwTagsNameArr));
             }
         });
         wiwData.users.concat(annotationUser).forEach(u => {
@@ -305,11 +348,62 @@ Creighton Zine class/program @ 4-5`);
         // happeningTodayRT = happeningTodayRT.build()
         displayCells.getByName('happeningToday').setRichTextValue(happeningTodayRT.build());
     }
+    getPositionById(id) {
+        return this.positionHierarchy.filter(pos => pos.id == id)[0];
+    }
+    getPositionByName(name) {
+        return this.positionHierarchy.filter(pos => pos.name == name)[0];
+    }
+    getHighestPosition(positions) {
+        for (const i in this.positionHierarchy) {
+            let position = this.positionHierarchy[i];
+            if (positions.some(p => p == position.id)) {
+                return position;
+            }
+        }
+    }
+    getPositionHierarchyIndex(id) {
+        return this.positionHierarchy.map(p => p.id).indexOf(id);
+    }
+    sortShiftsByPositionHiearchyAsc() {
+        this.shifts.sort((shiftA, shiftB) => this.getPositionHierarchyIndex(shiftA.position) - this.getPositionHierarchyIndex(shiftB.position));
+    }
+    sortShiftsByPositionHiearchyDesc() {
+        this.shifts.sort((shiftA, shiftB) => this.getPositionHierarchyIndex(shiftB.position) - this.getPositionHierarchyIndex(shiftA.position));
+    }
+    sortShiftsByNameAlphabetically() {
+        this.shifts
+            .sort((shiftA, shiftB) => shiftA.name.localeCompare(shiftB.name, "en", { sensitivity: "base" }));
+    }
+    sortShiftsForDisplay() {
+        this.sortShiftsByNameAlphabetically();
+        this.sortShiftsByPositionHiearchyAsc();
+    }
+    sortShiftsByUserPositionPriority(positionPriority) {
+        if (positionPriority.length < 2) {
+            this.sortShiftsByPositionHiearchyDesc();
+            return;
+        }
+        this.shifts.sort((shiftA, shiftB) => {
+            let iA = positionPriority.map(p => this.getPositionByName(p).id).indexOf(shiftA.position);
+            let iB = positionPriority.map(p => this.getPositionByName(p).id).indexOf(shiftB.position);
+            return iA - iB;
+        });
+    }
+    sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned, time) {
+        this.shifts.sort((shiftA, shiftB) => {
+            let prevTime = new Date(time).addTime(0, -30);
+            let hoursPastMaxA = shiftA.countHowLongOverAssignmentLength(stationBeingAssigned, prevTime, settings.openHours.open);
+            let hoursPastMaxB = shiftB.countHowLongOverAssignmentLength(stationBeingAssigned, prevTime, settings.openHours.open);
+            // console.log(time.getTimeStringHHMM(), stationBeingAssigned, shiftA.name, 'hoursPastMaxA', hoursPastMaxA, shiftB.name, 'hoursPastMaxB', hoursPastMaxB, hoursPastMaxA - hoursPastMaxB)
+            return hoursPastMaxA - hoursPastMaxB;
+        });
+    }
     timelineInit() {
         this.shifts.forEach(shift => {
             for (let time = new Date(this.dayStartTime); time < this.dayEndTime; time.addTime(0, 30)) {
-                shift.stationTimeline.push(this.defaultStations.off);
-                shift.picTimeline.push(this.defaultStations.off);
+                shift.stationTimeline.push(this.defaultStations.undefined);
+                shift.picTimeline.push(this.defaultStations.undefined);
             }
         });
         this.logDeskData("initialized empty");
@@ -317,8 +411,10 @@ Creighton Zine class/program @ 4-5`);
     timelineAddAvailabilityAndEvents() {
         //fill in availability and events
         this.forEachShiftBlock(this.dayStartTime, this.dayEndTime, (shift, time) => {
-            if (time >= shift.startTime && time < shift.endTime)
+            if ((time < settings.openHours.open || time >= settings.openHours.close) && (time >= shift.startTime && time < shift.endTime))
                 shift.setStationAtTime(this.defaultStations.available, time, this.dayStartTime);
+            else if (time >= shift.startTime && time < shift.endTime)
+                shift.setStationAtTime(this.defaultStations.undefined, time, this.dayStartTime);
             else
                 shift.setStationAtTime(this.defaultStations.off, time, this.dayStartTime);
             shift.events.forEach(event => {
@@ -343,7 +439,7 @@ Creighton Zine class/program @ 4-5`);
                 //for each start time, count total available staff for each half hour over length of break
                 for (let minutes = 0; minutes < settings.mealBreakLength * 60; minutes += 30) {
                     let time = new Date(shift.idealMealTime).addTime(0, startMinutes + minutes);
-                    availabilityTotal += this.getStationCountAtTime(this.defaultStations.available, time, this.dayStartTime);
+                    availabilityTotal += this.getStationCountAtTime(this.defaultStations.undefined, time, this.dayStartTime);
                 }
                 //add count to array
                 highestAvailabilityTimes.push({ time: startTime, availabilityTotal: availabilityTotal });
@@ -358,26 +454,128 @@ Creighton Zine class/program @ 4-5`);
         this.logDeskData('after adding meal breaks');
     }
     timelineAddStations() {
-        this.stations.forEach(station => {
-            //skip default stations
-            if (Object.values(this.defaultStations).includes(station.name))
-                return;
-            let startTime = settings.openHours.open;
-            let endTime = settings.openHours.close;
-            for (let time = new Date(startTime); time < endTime; time.addTime(0, 30)) {
+        //  things to weigh:
+        //position hierarchy
+        //percentage of shift spent at position
+        //assignment length
+        //upcoming availability > half hour
+        let startTime = settings.openHours.open;
+        let endTime = settings.openHours.close;
+        for (let time = new Date(startTime); time < endTime; time.addTime(0, 30)) {
+            let prevTime = new Date(time).addTime(0, -30);
+            // let stationsBeforeAvailability = 0
+            // for(let station of this.stations) {
+            //   if(station.name == this.defaultStations.available) break
+            //   else stationsBeforeAvailability += station.numOfStaff
+            // }
+            // if(stationsBeforeAvailability < this.getStationCountAtTime(this.defaultStations.undefined, time, this.dayStartTime))
+            this.stations.forEach(station => {
+                //skip default stations EXCEPT available, the rest are handled in timelineAddAvailabilityAndEvents and timelineAddMeals
+                if (Object.values(this.defaultStations).includes(station.name) && station.name != this.defaultStations.available)
+                    return;
+                log("sort shifts into priority order for assignment, if none given in settings defulats to sortShiftsByPositionHiearchyDesc");
+                this.sortShiftsByUserPositionPriority(station.positionPriority);
+                log("sort by amount of time total at station, as ratio of shift length");
+                this.shifts.sort((shiftA, shiftB) => {
+                    let aTotalStationTime = shiftA.countTotalTimeAtStation(station.name, prevTime, settings.openHours.open, this.dayStartTime);
+                    let aRatioOfShiftAtStation = aTotalStationTime / shiftA.getLength();
+                    let bTotalStationTime = shiftB.countTotalTimeAtStation(station.name, prevTime, settings.openHours.open, this.dayStartTime);
+                    let bRatioOfShiftAtStation = bTotalStationTime / shiftB.getLength();
+                    // console.log(`at ${time.getTimeStringHHMM()}, ${shiftA.name} has been ${station.name} for ${aTotalStationTime} hours and ${aRatioOfShiftAtStation} of shift.`)
+                    return aRatioOfShiftAtStation - bRatioOfShiftAtStation;
+                });
+                console.log(time.getTimeStringHHMM() + ' ' + station.name + '\n', this.shifts.map(shift => shift.name.substring(0, 3) + ': ' + shift.countTotalTimeAtStation(station.name, prevTime, settings.openHours.open, this.dayStartTime) + ', ' + Math.round(shift.countTotalTimeAtStation(station.name, prevTime, settings.openHours.open, this.dayStartTime) / shift.getLength() * 100) + '%').join('\n'));
+                //if not on this station and at/past max, move to top... redundant?
+                // this.shifts.sort((shiftA, shiftB)=>{
+                //   let aStation = shiftA.getStationAtTime(new Date(time).addTime(0,-30), this.dayStartTime)
+                //   let bStation = shiftB.getStationAtTime(new Date(time).addTime(0,-30), this.dayStartTime)
+                //   let aVal = aStation == station.name ? -1 : shiftA.countHowLongAtStation(aStation, new Date(time).addTime(0,-30), this.dayStartTime)
+                //   let bVal = bStation == station.name ? -1 : 1
+                //   return 1
+                // })
+                //combine with above?
+                log("if not on this station and not at max, move to bottom");
+                if (station.name != this.defaultStations.available)
+                    this.shifts.sort((shiftA, shiftB) => {
+                        let aTimeOnAssigningStation = shiftA.countHowLongAtStation(station.name, prevTime, this.dayStartTime);
+                        let aTimeOnCurrentStation = shiftA.countHowLongAtStation(shiftA.getStationAtTime(prevTime, this.dayStartTime), prevTime, this.dayStartTime);
+                        let aVal = aTimeOnAssigningStation == 0 && aTimeOnCurrentStation < settings.assignmentLength ? 1000 : 0;
+                        let bTimeOnAssigningStation = shiftB.countHowLongAtStation(station.name, prevTime, this.dayStartTime);
+                        let bTimeOnCurrentStation = shiftB.countHowLongAtStation(shiftB.getStationAtTime(prevTime, this.dayStartTime), prevTime, this.dayStartTime);
+                        let bVal = bTimeOnAssigningStation == 0 && bTimeOnCurrentStation < settings.assignmentLength ? 1000 : 0;
+                        // if(station.name==="Phones") console.log(time.getTimeStringHHMM()+' '+station.name, shiftA.name.substring(0,3), aTimeOnStation, aVal, shiftB.name.substring(0,3), bTimeOnStation, bVal)
+                        return aVal - bVal;
+                    });
+                console.log(time.getTimeStringHHMM() + ' ' + station.name + '\n', this.shifts.map(shift => {
+                    let timeOnStat = shift.countHowLongAtStation(station.name, prevTime, this.dayStartTime);
+                    let timeOnCurrentStation = shift.countHowLongAtStation(shift.getStationAtTime(prevTime, this.dayStartTime), prevTime, this.dayStartTime);
+                    return shift.name + ': ' + timeOnStat + ', ' + timeOnCurrentStation + ', ' + (timeOnStat == 0 && timeOnCurrentStation < settings.assignmentLength ? 1000 : 0);
+                }).join('\n'));
+                log("if on this station and not at max, move to top, prioritize staff on station shortest time");
+                if (station.name != this.defaultStations.available)
+                    this.shifts.sort((shiftA, shiftB) => {
+                        let aTimeOnStation = shiftA.countHowLongAtStation(station.name, prevTime, this.dayStartTime);
+                        let aVal = aTimeOnStation >= settings.assignmentLength || aTimeOnStation <= 0 ? 1000 : aTimeOnStation;
+                        let bTimeOnStation = shiftB.countHowLongAtStation(station.name, prevTime, this.dayStartTime);
+                        let bVal = bTimeOnStation >= settings.assignmentLength || bTimeOnStation <= 0 ? 1000 : bTimeOnStation;
+                        // if(station.name==="Phones") console.log(time.getTimeStringHHMM()+' '+station.name, shiftA.name.substring(0,3), aTimeOnStation, aVal, shiftB.name.substring(0,3), bTimeOnStation, bVal)
+                        return aVal - bVal;
+                    });
+                console.log(time.getTimeStringHHMM() + ' ' + station.name + '\n', this.shifts.map(shift => {
+                    let timeOnStat = shift.countHowLongAtStation(station.name, prevTime, this.dayStartTime);
+                    return shift.name + ': ' + timeOnStat + ', ' + (timeOnStat >= settings.assignmentLength || timeOnStat <= 0 ? 1000 : timeOnStat);
+                }).join('\n'));
+                log("if on this station and at max, move to end, prioritize furthest past");
+                this.sortShiftsByWhetherAssignmentLengthReached(station.name, time);
+                console.log(time.getTimeStringHHMM() + ' ' + station.name + '\n', this.shifts.map(shift => {
+                    let timeOnStat = shift.countHowLongAtStation(station.name, prevTime, this.dayStartTime);
+                    return shift.name + ': ' + timeOnStat + ', ' + (timeOnStat >= settings.assignmentLength || timeOnStat <= 0 ? 1000 : timeOnStat);
+                }).join('\n'));
+                //move people not available to finish full assignment length to end of list
+                //or should this be, of people NOT currently finishing assignment...
+                // this.shifts.sort((shiftA,shiftB)=>{
+                //   let aTimeOnCurrentStation = shiftA.countHowLongAtStation(shiftA.getStationAtTime(prevTime, this.dayStartTime), prevTime, this.dayStartTime)
+                //   let bTimeOnCurrentStation = shiftB.countHowLongAtStation(shiftB.getStationAtTime(prevTime, this.dayStartTime), prevTime, this.dayStartTime)
+                //   let aVal = aTimeOnCurrentStation + shiftA.countAvailabilityLength(time, this.dayStartTime) >= settings.assignmentLength ? 0 : 
+                // console.log(time.getTimeStringHHMM()+' availability: ', shiftA.name.substring(0,3), aTimeOnCurrentStation, shiftA.countAvailabilityLength(time, this.dayStartTime), shiftB.name.substring(0,3), bTimeOnCurrentStation, shiftB.countAvailabilityLength(time, this.dayStartTime))
+                //   return Math.min(settings.assignmentLength, bTimeOnCurrentStation + shiftB.countAvailabilityLength(time, this.dayStartTime)) -
+                //   Math.min(settings.assignmentLength, aTimeOnCurrentStation + shiftA.countAvailabilityLength(time, this.dayStartTime))
+                // })
+                // console.log(time.getTimeStringHHMM()+'available length:\n', this.shifts.map(shift=>{
+                //   let aTimeOnCurrentStation = shift.countHowLongAtStation(shift.getStationAtTime(prevTime, this.dayStartTime), prevTime, this.dayStartTime)
+                //   return shift.name+': '+ Math.min(settings.assignmentLength, aTimeOnCurrentStation + shift.countAvailabilityLength(time, this.dayStartTime))
+                // }).join('\n'))
+                // if (station.name==this.defaultStations.available) {
+                //   console.log("AVAILABILITY - sort by amount of time total at availability, as ratio of shift length", station.name, station.name==this.defaultStations.available)
+                //   this.shifts.sort((shiftA, shiftB)=>{
+                //     let aTotalStationTime = shiftA.countTotalTimeAtStation(station.name, prevTime, settings.openHours.open)
+                //     let aRatioOfShiftAtStation = aTotalStationTime/shiftA.getLength()
+                //     let bTotalStationTime = shiftB.countTotalTimeAtStation(station.name, prevTime, settings.openHours.open)
+                //     let bRatioOfShiftAtStation = bTotalStationTime/shiftB.getLength()
+                //     // console.log(`at ${time.getTimeStringHHMM()}, ${shiftA.name} has been ${station.name} for ${aTotalStationTime} hours and ${aRatioOfShiftAtStation} of shift.`)
+                //     return aRatioOfShiftAtStation - bRatioOfShiftAtStation
+                //   })
+                //   console.log(time.getTimeStringHHMM()+' '+station.name+'\n', this.shifts.map(shift=>shift.name.substring(0,3)+': '+shift.countTotalTimeAtStation(station.name, prevTime, settings.openHours.open)+', '+Math.round(shift.countTotalTimeAtStation(station.name, prevTime, settings.openHours.open)/shift.getLength()*100)+'%').join('\n'))
+                // }
+                //assign
                 this.shifts.forEach(shift => {
-                    let stationCount = this.getStationCountAtTime(station.name, time, this.dayStartTime);
-                    let currentStation = shift.getStationAtTime(time, this.dayStartTime);
-                    let prevStation = shift.getPrevStationAtTime(time, this.dayStartTime);
-                    let timeOnPrevStation = shift.countHowLongAtStation(new Date(time).addTime(0, -30), this.dayStartTime);
-                    console.log(`at ${time.getHours()}:${time.getMinutes()}, ${shift.name} has been ${prevStation} for ${timeOnPrevStation}hours.`);
-                    if (currentStation == this.defaultStations.available && stationCount < 1) {
-                        shift.setStationAtTime(station.name, time, this.dayStartTime);
+                    if (station.positionPriority.length < 1 || station.positionPriority.includes(this.getPositionById(shift.position).name)) {
+                        let stationCount = this.getStationCountAtTime(station.name, time, this.dayStartTime);
+                        let currentStation = shift.getStationAtTime(time, this.dayStartTime);
+                        let prevStation = shift.getStationAtTime(prevTime, this.dayStartTime);
+                        let timeOnPrevStation = shift.countHowLongAtStation(prevStation, new Date(time).addTime(0, -30), this.dayStartTime);
+                        console.log(`at ${time.getTimeStringHHMM()}, ${shift.name} has been ${prevStation} for ${timeOnPrevStation}hours.`, currentStation, currentStation == this.defaultStations.undefined, stationCount < station.numOfStaff);
+                        if (currentStation == this.defaultStations.undefined && stationCount < station.numOfStaff) { //check earlier and continue if numOfstaff met?
+                            shift.setStationAtTime(station.name, time, this.dayStartTime);
+                            currentStation = shift.getStationAtTime(time, this.dayStartTime);
+                            let timeOnCurrStation = shift.countHowLongAtStation(currentStation, time, this.dayStartTime);
+                            console.log(`After assigning to ${currentStation} at ${time.getTimeStringHHMM()}, ${shift.name} has been ${currentStation} for ${timeOnCurrStation}hours.`);
+                        }
                     }
                 });
-            }
-            this.logDeskData('after assigning ' + station.name);
-        });
+            });
+            this.logDeskData('user defined stations pass at ' + time.getTimeStringHHMM());
+        }
     }
     forEachShiftBlock(startTime = settings.openHours.open, endTime = settings.openHours.close, func) {
         for (let time = new Date(startTime); time < endTime; time.addTime(0, 30)) {
@@ -388,11 +586,8 @@ Creighton Zine class/program @ 4-5`);
     }
     timelineDisplay() {
         const sheet = ss.getActiveSheet();
-        //Sort shifts for display - alphabetially, then by position group, then by whether they are working
-        this.shifts
-            .sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }))
-            .sort((a, b) => this.positionHierarchy.map(h => h.id).indexOf(a.position) - this.positionHierarchy.map(h => h.id).indexOf(b.position));
-        //then sort by whether person is working, if there's a setting for showing staff that aren't working
+        this.sortShiftsForDisplay();
+        //todo: sort by whether person is working, if there's a setting for showing staff that aren't working
         //Add times to timeline - need to test if this works for <830am >8pm timelines
         displayCells.getAllByName('timeStart').getRanges().forEach(startRange => {
             let values = [];
@@ -434,6 +629,7 @@ Creighton Zine class/program @ 4-5`);
         timelineRange.setBackgrounds(colorArr);
     }
     logDeskData(description) {
+        this.sortShiftsForDisplay();
         if (!settings.verboseLog)
             return;
         let s = this.shifts.map(shift => shift.name.substring(0, 8).replaceAll(' ', '.') + ' ' + shift.stationTimeline.map((station, i) => `<span class="outline" title="${new Date(this.dayStartTime.getTime() + i * 1000 * 60 * 30).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}&#10${station}"; style="color:${this.getStation(station).color}">◼</span>`).join('')).join('<br>');
@@ -517,13 +713,11 @@ class Shift {
         this.stationTimeline = stationTimeline;
         this.picTimeline = picTimeline;
     }
+    getLength() {
+        return (this.endTime.getTime() - this.startTime.getTime()) / (1000 * 60 * 60);
+    }
     getStationAtTime(time, dayStartTime) {
         let halfHoursSinceDayStartTime = Math.round(Math.abs(time.getTime() - dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
-        return this.stationTimeline[halfHoursSinceDayStartTime];
-    }
-    getPrevStationAtTime(time, dayStartTime) {
-        let prevTime = new Date(time).addTime(0, -30);
-        let halfHoursSinceDayStartTime = Math.round(Math.abs(prevTime.getTime() - dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
         return this.stationTimeline[halfHoursSinceDayStartTime];
     }
     setStationAtTime(station, time, dayStartTime) {
@@ -531,11 +725,36 @@ class Shift {
         // console.log(startTime, time, halfHoursSinceStartTime)
         this.stationTimeline[halfHoursSinceDayStartTime] = station;
     }
-    countHowLongAtStation(time, dayStartTime) {
-        let count = 0;
+    countHowLongAtStation(stationName, time, dayStartTime) {
         let currentStation = this.getStationAtTime(time, dayStartTime);
+        if (currentStation !== stationName)
+            return 0; //if 
+        let count = 0;
         for (let prevTime = new Date(time); prevTime >= this.startTime; prevTime.addTime(0, -30)) {
             if (this.getStationAtTime(prevTime, dayStartTime) === currentStation)
+                count += 0.5;
+            else
+                break;
+        }
+        return count;
+    }
+    countHowLongOverAssignmentLength(stationName, time, openingTime) {
+        let hoursAtCurrentStation = this.countHowLongAtStation(stationName, time, openingTime);
+        let hoursPastAssignmentLength = hoursAtCurrentStation < settings.assignmentLength ? -1 : hoursAtCurrentStation - settings.assignmentLength;
+        return hoursPastAssignmentLength;
+    }
+    countTotalTimeAtStation(stationName, beforeTime, openingTime, dayStartTime) {
+        let count = 0;
+        for (let time = new Date(beforeTime); time >= openingTime; time.addTime(0, -30)) {
+            if (this.getStationAtTime(time, dayStartTime) === stationName)
+                count += 0.5;
+        }
+        return count;
+    }
+    countAvailabilityLength(startingAt, dayStartTime) {
+        let count = 0;
+        for (let time = new Date(startingAt); time < this.endTime; time.addTime(0, 30)) {
+            if (this.getStationAtTime(time, dayStartTime) === "Available")
                 count += 0.5;
             else
                 break;
@@ -547,6 +766,7 @@ class WiwData {
     constructor() {
         this.shifts = [];
         this.annotations = [];
+        this.positions = [];
         this.users = [];
         this.tagsUsers = [];
         this.tags = [];
@@ -755,9 +975,17 @@ function getWiwData(token, deskSchedDate) {
     const options = { headers: { Authorization: 'Bearer ' + token } };
     if (!settings.locationID)
         ui.alert(`location id missing from settings - go to the SETTINGS sheet and make sure the setting "locationID" has a value from the following:\n\n${JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/locations`, options).getContentText()).locations.map(l => l.name + ': ' + l.id).join('\n')}`, ui.ButtonSet.OK);
-    wiwData.shifts = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/shifts?location_id=${settings.locationID}&start=${deskSchedDate.toISOString()}&end=${new Date(deskSchedDate.getTime() + 86399000).toISOString()}`, options).getContentText()).shifts; //change to setDate, getDate+1, currently will break on daylight savings... or make seperate deskSchedDateEnd where you set the time to 23:59:59
+    if (!settings.googleCalendarID)
+        ui.alert(`events/meetings google calendar id missing from settings - go to the SETTINGS sheet and make sure the setting "googleCalendarID" has a value`, ui.ButtonSet.OK);
+    let deskSchedDateEnd = new Date(deskSchedDate.getTime() + 86399000);
+    let gCalEvents = CalendarApp.getCalendarById(settings.googleCalendarID).getEvents(deskSchedDate, deskSchedDateEnd);
+    //MUST BE SUBSCRIBED TO CAL - add check if user is subscribed, if they're not, notify them that you're subscribing them to it, give option to unsubscribe after
+    ui.alert(gCalEvents.map(event => event.getTitle() + ', ' + event.getStartTime() + ', ' + event.getEndTime() + ', ' + event.getGuestList().map(g => g.getEmail()).join(', ')).join('\n'));
+    wiwData.shifts = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/shifts?location_id=${settings.locationID}&start=${deskSchedDate.toISOString()}&end=${deskSchedDateEnd.toISOString()}`, options).getContentText()).shifts; //change to setDate, getDate+1, currently will break on daylight savings... or make seperate deskSchedDateEnd where you set the time to 23:59:59
     wiwData.annotations = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/annotations?&start_date=${deskSchedDate.toISOString()}&end_date=${new Date(deskSchedDate.getTime() + 86399000).toISOString()}`, options).getContentText()).annotations; //change to setDate, getDate+1, currently will break on daylight savings
     log("wiwData.annotations:\n" + JSON.stringify(wiwData.annotations));
+    wiwData.positions = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/positions`, options).getContentText()).positions;
+    log("wiwData.positions:\n" + JSON.stringify(wiwData.positions));
     if (wiwData.shifts.length < 1 && wiwData.annotations.length < 0) {
         ui.alert(`There are no shifts or announcements (annotations) published in WhenIWork at location: \n—${settings.locationID} (${settings.locationID})\nbetween\n—${deskSchedDate.toString()}\nand\n—${new Date(deskSchedDate.getTime() + 86399000).toString()}`);
         return;
@@ -831,7 +1059,12 @@ function mergeConsecutiveInColumn(range) {
 function parseDate(deskScheduleDate, timeString, earliestHour) {
     let h = parseInt(timeString.split(':')[0]);
     let m = parseInt(timeString.split(':').length > 1 ? timeString.split(':')[1] : '00');
-    h = h * 100 + m > earliestHour ? h : h + 12;
+    if (timeString.includes('p') && h < 12)
+        h = h + 12; //if includes p ('11pm') add 12 h UNLESS it's 12pm noon
+    else if (timeString.includes('a') && h == 12)
+        h = 0; //12am midnight
+    else
+        h = h * 100 + m > earliestHour ? h : h + 12; //if a/p not included, infer from earliest
     let date = new Date(deskScheduleDate);
     date.setHours(h, m);
     return date;
@@ -839,4 +1072,7 @@ function parseDate(deskScheduleDate, timeString, earliestHour) {
 Date.prototype.addTime = function (hours, minutes = 0, seconds = 0) {
     this.setTime(this.getTime() + hours * 60 * 60 * 1000 + minutes * 60 * 1000 + seconds * 1000);
     return this;
+};
+Date.prototype.getTimeStringHHMM = function () {
+    return this.getHours() + ':' + (this.getMinutes() < 10 ? '0' : '') + this.getMinutes();
 };
