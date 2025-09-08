@@ -12,6 +12,17 @@ more testing for parseDate (12pm noon)
 
 Station gen - want to revisit this later and try less agressive sorting with more neutral 0 outcomes, to prevent last sorts from having outsized impact, OR switch to using a value sorting system where lots of different factors contribute to a single sorting value
 
+check with stacy about WIW feature rollout
+do we want all gcal events to show on desk sched? probably not, I use calendar for lots of reminders...
+
+should settings be saved in deskschedule? or in history?
+
+warning about events scheduled outside shifts?
+
+split shifts merging
+
+set hour limit per station
+
 ======== aaron meeting notes ========
 seperate data structure from logic
 consider whether your data format matches the storage medium
@@ -52,7 +63,7 @@ function buildDeskScheduleTomorrow() {
     buildDeskSchedule(true);
 }
 function buildDeskSchedule(tomorrow = false) {
-    var deskSheet = ss.getActiveSheet();
+    deskSheet = ss.getActiveSheet();
     displayCells = new DisplayCells(ss.getSheetByName('TEMPLATE'));
     var deskSchedDate;
     //Make sure not running on template
@@ -96,7 +107,10 @@ function buildDeskSchedule(tomorrow = false) {
     displayCells.getByName('date').setValue(deskSchedDate.toDateString());
     log('deskSchedDate: ' + deskSchedDate);
     const wiwData = getWiwData(token, deskSchedDate);
-    var deskSchedule = new DeskSchedule(deskSchedDate, wiwData, settings);
+    let deskSchedDateEnd = new Date(deskSchedDate.getTime() + 86399000);
+    const gCalEvents = CalendarApp.getCalendarById(settings.googleCalendarID).getEvents(deskSchedDate, deskSchedDateEnd);
+    //MUST BE SUBSCRIBED TO CAL - add check if user is subscribed, if they're not, notify them that you're subscribing them to it, give option to unsubscribe after
+    var deskSchedule = new DeskSchedule(deskSchedDate, wiwData, gCalEvents, settings);
     //generate timeline
     deskSchedule.timelineInit();
     deskSchedule.timelineAddAvailabilityAndEvents();
@@ -105,7 +119,9 @@ function buildDeskSchedule(tomorrow = false) {
     //display timeline
     deskSchedule.timelineDisplay();
     //other displays
-    deskSchedule.displayEvents(displayCells);
+    deskSchedule.displayEvents(displayCells, gCalEvents);
+    deskSchedule.displayStationKey(displayCells);
+    deskSchedule.displayDuties(displayCells, wiwData);
     //cleanup - clear template notes used for displayCells
     deskSheet.getDataRange().clearNote();
     ui.alert(JSON.stringify(deskSchedule));
@@ -113,13 +129,14 @@ function buildDeskSchedule(tomorrow = false) {
 }
 class DeskSchedule {
     //history:
-    constructor(date, wiwData, settings) {
+    constructor(date, wiwData, gCalEvents, settings) {
         this.eventsErrorLog = []; //test if this works?
         this.annotationEvents = [];
         this.annotationShifts = [];
         this.annotationUser = [];
         this.logDeskDataRecord = [];
         this.defaultStations = { undefined: "undefined", off: "Off", available: "Available", programMeeting: "Program/Meeting", mealBreak: "Meal/Break" };
+        this.openingDuties = [];
         this.date = date;
         this.dayStartTime = new Date(this.date);
         this.dayStartTime.setHours(8, 30);
@@ -129,11 +146,12 @@ class DeskSchedule {
         this.eventsErrorLog = [];
         this.logDeskDataRecord = [];
         this.stations = [];
+        this.openingDuties = settings.openingDuties.map(d => new Duty(d.title, undefined, d.requirePIC));
         settings.stations.forEach(s => {
             this.stations.push(new Station(s.name, s.color, s.numOfStaff, s.positionPriority.split(', ').filter(str => /\S/.test(str)), s.durationType, s.startTime, s.endTime, s.group));
         });
         [
-            new Station(this.defaultStations.undefined, `#000000`),
+            new Station(this.defaultStations.undefined, `#ffffff`),
             new Station(this.defaultStations.programMeeting, `#ffd966`),
             new Station(this.defaultStations.available, `#ffffff`, 99),
             new Station(this.defaultStations.mealBreak, `#cccccc`),
@@ -154,7 +172,7 @@ class DeskSchedule {
             .reduce((acc, cur) => acc + (cur.business_closed ? 'Closed: ' : '') + cur.title + (cur.message.length > 1 ? ' - ' + cur.message : '') + '\n', '');
         let annotationEvents = [];
         let annotationShifts = [];
-        const annotationUser = [{ id: 0, first_name: "📣", last_name: '        ', positions: ['0'], role: 0 }];
+        const annotationUser = [{ id: 0, email: '', first_name: "📣", last_name: '        ', positions: ['0'], role: 0 }];
         wiwData.annotations
             .filter(a => {
             if (a.all_locations == true)
@@ -240,40 +258,53 @@ class DeskSchedule {
         ];
         var eventErrorLog = [];
         wiwData.shifts.concat(annotationShifts).forEach(s => {
-            let eventsFormatted;
+            let eventsFormatted = [];
             let wiwUserObj = wiwData.users.concat(annotationUser).filter(u => u.id == s.user_id)[0];
-            let wiwTagsNameArr = [];
+            let wiwTags = [];
             if (wiwData.tagsUsers.filter(u => u.id == s.user_id)[0] !== undefined) {
                 let user = wiwData.tagsUsers.filter(u => u.id == s.user_id)[0];
                 if (user.tags !== undefined)
                     user.tags.forEach(ut => {
                         wiwData.tags.forEach(tag => {
                             if (tag.id == ut)
-                                wiwTagsNameArr.push(tag);
+                                wiwTags.push(tag);
                         });
                     });
             }
             if (wiwUserObj != undefined) {
-                if (s.notes.length > 0) {
-                    // log('s.notes:\n'+ JSON.stringify(s.notes))
-                    eventsFormatted = s.notes.replace(' to ', '-').replace('noon', '12:00').split(/[\n;]+/).filter(str => /\w+/.test(str)).map(ev => ({
-                        title: ev.split('@')[0] || undefined,
-                        startTime: parseDate(date, ev.split('@')[ev.split('@').length > 1 ? 1 : 0].split('-')[0], 600) || undefined,
-                        // endTime: parseDate(ev.split('@')[ev.split('@').length>1?1:0].split('-')[ev.split('@')[ev.split('@').length>1?1:0].split('-').length>1?1:0],800) || undefined,
-                        endTime: ev.split('@')[ev.split('@').length > 1 ? 1 : 0].includes('-') ? (parseDate(date, ev.split('@')[ev.split('@').length > 1 ? 1 : 0].split('-')[ev.split('@')[ev.split('@').length > 1 ? 1 : 0].split('-').length > 1 ? 1 : 0], 800) || undefined) : new Date(parseDate(date, ev.split('@')[ev.split('@').length > 1 ? 1 : 0].split('-')[ev.split('@')[ev.split('@').length > 1 ? 1 : 0].split('-').length > 1 ? 1 : 0], 800).setHours(parseDate(date, ev.split('@')[ev.split('@').length > 1 ? 1 : 0].split('-')[ev.split('@')[ev.split('@').length > 1 ? 1 : 0].split('-').length > 1 ? 1 : 0], 800).getHours() + 1)),
-                        displayString: ev
-                    })).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-                }
-                else
-                    eventsFormatted = [];
-                eventsFormatted.forEach(e => {
-                    if (e.startTime == "Invalid Date" || e.endTime == "Invalid Date")
-                        eventErrorLog.push('from WIW note on ' + wiwUserObj.first_name + `'s shift:\n` + s.notes);
+                //get events from WIW notes
+                // if (s.notes.length>0) {
+                //   // log('s.notes:\n'+ JSON.stringify(s.notes))
+                //   eventsFormatted =  s.notes.replace(' to ', '-').replace('noon', '12:00').split(/[\n;]+/).filter(str => /\w+/.test(str)).map(ev=>({
+                //     title: ev.split('@')[0] || undefined,
+                //     startTime: parseDate(date, ev.split('@')[ev.split('@').length>1?1:0].split('-')[0],600) || undefined, 
+                //     // endTime: parseDate(ev.split('@')[ev.split('@').length>1?1:0].split('-')[ev.split('@')[ev.split('@').length>1?1:0].split('-').length>1?1:0],800) || undefined,
+                //     endTime: ev.split('@')[ev.split('@').length>1?1:0].includes('-') ? (parseDate(date, ev.split('@')[ev.split('@').length>1?1:0].split('-')[ev.split('@')[ev.split('@').length>1?1:0].split('-').length>1?1:0],800) || undefined) : new Date(parseDate(date,ev.split('@')[ev.split('@').length>1?1:0].split('-')[ev.split('@')[ev.split('@').length>1?1:0].split('-').length>1?1:0],800).setHours(parseDate(date, ev.split('@')[ev.split('@').length>1?1:0].split('-')[ev.split('@')[ev.split('@').length>1?1:0].split('-').length>1?1:0],800).getHours()+1)),
+                //     displayString: ev
+                //   }
+                //   )).sort((a,b)=>new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+                // } else eventsFormatted = []
+                // eventsFormatted.forEach(e => {
+                //   if(e.startTime=="Invalid Date" || e.endTime=="Invalid Date")
+                //     eventErrorLog.push('from WIW note on '+wiwUserObj.first_name+`'s shift:\n`+s.notes)
+                // })
+                //get events from gcal
+                gCalEvents.forEach(gCalEvent => {
+                    let guestEmailList = gCalEvent.getGuestList().map(guest => guest.getEmail());
+                    if (guestEmailList.includes(wiwUserObj.email)) {
+                        //if event last all day (gcal without start/end) clamp event start/end to shift start/end
+                        let startTime = new Date(gCalEvent.getStartTime().getTime());
+                        let endTime = new Date(gCalEvent.getEndTime().getTime());
+                        let allDayEvent = Math.abs(endTime.getTime() - startTime.getTime()) / 3600000 > 22 ? true : false;
+                        eventsFormatted.push(new ShiftEvent(gCalEvent.getTitle(), startTime, endTime, 
+                        // displayString: getEventUrl(gCalEvent),
+                        getEventUrl(gCalEvent)));
+                    }
                 });
                 let startTime = new Date(s.start_time);
                 let endTime = new Date(s.end_time);
                 let idealMealTime = undefined;
-                //if working 8+ hours, assign whichever mealtime is closest to midpoint of shift
+                // //if working 8+ hours, assign whichever mealtime is closest to midpoint of shift
                 if (endTime.getHours() - startTime.getHours() >= 8) {
                     let timeToEarlyMeal = Math.abs((endTime.getHours() + startTime.getHours()) / 2 - settings.idealEarlyMealHour);
                     let timeToLateMeal = Math.abs((endTime.getHours() + startTime.getHours()) / 2 - settings.idealLateMealHour);
@@ -281,7 +312,7 @@ class DeskSchedule {
                     idealMealTime = new Date(this.date);
                     idealMealTime.setHours(hour, Math.round((hour - Math.floor(hour)) * 60));
                 }
-                this.shifts.push(new Shift(s.user_id, wiwUserObj.first_name + ' ' + wiwUserObj.last_name, startTime, endTime, eventsFormatted, idealMealTime, false, this.getHighestPosition(wiwUserObj.positions).id, this.positionHierarchy.filter(obj => obj.id == wiwUserObj.positions[0])[0].group || 'unknown position group', wiwTagsNameArr));
+                this.shifts.push(new Shift(s.user_id, wiwUserObj.first_name + ' ' + wiwUserObj.last_name, wiwUserObj.email, startTime, endTime, eventsFormatted, idealMealTime, false, this.getHighestPosition(wiwUserObj.positions).id, this.positionHierarchy.filter(obj => obj.id == wiwUserObj.positions[0])[0].group || 'unknown position group', wiwTags.map(tagObj => tagObj.name)));
             }
         });
         wiwData.users.concat(annotationUser).forEach(u => {
@@ -294,12 +325,12 @@ class DeskSchedule {
         if (eventErrorLog.length > 0) {
             log('eventErrorLog:\n' + eventErrorLog);
             ui.alert(`Cannot parse events:
------
-${eventErrorLog.join(',\n\n')}
------
-Events must be formatted as TITLE @ STARTTIME - ENDTIME. Multiple events must be separated by a new line.
-
-Example:
+        -----
+        ${eventErrorLog.join(',\n\n')}
+        -----
+        Events must be formatted as TITLE @ STARTTIME - ENDTIME. Multiple events must be separated by a new line.
+        
+        Example:
 
 Martha mtg @ 2:30 - 3:30
 Creighton Zine class/program @ 4-5`);
@@ -310,6 +341,14 @@ Creighton Zine class/program @ 4-5`);
                     this.dayStartTime = s.startTime;
                 if (s.endTime > this.dayEndTime)
                     this.dayEndTime = s.endTime;
+                s.events.forEach(e => {
+                    if (e.startTime != undefined && e.endTime != undefined && e.getDurationInHours() < 22) {
+                        if (e.startTime < this.dayStartTime)
+                            this.dayStartTime = e.startTime;
+                        if (e.endTime > this.dayEndTime)
+                            this.dayEndTime = e.endTime;
+                    }
+                });
             }
         });
         if (this.shifts.length < 1)
@@ -331,22 +370,38 @@ Creighton Zine class/program @ 4-5`);
         });
         return count;
     }
-    displayEvents(displayCells) {
+    displayEvents(displayCells, gCalEvents) {
         displayCells.update(SpreadsheetApp.getActiveSheet());
         let eventString = '';
-        this.shifts.forEach(s => {
-            if (s.events != undefined && s.events.length > 0 && s.user_id != 0) {
-                eventString += s.name.split(' ')[0] + ': ' + s.events.reduce((acc, cur) => acc.concat(cur.displayString), []).join(', ') + '\n';
-            }
-        });
         let boldStyle = SpreadsheetApp.newTextStyle().setBold(true).build();
-        let happeningTodayRT = SpreadsheetApp.newRichTextValue().setText((this.annotationsString.length > 0 ? '\n' : ``) + this.annotationsString + (eventString.length > 0 ? '\n' : ``) + eventString);
-        if ((this.annotationsString + eventString).length == 0)
-            happeningTodayRT.setText("\n-\n");
-        if (this.annotationsString.length > 0)
-            happeningTodayRT = happeningTodayRT.setTextStyle(0, this.annotationsString.length, boldStyle);
-        // happeningTodayRT = happeningTodayRT.build()
-        displayCells.getByName('happeningToday').setRichTextValue(happeningTodayRT.build());
+        let removeLinkStyle = SpreadsheetApp.newTextStyle().setUnderline(false).setForegroundColor("black").build();
+        const happeningTodayRichTextArray = [
+            // SpreadsheetApp.newRichTextValue().setText('\n').setTextStyle(SpreadsheetApp.newTextStyle().setItalic(true).build()).build(),
+            ...gCalEvents.map((ev, i) => {
+                let guestEmailList = ev.getGuestList() /*todo: filter out 'no' responses*/.map(g => g.getEmail());
+                let guestNames = guestEmailList.map(email => this.shortenFullName(((this.shifts.find(shift => shift.email == email)) || { name: "user-not-found" }).name)); //to do: handle 
+                let timesString = new Date(ev.getStartTime().getTime()).getTimeStringHHMM12() + '-' + new Date(ev.getEndTime().getTime()).getTimeStringHHMM12();
+                timesString = timesString.replace('12:00-12:00', 'All Day');
+                let concatRT = concatRichText([
+                    SpreadsheetApp.newRichTextValue().setText((i === 0 ? '\n' : '') + timesString + ' • ').build(),
+                    SpreadsheetApp.newRichTextValue().setText(guestNames.join(', ') + (guestNames.length > 0 ? ': ' : '')).setTextStyle(boldStyle).build(),
+                    SpreadsheetApp.newRichTextValue().setText(ev.getTitle() + (i === gCalEvents.length - 1 ? '\n' : '')).build()
+                ]).setLinkUrl(getEventUrl(ev)).setTextStyle(removeLinkStyle).build();
+                return concatRT;
+            })
+        ];
+        if (happeningTodayRichTextArray.length > 2)
+            deskSheet.insertRowsAfter(displayCells.getByName('happeningToday').getRow(), Math.max(0, happeningTodayRichTextArray.length - 2));
+        deskSheet.getRange;
+        displayCells.update(SpreadsheetApp.getActiveSheet());
+        happeningTodayRichTextArray.forEach((rt, i) => {
+            deskSheet.getRange(displayCells.getByName('happeningToday').getRow() + i, displayCells.getByName('happeningToday').getColumn(), 1, deskSheet.getDataRange().getNumColumns() - (displayCells.getByName('happeningToday').getColumn() - 1))
+                .merge();
+            // .setRichTextValue(rt)
+        });
+        deskSheet.getRange(displayCells.getByName('happeningToday').getRow(), displayCells.getByName('happeningToday').getColumn(), happeningTodayRichTextArray.length)
+            .setRichTextValues(happeningTodayRichTextArray.map(e => [e]));
+        // displayCells.getByName('happeningToday').setRichTextValue(happeningTodayRichText)
     }
     getPositionById(id) {
         return this.positionHierarchy.filter(pos => pos.id == id)[0];
@@ -395,7 +450,7 @@ Creighton Zine class/program @ 4-5`);
             let prevTime = new Date(time).addTime(0, -30);
             let hoursPastMaxA = shiftA.countHowLongOverAssignmentLength(stationBeingAssigned, prevTime, settings.openHours.open);
             let hoursPastMaxB = shiftB.countHowLongOverAssignmentLength(stationBeingAssigned, prevTime, settings.openHours.open);
-            // console.log(time.getTimeStringHHMM(), stationBeingAssigned, shiftA.name, 'hoursPastMaxA', hoursPastMaxA, shiftB.name, 'hoursPastMaxB', hoursPastMaxB, hoursPastMaxA - hoursPastMaxB)
+            // console.log(time.getTimeStringHHMM24(), stationBeingAssigned, shiftA.name, 'hoursPastMaxA', hoursPastMaxA, shiftB.name, 'hoursPastMaxB', hoursPastMaxB, hoursPastMaxA - hoursPastMaxB)
             return hoursPastMaxA - hoursPastMaxB;
         });
     }
@@ -419,7 +474,11 @@ Creighton Zine class/program @ 4-5`);
                 shift.setStationAtTime(this.defaultStations.off, time, this.dayStartTime);
             shift.events.forEach(event => {
                 if (time >= event.startTime && time < event.endTime)
-                    shift.setStationAtTime(this.defaultStations.programMeeting, time, this.dayStartTime);
+                    //all day events only get shown during a person's shift. always display normal meeting/program/events even outside scheduled shift
+                    if ((event.getDurationInHours() > 22 && time >= shift.startTime && time < shift.endTime)
+                        ||
+                            (event.getDurationInHours() <= 22))
+                        shift.setStationAtTime(this.defaultStations.programMeeting, time, this.dayStartTime);
             });
         });
         this.logDeskData('after initializing availability and events');
@@ -481,10 +540,10 @@ Creighton Zine class/program @ 4-5`);
                     let aRatioOfShiftAtStation = aTotalStationTime / shiftA.getLength();
                     let bTotalStationTime = shiftB.countTotalTimeAtStation(station.name, prevTime, settings.openHours.open, this.dayStartTime);
                     let bRatioOfShiftAtStation = bTotalStationTime / shiftB.getLength();
-                    // console.log(`at ${time.getTimeStringHHMM()}, ${shiftA.name} has been ${station.name} for ${aTotalStationTime} hours and ${aRatioOfShiftAtStation} of shift.`)
+                    // console.log(`at ${time.getTimeStringHHMM24()}, ${shiftA.name} has been ${station.name} for ${aTotalStationTime} hours and ${aRatioOfShiftAtStation} of shift.`)
                     return aRatioOfShiftAtStation - bRatioOfShiftAtStation;
                 });
-                console.log(time.getTimeStringHHMM() + ' ' + station.name + '\n', this.shifts.map(shift => shift.name.substring(0, 3) + ': ' + shift.countTotalTimeAtStation(station.name, prevTime, settings.openHours.open, this.dayStartTime) + ', ' + Math.round(shift.countTotalTimeAtStation(station.name, prevTime, settings.openHours.open, this.dayStartTime) / shift.getLength() * 100) + '%').join('\n'));
+                console.log(time.getTimeStringHHMM24() + ' ' + station.name + '\n', this.shifts.map(shift => shift.name.substring(0, 3) + ': ' + shift.countTotalTimeAtStation(station.name, prevTime, settings.openHours.open, this.dayStartTime) + ', ' + Math.round(shift.countTotalTimeAtStation(station.name, prevTime, settings.openHours.open, this.dayStartTime) / shift.getLength() * 100) + '%').join('\n'));
                 //if not on this station and at/past max, move to top... redundant?
                 // this.shifts.sort((shiftA, shiftB)=>{
                 //   let aStation = shiftA.getStationAtTime(new Date(time).addTime(0,-30), this.dayStartTime)
@@ -503,10 +562,10 @@ Creighton Zine class/program @ 4-5`);
                         let bTimeOnAssigningStation = shiftB.countHowLongAtStation(station.name, prevTime, this.dayStartTime);
                         let bTimeOnCurrentStation = shiftB.countHowLongAtStation(shiftB.getStationAtTime(prevTime, this.dayStartTime), prevTime, this.dayStartTime);
                         let bVal = bTimeOnAssigningStation == 0 && bTimeOnCurrentStation < settings.assignmentLength ? 1000 : 0;
-                        // if(station.name==="Phones") console.log(time.getTimeStringHHMM()+' '+station.name, shiftA.name.substring(0,3), aTimeOnStation, aVal, shiftB.name.substring(0,3), bTimeOnStation, bVal)
+                        // if(station.name==="Phones") console.log(time.getTimeStringHHMM24()+' '+station.name, shiftA.name.substring(0,3), aTimeOnStation, aVal, shiftB.name.substring(0,3), bTimeOnStation, bVal)
                         return aVal - bVal;
                     });
-                console.log(time.getTimeStringHHMM() + ' ' + station.name + '\n', this.shifts.map(shift => {
+                console.log(time.getTimeStringHHMM24() + ' ' + station.name + '\n', this.shifts.map(shift => {
                     let timeOnStat = shift.countHowLongAtStation(station.name, prevTime, this.dayStartTime);
                     let timeOnCurrentStation = shift.countHowLongAtStation(shift.getStationAtTime(prevTime, this.dayStartTime), prevTime, this.dayStartTime);
                     return shift.name + ': ' + timeOnStat + ', ' + timeOnCurrentStation + ', ' + (timeOnStat == 0 && timeOnCurrentStation < settings.assignmentLength ? 1000 : 0);
@@ -518,16 +577,16 @@ Creighton Zine class/program @ 4-5`);
                         let aVal = aTimeOnStation >= settings.assignmentLength || aTimeOnStation <= 0 ? 1000 : aTimeOnStation;
                         let bTimeOnStation = shiftB.countHowLongAtStation(station.name, prevTime, this.dayStartTime);
                         let bVal = bTimeOnStation >= settings.assignmentLength || bTimeOnStation <= 0 ? 1000 : bTimeOnStation;
-                        // if(station.name==="Phones") console.log(time.getTimeStringHHMM()+' '+station.name, shiftA.name.substring(0,3), aTimeOnStation, aVal, shiftB.name.substring(0,3), bTimeOnStation, bVal)
+                        // if(station.name==="Phones") console.log(time.getTimeStringHHMM24()+' '+station.name, shiftA.name.substring(0,3), aTimeOnStation, aVal, shiftB.name.substring(0,3), bTimeOnStation, bVal)
                         return aVal - bVal;
                     });
-                console.log(time.getTimeStringHHMM() + ' ' + station.name + '\n', this.shifts.map(shift => {
+                console.log(time.getTimeStringHHMM24() + ' ' + station.name + '\n', this.shifts.map(shift => {
                     let timeOnStat = shift.countHowLongAtStation(station.name, prevTime, this.dayStartTime);
                     return shift.name + ': ' + timeOnStat + ', ' + (timeOnStat >= settings.assignmentLength || timeOnStat <= 0 ? 1000 : timeOnStat);
                 }).join('\n'));
                 log("if on this station and at max, move to end, prioritize furthest past");
                 this.sortShiftsByWhetherAssignmentLengthReached(station.name, time);
-                console.log(time.getTimeStringHHMM() + ' ' + station.name + '\n', this.shifts.map(shift => {
+                console.log(time.getTimeStringHHMM24() + ' ' + station.name + '\n', this.shifts.map(shift => {
                     let timeOnStat = shift.countHowLongAtStation(station.name, prevTime, this.dayStartTime);
                     return shift.name + ': ' + timeOnStat + ', ' + (timeOnStat >= settings.assignmentLength || timeOnStat <= 0 ? 1000 : timeOnStat);
                 }).join('\n'));
@@ -537,11 +596,11 @@ Creighton Zine class/program @ 4-5`);
                 //   let aTimeOnCurrentStation = shiftA.countHowLongAtStation(shiftA.getStationAtTime(prevTime, this.dayStartTime), prevTime, this.dayStartTime)
                 //   let bTimeOnCurrentStation = shiftB.countHowLongAtStation(shiftB.getStationAtTime(prevTime, this.dayStartTime), prevTime, this.dayStartTime)
                 //   let aVal = aTimeOnCurrentStation + shiftA.countAvailabilityLength(time, this.dayStartTime) >= settings.assignmentLength ? 0 : 
-                // console.log(time.getTimeStringHHMM()+' availability: ', shiftA.name.substring(0,3), aTimeOnCurrentStation, shiftA.countAvailabilityLength(time, this.dayStartTime), shiftB.name.substring(0,3), bTimeOnCurrentStation, shiftB.countAvailabilityLength(time, this.dayStartTime))
+                // console.log(time.getTimeStringHHMM24()+' availability: ', shiftA.name.substring(0,3), aTimeOnCurrentStation, shiftA.countAvailabilityLength(time, this.dayStartTime), shiftB.name.substring(0,3), bTimeOnCurrentStation, shiftB.countAvailabilityLength(time, this.dayStartTime))
                 //   return Math.min(settings.assignmentLength, bTimeOnCurrentStation + shiftB.countAvailabilityLength(time, this.dayStartTime)) -
                 //   Math.min(settings.assignmentLength, aTimeOnCurrentStation + shiftA.countAvailabilityLength(time, this.dayStartTime))
                 // })
-                // console.log(time.getTimeStringHHMM()+'available length:\n', this.shifts.map(shift=>{
+                // console.log(time.getTimeStringHHMM24()+'available length:\n', this.shifts.map(shift=>{
                 //   let aTimeOnCurrentStation = shift.countHowLongAtStation(shift.getStationAtTime(prevTime, this.dayStartTime), prevTime, this.dayStartTime)
                 //   return shift.name+': '+ Math.min(settings.assignmentLength, aTimeOnCurrentStation + shift.countAvailabilityLength(time, this.dayStartTime))
                 // }).join('\n'))
@@ -552,10 +611,10 @@ Creighton Zine class/program @ 4-5`);
                 //     let aRatioOfShiftAtStation = aTotalStationTime/shiftA.getLength()
                 //     let bTotalStationTime = shiftB.countTotalTimeAtStation(station.name, prevTime, settings.openHours.open)
                 //     let bRatioOfShiftAtStation = bTotalStationTime/shiftB.getLength()
-                //     // console.log(`at ${time.getTimeStringHHMM()}, ${shiftA.name} has been ${station.name} for ${aTotalStationTime} hours and ${aRatioOfShiftAtStation} of shift.`)
+                //     // console.log(`at ${time.getTimeStringHHMM24()}, ${shiftA.name} has been ${station.name} for ${aTotalStationTime} hours and ${aRatioOfShiftAtStation} of shift.`)
                 //     return aRatioOfShiftAtStation - bRatioOfShiftAtStation
                 //   })
-                //   console.log(time.getTimeStringHHMM()+' '+station.name+'\n', this.shifts.map(shift=>shift.name.substring(0,3)+': '+shift.countTotalTimeAtStation(station.name, prevTime, settings.openHours.open)+', '+Math.round(shift.countTotalTimeAtStation(station.name, prevTime, settings.openHours.open)/shift.getLength()*100)+'%').join('\n'))
+                //   console.log(time.getTimeStringHHMM24()+' '+station.name+'\n', this.shifts.map(shift=>shift.name.substring(0,3)+': '+shift.countTotalTimeAtStation(station.name, prevTime, settings.openHours.open)+', '+Math.round(shift.countTotalTimeAtStation(station.name, prevTime, settings.openHours.open)/shift.getLength()*100)+'%').join('\n'))
                 // }
                 //assign
                 this.shifts.forEach(shift => {
@@ -564,17 +623,17 @@ Creighton Zine class/program @ 4-5`);
                         let currentStation = shift.getStationAtTime(time, this.dayStartTime);
                         let prevStation = shift.getStationAtTime(prevTime, this.dayStartTime);
                         let timeOnPrevStation = shift.countHowLongAtStation(prevStation, new Date(time).addTime(0, -30), this.dayStartTime);
-                        console.log(`at ${time.getTimeStringHHMM()}, ${shift.name} has been ${prevStation} for ${timeOnPrevStation}hours.`, currentStation, currentStation == this.defaultStations.undefined, stationCount < station.numOfStaff);
+                        console.log(`at ${time.getTimeStringHHMM24()}, ${shift.name} has been ${prevStation} for ${timeOnPrevStation}hours.`, currentStation, currentStation == this.defaultStations.undefined, stationCount < station.numOfStaff);
                         if (currentStation == this.defaultStations.undefined && stationCount < station.numOfStaff) { //check earlier and continue if numOfstaff met?
                             shift.setStationAtTime(station.name, time, this.dayStartTime);
                             currentStation = shift.getStationAtTime(time, this.dayStartTime);
                             let timeOnCurrStation = shift.countHowLongAtStation(currentStation, time, this.dayStartTime);
-                            console.log(`After assigning to ${currentStation} at ${time.getTimeStringHHMM()}, ${shift.name} has been ${currentStation} for ${timeOnCurrStation}hours.`);
+                            console.log(`After assigning to ${currentStation} at ${time.getTimeStringHHMM24()}, ${shift.name} has been ${currentStation} for ${timeOnCurrStation}hours.`);
                         }
                     }
                 });
             });
-            this.logDeskData('user defined stations pass at ' + time.getTimeStringHHMM());
+            this.logDeskData('user defined stations pass at ' + time.getTimeStringHHMM24());
         }
     }
     forEachShiftBlock(startTime = settings.openHours.open, endTime = settings.openHours.close, func) {
@@ -608,25 +667,68 @@ Creighton Zine class/program @ 4-5`);
             .setValues(this.shifts.map(s => [this.shortenFullName(s.name)]));
         displayCells.getByNameColumn('shiftTime', '', this.shifts.length)
             .setValues(this.shifts.map(s => [
-            s.startTime.toLocaleTimeString().split(':').slice(0, 2).join(':')
+            s.startTime.getTimeStringHHMM12()
                 + '-' +
-                s.endTime.toLocaleTimeString().split(':').slice(0, 2).join(':')
+                s.endTime.getTimeStringHHMM12()
         ]));
-        displayCells.getByNameColumn('stationColor', '', this.stations.length)
-            .setBackgrounds(this.stations.map(s => [s.color]));
-        displayCells.getByNameColumn('stationName', '', this.stations.length)
-            .setValues(this.stations.map(s => [s.name]));
-        //replace once opening duties are generatred in deskSchedule
-        displayCells.getByNameColumn('openingDutyTitle', '', settings.openingDuties.length)
-            .setValues(settings.openingDuties.map(d => [d.name]));
-        displayCells.getByNameColumn('openingDutyName', '', settings.openingDuties.length)
-            .setValues(settings.openingDuties.map(d => ['staff name']));
-        displayCells.getByNameColumn('openingDutyCheck', '', settings.openingDuties.length)
-            .insertCheckboxes();
         //Display station colors
         let colorArr = this.shifts.map(shift => shift.stationTimeline.map(station => this.getStation(station).color));
         let timelineRange = displayCells.getByName2D('shiftStationGridStart', '', this.shifts.length, this.shifts[0].stationTimeline.length);
         timelineRange.setBackgrounds(colorArr);
+        //Add event links
+        let stationGridStart = displayCells.getByName('shiftStationGridStart', '');
+        this.shifts.forEach((shift, i) => {
+            shift.events.forEach(event => {
+                let eventStart = event.getDurationInHours() > 22 ? shift.startTime.getTime() : event.startTime.getTime();
+                let eventEnd = event.getDurationInHours() > 22 ? shift.endTime.getTime() : event.endTime.getTime();
+                let halfHoursSinceDayStart = Math.round((eventStart - this.dayStartTime.getTime()) / 3600000 * 2);
+                let eventLengthInHalfHours = Math.round((eventEnd - eventStart) / 3600000 * 2);
+                deskSheet.getRange(stationGridStart.getRow() + i, stationGridStart.getColumn() + halfHoursSinceDayStart, 1, eventLengthInHalfHours)
+                    .setValue(`=HYPERLINK("${event.gCalUrl}","...")`)
+                    .setFontColor(this.getStation(this.defaultStations.programMeeting).color);
+            });
+        });
+    }
+    displayStationKey(displayCells) {
+        let stationsFilteredForDisplay = this.stations.filter(s => s.name != 'undefined');
+        displayCells.getByNameColumn('stationColor', '', stationsFilteredForDisplay.length)
+            .setBackgrounds(stationsFilteredForDisplay.map(s => [s.color]));
+        displayCells.getByNameColumn('stationName', '', stationsFilteredForDisplay.length)
+            .setValues(stationsFilteredForDisplay.map(s => [s.name]));
+    }
+    displayDuties(displayCells, wiwData) {
+        // let sortedStaffIdList = wiwData.users.map(u=>u.id).sort()
+        // sortedStaffIdList = offset(sortedStaffIdList, this.date.getDayOfYear())
+        shuffle(this.shifts);
+        let openingDutiesStart = new Date(settings.openHours.open).addTime(0, -30);
+        let openingStaffShifts = this.shifts.filter(shift => {
+            let stationAtOpen = shift.getStationAtTime(openingDutiesStart, this.dayStartTime);
+            return (stationAtOpen == this.defaultStations.available) || (stationAtOpen == this.defaultStations.undefined);
+        });
+        for (let i = 0; i < this.openingDuties.length; i++) {
+            let duty = this.openingDuties[i];
+            if (duty.requirePIC) {
+                openingStaffShifts.every(shift => {
+                    if (shift.tags.includes('PIC')) {
+                        //move first PIC shift in array to front of assignment queue
+                        openingStaffShifts.sort((shiftA, shiftB) => shiftA.user_id == shift.user_id ? -1 : shiftB.user_id == shift.user_id ? 1 : 0);
+                        return false; //exit every loop
+                    }
+                });
+            }
+            //assign staff at front of assignment queue
+            duty.staffName = openingStaffShifts[0].name + (openingStaffShifts[0].tags.includes('PIC') ? 'ᴾ' : '');
+            //move staff to end of assignment queue
+            openingStaffShifts.sort((shiftA, shiftB) => {
+                return shiftA.user_id == openingStaffShifts[0].user_id ? 1 : shiftB.user_id == openingStaffShifts[0].user_id ? -1 : 0;
+            });
+        }
+        displayCells.getByNameColumn('openingDutyTitle', '', this.openingDuties.length)
+            .setValues(this.openingDuties.map(d => [d.title + ((d.requirePIC ? 'ᴾ' : ''))]));
+        displayCells.getByNameColumn('openingDutyName', '', this.openingDuties.length)
+            .setValues(this.openingDuties.map(d => [this.shortenFullName(d.staffName) + (d.staffName.includes('ᴾ') ? 'ᴾ' : '')]));
+        displayCells.getByNameColumn('openingDutyCheck', '', this.openingDuties.length)
+            .insertCheckboxes();
     }
     logDeskData(description) {
         this.sortShiftsForDisplay();
@@ -638,13 +740,13 @@ Creighton Zine class/program @ 4-5`);
     popupDeskDataLog() {
         if (settings.verboseLog) {
             var htmlTemplate = HtmlService.createTemplate(`<style>
-            .outline {
+        .outline {
           color: white;
           background-color: white;
           text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
           font-size: 30px;
-        }
-        </style><div id="animDisplay" style="font-family: monospace; font-size: large; line-height: 0.9">
+          }
+          </style><div id="animDisplay" style="font-family: monospace; font-size: large; line-height: 0.9">
           loading...
           </div>
           <br>
@@ -663,23 +765,25 @@ Creighton Zine class/program @ 4-5`);
             animSlider.addEventListener("input", (e) =>{
               animDisplay.innerHTML = logDeskDataRecord[animSlider.value]
               console.log()
-            })
-          }
-          window.onload = initialize
-          </script>`);
+              })
+              }
+              window.onload = initialize
+              </script>`);
             htmlTemplate.logDeskDataRecord = this.logDeskDataRecord;
             var htmlOutput = htmlTemplate.evaluate().setSandboxMode(HtmlService.SandboxMode.IFRAME).setWidth(700).setHeight(700);
             ui.showModalDialog(htmlOutput, 'Timeline Debug');
         }
     }
     shortenFullName(name) {
-        let nameList = this.shifts.map(s => s.name);
+        if (!name.includes(' '))
+            name += ' filledinlastname';
+        let nameList = this.shifts.map(s => s.name.includes(' ') ? s.name : s.name + ' filledinlastname');
         for (let i = 0; i < name.length; i++) {
             if (i == name.length - 1)
                 return name.split(' ')[0];
             if (nameList.filter(n => n.split(' ')[0] + n.split(' ')[1].substring(0, i) == name.split(' ')[0] + name.split(' ')[1].substring(0, i)).length > 1)
                 continue;
-            return name.split(' ')[0] + ' ' + name.split(' ')[1].substring(0, i).trim();
+            return (name.split(' ')[0] + ' ' + name.split(' ')[1].substring(0, i)).trim();
         }
     }
 }
@@ -697,11 +801,23 @@ class Station {
     }
 }
 class ShiftEvent {
+    constructor(title, startTime, endTime, 
+    // displayString: string
+    gCalUrl) {
+        this.title = title;
+        this.startTime = startTime;
+        this.endTime = endTime;
+        this.gCalUrl = gCalUrl;
+    }
+    getDurationInHours() {
+        return Math.abs(this.endTime.getTime() - this.startTime.getTime()) / 3600000;
+    }
 }
 class Shift {
-    constructor(user_id, name, startTime = undefined, endTime = undefined, events = [], idealMealTime = undefined, assignedPIC = false, position = undefined, positionGroup = undefined, tags = [], stationTimeline = [], picTimeline = []) {
+    constructor(user_id, name, email = undefined, startTime = undefined, endTime = undefined, events = [], idealMealTime = undefined, assignedPIC = false, position = undefined, positionGroup = undefined, tags = [], stationTimeline = [], picTimeline = []) {
         this.user_id = user_id;
         this.name = name;
+        this.email = email;
         this.startTime = startTime;
         this.endTime = endTime;
         this.events = events;
@@ -877,6 +993,13 @@ class DisplayCells {
             return SpreadsheetApp.getActiveSheet().getRangeList((matches.map(dc => dc.a1)));
     }
 }
+class Duty {
+    constructor(title, staffName, requirePIC) {
+        this.title = title;
+        this.staffName = staffName;
+        this.requirePIC = requirePIC;
+    }
+}
 function log(arg) {
     if (settings.verboseLog) {
         console.log.apply(console, arguments);
@@ -890,8 +1013,8 @@ function loadSettings(deskSchedDate) {
     var settingsSheetAllColors = settingsSheet.getDataRange().getBackgrounds();
     var settingsTrimmed = settingsSheetAllData.map(s => s.filter(s => s !== ''));
     var settings = Object.fromEntries(getSettingsBlock('Settings Name', settingsTrimmed).map(([k, v]) => [k, v]));
-    var openingDuties = getSettingsBlock('Opening Duties', settingsTrimmed);
-    settings.openingDuties = openingDuties.map((line) => ({ "name": line[0], "requirePIC": line[1] }));
+    var openingDuties = getSettingsBlock('Opening Duties', settingsTrimmed).filter(duty => Object.keys(duty).length !== 0);
+    settings.openingDuties = openingDuties.map((line) => ({ "title": line[0], "requirePIC": line[1] }));
     // ui.alert(JSON.stringify(settingsSheetAllData))
     settings.stations = getSettingsBlock('Color', settingsSheetAllData)
         .map((line) => ({
@@ -978,16 +1101,13 @@ function getWiwData(token, deskSchedDate) {
     if (!settings.googleCalendarID)
         ui.alert(`events/meetings google calendar id missing from settings - go to the SETTINGS sheet and make sure the setting "googleCalendarID" has a value`, ui.ButtonSet.OK);
     let deskSchedDateEnd = new Date(deskSchedDate.getTime() + 86399000);
-    let gCalEvents = CalendarApp.getCalendarById(settings.googleCalendarID).getEvents(deskSchedDate, deskSchedDateEnd);
-    //MUST BE SUBSCRIBED TO CAL - add check if user is subscribed, if they're not, notify them that you're subscribing them to it, give option to unsubscribe after
-    ui.alert(gCalEvents.map(event => event.getTitle() + ', ' + event.getStartTime() + ', ' + event.getEndTime() + ', ' + event.getGuestList().map(g => g.getEmail()).join(', ')).join('\n'));
     wiwData.shifts = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/shifts?location_id=${settings.locationID}&start=${deskSchedDate.toISOString()}&end=${deskSchedDateEnd.toISOString()}`, options).getContentText()).shifts; //change to setDate, getDate+1, currently will break on daylight savings... or make seperate deskSchedDateEnd where you set the time to 23:59:59
-    wiwData.annotations = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/annotations?&start_date=${deskSchedDate.toISOString()}&end_date=${new Date(deskSchedDate.getTime() + 86399000).toISOString()}`, options).getContentText()).annotations; //change to setDate, getDate+1, currently will break on daylight savings
+    wiwData.annotations = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/annotations?&start_date=${deskSchedDate.toISOString()}&end_date=${deskSchedDateEnd.toISOString()}`, options).getContentText()).annotations; //change to setDate, getDate+1, currently will break on daylight savings
     log("wiwData.annotations:\n" + JSON.stringify(wiwData.annotations));
     wiwData.positions = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/positions`, options).getContentText()).positions;
     log("wiwData.positions:\n" + JSON.stringify(wiwData.positions));
     if (wiwData.shifts.length < 1 && wiwData.annotations.length < 0) {
-        ui.alert(`There are no shifts or announcements (annotations) published in WhenIWork at location: \n—${settings.locationID} (${settings.locationID})\nbetween\n—${deskSchedDate.toString()}\nand\n—${new Date(deskSchedDate.getTime() + 86399000).toString()}`);
+        ui.alert(`There are no shifts or announcements (annotations) published in WhenIWork at location: \n—${settings.locationID} (${settings.locationID})\nbetween\n—${deskSchedDate.toString()}\nand\n—${deskSchedDateEnd.toString()}`);
         return;
     }
     wiwData.users = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/users`, options).getContentText()).users;
@@ -1056,6 +1176,14 @@ function mergeConsecutiveInColumn(range) {
         }
     }
 }
+function getEventUrl(calendarEvent) {
+    const calendarId = settings.googleCalendarID;
+    const eventId = calendarEvent.getId();
+    const splitEventId = eventId.split('@')[0];
+    const eid = Utilities.base64Encode(`${splitEventId} ${calendarId}`).replace('=', '');
+    const eventUrl = `https://www.google.com/calendar/event?eid=${eid}`;
+    return eventUrl;
+}
 function parseDate(deskScheduleDate, timeString, earliestHour) {
     let h = parseInt(timeString.split(':')[0]);
     let m = parseInt(timeString.split(':').length > 1 ? timeString.split(':')[1] : '00');
@@ -1069,10 +1197,72 @@ function parseDate(deskScheduleDate, timeString, earliestHour) {
     date.setHours(h, m);
     return date;
 }
+function offset(arr, offset) { return [...arr.slice(offset % arr.length), ...arr.slice(0, offset % arr.length)]; }
+function shuffle(array) {
+    let currentIndex = array.length;
+    // While there remain elements to shuffle...
+    while (currentIndex != 0) {
+        // Pick a remaining element...
+        let randomIndex = Math.floor(Math.random() * currentIndex);
+        currentIndex--;
+        // And swap it with the current element.
+        [array[currentIndex], array[randomIndex]] = [
+            array[randomIndex], array[currentIndex]
+        ];
+    }
+}
 Date.prototype.addTime = function (hours, minutes = 0, seconds = 0) {
     this.setTime(this.getTime() + hours * 60 * 60 * 1000 + minutes * 60 * 1000 + seconds * 1000);
     return this;
 };
-Date.prototype.getTimeStringHHMM = function () {
+Date.prototype.clamp = function (minDate, maxDate) {
+    if (this < minDate)
+        return minDate;
+    else if (this > maxDate)
+        return maxDate;
+    return this;
+};
+Date.prototype.getDayOfYear = function () {
+    return (Date.UTC(this.getFullYear(), this.getMonth(), this.getDate()) - Date.UTC(this.getFullYear(), 0, 0)) / 24 / 60 / 60 / 1000;
+};
+Date.prototype.getTimeStringHHMM24 = function () {
     return this.getHours() + ':' + (this.getMinutes() < 10 ? '0' : '') + this.getMinutes();
 };
+Date.prototype.getTimeStringHHMM12 = function () {
+    return this.toLocaleTimeString().split(':').slice(0, 2).join(':');
+};
+Date.prototype.getTimeStringHH12 = function () {
+    let hour = this.toLocaleTimeString().split(':').slice(0, 2)[0];
+    let min = this.toLocaleTimeString().split(':').slice(0, 2)[1];
+    if (parseInt(min) === 0)
+        return this.toLocaleTimeString().split(':')[0];
+    else
+        return this.toLocaleTimeString().split(':').slice(0, 2).join(':');
+};
+function concatRichText(richTextValueArray) {
+    // remove the first to start the merge
+    let first = richTextValueArray.shift();
+    let result = first.getText();
+    // merge all text into one
+    let seperator = '';
+    richTextValueArray.forEach(next => result = result + next.getText());
+    // put the first back into first place
+    richTextValueArray.unshift(first);
+    let richText = SpreadsheetApp.newRichTextValue().setText(result);
+    let start = 0;
+    let end = 0;
+    richTextValueArray.forEach(next => {
+        let runs = next.getRuns();
+        runs.forEach(run => {
+            if (run.getText().length > 0) {
+                richText = richText.setTextStyle(start + run.getStartIndex(), Math.min(start + run.getEndIndex(), richText.build().getText().length), run.getTextStyle());
+                if (run.getLinkUrl()) {
+                    richText = richText.setLinkUrl(start + run.getStartIndex(), Math.min(start + run.getEndIndex(), richText.build().getText().length), run.getLinkUrl());
+                }
+                end = run.getEndIndex();
+            }
+        });
+        start = start + end; //+seperator.length 
+    });
+    return richText;
+}
