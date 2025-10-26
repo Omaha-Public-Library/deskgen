@@ -28,6 +28,9 @@ meal time distribution not working for dinner?
 
 PIC timeline - don't assign new person to last half hour (DT 10/24)
 
+lots of .5hr islands around .5hr meals - when station assignment order is random, few choices are often left when reaching stations who should be extended .5hr to avoid little islands. Instead of working through stations in priority order, why not get list of stations that can be assigned based on num of unassigned spaces, then sort to prioritize stations where staff only has half hour of availability remaining.
+also factor in time spent on each station?
+
 ======== aaron meeting notes ========
 seperate data structure from logic
 consider whether your data format matches the storage medium
@@ -58,6 +61,16 @@ if not, assigning staff could be tricky when there's lots of sharing going on
 we need to think more about - when staff are being shared, what's the procedure? receiving schedule creates open schedule, then managers assign staff?
 is there a better way to have managers 
 we're not using locations at all right now...
+
+======== new sorting algorithm notes ========
+candidate list based
+problem now is that, while going through stations in priority order for a given half hour, we don't conisder later priority stations with limited assignment options
+eg- only one PIC available, and they're required for station third in priority list, but they get assigned to first station, and then no one is available  for #3
+this also affects fragmentation - staffA was previously on stationB for half hour, but in next half hour they're assigned to stationA before they can be prioritized for stationB
+
+what if - before assigning, create a candidate list for each position (or two? preferred, then possible?) of staff who are eligible for a station. Then, instead of going through stations in priority order, sort them by number of preferred candidates available, so the trickier stations are handled first. As stations are assigned, remove staff from other candidate lists.
+
+Could this handled better distribution of time off desk too?
 */
 
 
@@ -662,17 +675,22 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
           let startTime = new Date(shift.idealMealTime).addTime(0, startMinutes)
           let availabilityTotal = 0
           //for each start time, count total available staff for each half hour over length of break
+          let duringOpenHours = false
           for(let minutes = 0; minutes<settings.mealBreakLength*60; minutes+=30){
             let time = new Date(shift.idealMealTime).addTime(0, startMinutes+minutes)
             availabilityTotal += this.getStationCountAtTime(this.defaultStations.undefined, time, this.dayStartTime)
-            if (shift.getStationAtTime(time,this.dayStartTime).name !== this.defaultStations.undefined) availabilityTotal-=999
+            if (
+              !(shift.getStationAtTime(time,this.dayStartTime).name == this.defaultStations.undefined
+              || shift.getStationAtTime(time,this.dayStartTime).name == this.defaultStations.available)
+            ) availabilityTotal -= 1000
+            if (time >= settings.openHours.open && time < settings.openHours.close) duringOpenHours = true
           }
+          if (!duringOpenHours) availabilityTotal += 100
           //add count to array
           if(availabilityTotal>0)highestAvailabilityTimes.push({time: startTime, availabilityTotal: availabilityTotal})
         }
         //sort resulting array by availability total (tie broken by existing proximity to ideal order)
         highestAvailabilityTimes.sort((a,b)=>b.availabilityTotal-a.availabilityTotal)
-        // console.log(shift.name + ":\n" + highestAvailabilityTimes.map(a=>a.time.toLocaleTimeString()+": "+a.availabilityTotal).join('\n'))
         //assign staff to best meal time
         if(highestAvailabilityTimes.length>0)
           for(let minutes = 0; minutes<settings.mealBreakLength*60; minutes+=30){
@@ -696,7 +714,55 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
       
       let prevTime = new Date(time).addTime(0,-30).clamp(startTime, new Date(endTime).addTime(0,-30))
       let nextTime = new Date(time).addTime(0,30).clamp(startTime, new Date(endTime).addTime(0,-30))
+      
+      this.stations.forEach(station=>{
+        //skip default stations EXCEPT available, the rest are handled in timelineAddAvailabilityAndEvents and timelineAddMeals
+        if(Object.values(this.defaultStations).includes(station.name) && station.name != this.defaultStations.available) return
+
+        //assign
+        this.shifts.forEach(shift=> {
+          if (station.positionPriority.length<1 || station.positionPriority.includes(this.getPositionById(shift.position).name)){ //if staff is assigned to this station
+            let stationCount = this.getStationCountAtTime(station.name, time, this.dayStartTime)
+            let currentStation = shift.getStationAtTime(time, this.dayStartTime)
+            let prevStation = shift.getStationAtTime(prevTime, this.dayStartTime)
+            let nextStation = shift.getStationAtTime(nextTime, this.dayStartTime)
+            let timeOnPrevStation = shift.countHowLongAtStation(prevStation.name, new Date(time).addTime(0,-30), this.dayStartTime)
+            // console.log(`at ${time.getTimeStringHHMM24()}, ${shift.name} has been ${prevStation} for ${timeOnPrevStation}hours.`, currentStation, currentStation == this.defaultStations.undefined, stationCount<station.numOfStaff)
+              // console.log(station.name, station.limitToEndTime, station.limitToStartTime)
+            if(
+              currentStation.name == this.defaultStations.undefined
+              && stationCount<station.numOfStaff
+              && (time >= station.limitToStartTime || !station.limitToStartTime)
+              && (time < station.limitToEndTime || !station.limitToEndTime)
+              
+              //special constraints for first pass without sorting
+
+              //if previously on this station, and not available for more than next half hour
+              && prevStation.name == station.name && nextStation.name != this.defaultStations.undefined
+              //and this station 
+            ){
+              shift.setStationAtTime(station.name, time, this.dayStartTime)
+              currentStation = shift.getStationAtTime(time, this.dayStartTime)
+              let timeOnCurrStation = shift.countHowLongAtStation(currentStation.name, time, this.dayStartTime)
+              // console.log(`After assigning to ${currentStation} at ${time.getTimeStringHHMM24()}, ${shift.name} has been ${currentStation} for ${timeOnCurrStation}hours.`)
+            }
+          }
+        })
         
+        //if on this station and over max but only by half an hour before becoming unavailable
+        // this.shifts.sort((shiftA, shiftB)=>{
+        //   let aStationPrev = shiftA.getStationAtTime(prevTime, this.dayStartTime)
+        //   let bStationPrev = shiftB.getStationAtTime(prevTime, this.dayStartTime)
+        //   let aStationNext = shiftA.getStationAtTime(nextTime, this.dayStartTime)
+        //   let bStationNext = shiftB.getStationAtTime(nextTime, this.dayStartTime)
+
+        //   let aOnThisStation = shiftA.getStationAtTime(prevTime,this.dayStartTime).name == station.name
+        //   let bOnThisStation = shiftB.getStationAtTime(prevTime,this.dayStartTime).name == station.name
+
+        //   let aUnavailableInHalfHour = shiftA.getStationAtTime(prevTime,this.dayStartTime).name == this.defaultStations.undefined
+        // })
+      })
+
         this.stations.forEach(station=>{
           //skip default stations EXCEPT available, the rest are handled in timelineAddAvailabilityAndEvents and timelineAddMeals
           if(Object.values(this.defaultStations).includes(station.name) && station.name != this.defaultStations.available) return
