@@ -442,10 +442,10 @@ class DeskSchedule {
         else
             return matches[0];
     }
-    getStationCountAtTime(stationName, time, dayStartTime) {
+    getStationCountAtTime(stationName, time) {
         let count = 0;
         this.shifts.forEach(s => {
-            if (s.getStationAtTime(time, dayStartTime).name == stationName)
+            if (s.getStationAtTime(time).name == stationName)
                 count++;
         });
         return count;
@@ -548,8 +548,8 @@ class DeskSchedule {
     sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned, time) {
         this.shifts.sort((shiftA, shiftB) => {
             let prevTime = new Date(time).addTime(0, -30);
-            let hoursPastMaxA = shiftA.countHowLongOverAssignmentLength(stationBeingAssigned, prevTime, this.dayStartTime);
-            let hoursPastMaxB = shiftB.countHowLongOverAssignmentLength(stationBeingAssigned, prevTime, this.dayStartTime);
+            let hoursPastMaxA = shiftA.countHowLongOverAssignmentLength(stationBeingAssigned, prevTime);
+            let hoursPastMaxB = shiftB.countHowLongOverAssignmentLength(stationBeingAssigned, prevTime);
             // console.log(time.getTimeStringHHMM24(), stationBeingAssigned, shiftA.name, 'hoursPastMaxA', hoursPastMaxA, shiftB.name, 'hoursPastMaxB', hoursPastMaxB, hoursPastMaxA - hoursPastMaxB)
             return hoursPastMaxA - hoursPastMaxB;
         });
@@ -567,18 +567,18 @@ class DeskSchedule {
         //fill in availability and events
         this.forEachShiftBlock(this.dayStartTime, this.dayEndTime, (shift, time) => {
             if ((time < settings.openHours.open || time >= settings.openHours.close) && (time >= shift.startTime && time < shift.endTime))
-                shift.setStationAtTime(this.defaultStations.available, time, this.dayStartTime);
+                shift.setStationAtTime(this.defaultStations.available, time);
             else if (time >= shift.startTime && time < shift.endTime)
-                shift.setStationAtTime(this.defaultStations.undefined, time, this.dayStartTime);
+                shift.setStationAtTime(this.defaultStations.undefined, time);
             else
-                shift.setStationAtTime(this.defaultStations.off, time, this.dayStartTime);
+                shift.setStationAtTime(this.defaultStations.off, time);
             shift.events.forEach(event => {
                 if (time >= event.startTime && time < event.endTime)
                     //all day events only get shown during a person's shift. always display normal meeting/program/events even outside scheduled shift
                     if ((event.getDurationInHours() > 22 && time >= shift.startTime && time < shift.endTime)
                         ||
                             (event.getDurationInHours() <= 22))
-                        shift.setStationAtTime(this.defaultStations.programMeeting, time, this.dayStartTime);
+                        shift.setStationAtTime(this.defaultStations.programMeeting, time);
             });
         });
         this.logDeskData('after initializing availability and events');
@@ -601,9 +601,9 @@ class DeskSchedule {
                 let duringOpenHours = false;
                 for (let minutes = 0; minutes < settings.mealBreakLength * 60; minutes += 30) {
                     let time = new Date(shift.idealMealTime).addTime(0, startMinutes + minutes);
-                    availabilityTotal += this.getStationCountAtTime(this.defaultStations.undefined, time, this.dayStartTime);
-                    if (!(shift.getStationAtTime(time, this.dayStartTime).name == this.defaultStations.undefined
-                        || shift.getStationAtTime(time, this.dayStartTime).name == this.defaultStations.available))
+                    availabilityTotal += this.getStationCountAtTime(this.defaultStations.undefined, time);
+                    if (!(shift.getStationAtTime(time).name == this.defaultStations.undefined
+                        || shift.getStationAtTime(time).name == this.defaultStations.available))
                         availabilityTotal -= 1000;
                     if (time >= settings.openHours.open && time < settings.openHours.close)
                         duringOpenHours = true;
@@ -619,7 +619,7 @@ class DeskSchedule {
             //assign staff to best meal time
             if (highestAvailabilityTimes.length > 0)
                 for (let minutes = 0; minutes < settings.mealBreakLength * 60; minutes += 30) {
-                    shift.setStationAtTime(this.defaultStations.mealBreak, highestAvailabilityTimes[0].time.addTime(0, minutes), this.dayStartTime);
+                    shift.setStationAtTime(this.defaultStations.mealBreak, highestAvailabilityTimes[0].time.addTime(0, minutes));
                 }
         });
         this.logDeskData('after adding meal breaks');
@@ -645,29 +645,29 @@ class DeskSchedule {
                 this.sortShiftsByUserPositionPriority(station.positionPriority);
                 //if on this station, move to front
                 this.shifts.sort((shiftA, shiftB) => {
-                    let aVal = shiftA.getStationAtTime(prevTime, this.dayStartTime).name == station.name ? 0 : 1;
-                    let bVal = shiftB.getStationAtTime(prevTime, this.dayStartTime).name == station.name ? 0 : 1;
-                    // console.log(`${time.getTimeStringHHMM12()} - ${station.name}\n${shiftA.name.substring(0,9)} is on ${shiftA.getStationAtTime(prevTime,this.dayStartTime)}, ${aVal}\n${shiftB.name.substring(0,9)} is on ${shiftB.getStationAtTime(prevTime,this.dayStartTime)}, ${bVal}\n${aVal-bVal}`)
+                    let aVal = shiftA.getStationAtTime(prevTime).name == station.name ? 0 : 1;
+                    let bVal = shiftB.getStationAtTime(prevTime).name == station.name ? 0 : 1;
+                    // console.log(`${time.getTimeStringHHMM12()} - ${station.name}\n${shiftA.name.substring(0,9)} is on ${shiftA.getStationAtTime(prevTime)}, ${aVal}\n${shiftB.name.substring(0,9)} is on ${shiftB.getStationAtTime(prevTime)}, ${bVal}\n${aVal-bVal}`)
                     return aVal - bVal;
                 });
                 //if not on this station and over max, move to front
                 this.shifts.sort((shiftA, shiftB) => {
-                    let aStationPrev = shiftA.getStationAtTime(prevTime, this.dayStartTime);
-                    let bStationPrev = shiftB.getStationAtTime(prevTime, this.dayStartTime);
+                    let aStationPrev = shiftA.getStationAtTime(prevTime);
+                    let bStationPrev = shiftB.getStationAtTime(prevTime);
                     let aVal = aStationPrev.name !== station.name
-                        && shiftA.countHowLongAtStation(aStationPrev.name, prevTime, this.dayStartTime) >= aStationPrev.duration
+                        && shiftA.countHowLongAtStation(aStationPrev.name, prevTime) >= aStationPrev.duration
                         ? 0 : 1;
                     let bVal = bStationPrev.name !== station.name
-                        && shiftB.countHowLongAtStation(bStationPrev.name, prevTime, this.dayStartTime) >= bStationPrev.duration
+                        && shiftB.countHowLongAtStation(bStationPrev.name, prevTime) >= bStationPrev.duration
                         ? 0 : 1;
                     return aVal - bVal;
                 });
                 //if available for this time and following half hour, move to top
                 this.shifts.sort((shiftA, shiftB) => {
-                    let aStation = shiftA.getStationAtTime(time, this.dayStartTime);
-                    let aStationNext = shiftA.getStationAtTime(nextTime, this.dayStartTime);
-                    let bStation = shiftB.getStationAtTime(time, this.dayStartTime);
-                    let bStationNext = shiftB.getStationAtTime(nextTime, this.dayStartTime);
+                    let aStation = shiftA.getStationAtTime(time);
+                    let aStationNext = shiftA.getStationAtTime(nextTime);
+                    let bStation = shiftB.getStationAtTime(time);
+                    let bStationNext = shiftB.getStationAtTime(nextTime);
                     let aVal = aStation.name == this.defaultStations.undefined && aStationNext.name == this.defaultStations.undefined
                         ? 0 : 1;
                     let bVal = bStation.name == this.defaultStations.undefined && bStationNext.name == this.defaultStations.undefined
@@ -676,13 +676,13 @@ class DeskSchedule {
                 });
                 //if on this station and over max, move to end
                 this.shifts.sort((shiftA, shiftB) => {
-                    let aStationPrev = shiftA.getStationAtTime(prevTime, this.dayStartTime);
-                    let bStationPrev = shiftB.getStationAtTime(prevTime, this.dayStartTime);
+                    let aStationPrev = shiftA.getStationAtTime(prevTime);
+                    let bStationPrev = shiftB.getStationAtTime(prevTime);
                     let aVal = aStationPrev.name == station.name
-                        && shiftA.countHowLongAtStation(aStationPrev.name, prevTime, this.dayStartTime) >= aStationPrev.duration
+                        && shiftA.countHowLongAtStation(aStationPrev.name, prevTime) >= aStationPrev.duration
                         ? 1 : 0;
                     let bVal = bStationPrev.name == station.name
-                        && shiftB.countHowLongAtStation(bStationPrev.name, prevTime, this.dayStartTime) >= bStationPrev.duration
+                        && shiftB.countHowLongAtStation(bStationPrev.name, prevTime) >= bStationPrev.duration
                         ? 1 : 0;
                     // console.log(time.getTimeStringHHMM12(),
                     //   shiftA.name,
@@ -692,9 +692,9 @@ class DeskSchedule {
                     //   aStationPrev.name,
                     //   aStationPrev.name == station.name,
                     //   'TIMEON:',
-                    //   shiftA.countHowLongAtStation(aStationPrev.name, prevTime, this.dayStartTime),
+                    //   shiftA.countHowLongAtStation(aStationPrev.name, prevTime),
                     //   'OVERMAX:',
-                    //   shiftA.countHowLongAtStation(aStationPrev.name, prevTime, this.dayStartTime) >= aStationPrev.duration-0.5,
+                    //   shiftA.countHowLongAtStation(aStationPrev.name, prevTime) >= aStationPrev.duration-0.5,
                     //   aVal
                     // )
                     // console.log(time.getTimeStringHHMM12(),
@@ -705,64 +705,64 @@ class DeskSchedule {
                     //   bStationPrev.name,
                     //   bStationPrev.name == station.name,
                     //   'TIMEON:',
-                    //   shiftB.countHowLongAtStation(bStationPrev.name, prevTime, this.dayStartTime),
+                    //   shiftB.countHowLongAtStation(bStationPrev.name, prevTime),
                     //   'OVERMAX:',
-                    //   shiftB.countHowLongAtStation(bStationPrev.name, prevTime, this.dayStartTime) >= bStationPrev.duration-0.5,
+                    //   shiftB.countHowLongAtStation(bStationPrev.name, prevTime) >= bStationPrev.duration-0.5,
                     //   bVal
                     // )
                     return aVal - bVal;
                 });
                 //if on this station and not over max, move to front
                 this.shifts.sort((shiftA, shiftB) => {
-                    let aStationPrev = shiftA.getStationAtTime(prevTime, this.dayStartTime);
-                    let bStationPrev = shiftB.getStationAtTime(prevTime, this.dayStartTime);
-                    let aVal = (shiftA.getStationAtTime(prevTime, this.dayStartTime).name == station.name
-                        && !(shiftA.countHowLongAtStation(aStationPrev.name, prevTime, this.dayStartTime) >= aStationPrev.duration))
+                    let aStationPrev = shiftA.getStationAtTime(prevTime);
+                    let bStationPrev = shiftB.getStationAtTime(prevTime);
+                    let aVal = (shiftA.getStationAtTime(prevTime).name == station.name
+                        && !(shiftA.countHowLongAtStation(aStationPrev.name, prevTime) >= aStationPrev.duration))
                         ? 0 : 1;
-                    let bVal = (shiftB.getStationAtTime(prevTime, this.dayStartTime).name == station.name
-                        && !(shiftB.countHowLongAtStation(bStationPrev.name, prevTime, this.dayStartTime) >= bStationPrev.duration))
+                    let bVal = (shiftB.getStationAtTime(prevTime).name == station.name
+                        && !(shiftB.countHowLongAtStation(bStationPrev.name, prevTime) >= bStationPrev.duration))
                         ? 0 : 1;
                     return aVal - bVal;
                 });
                 //if changeOnTheHour AND on this station AND not more than half an hour over, move to front
                 if (settings.changeOnTheHour && time.getMinutes() != 0) {
                     this.shifts.sort((shiftA, shiftB) => {
-                        let aStationPrev = shiftA.getStationAtTime(prevTime, this.dayStartTime);
-                        let bStationPrev = shiftB.getStationAtTime(prevTime, this.dayStartTime);
-                        let aVal = shiftA.getStationAtTime(prevTime, this.dayStartTime).name == station.name && !(shiftA.countHowLongAtStation(aStationPrev.name, prevTime, this.dayStartTime) >= aStationPrev.duration + 0.5) ? 0 : 1;
-                        let bVal = shiftB.getStationAtTime(prevTime, this.dayStartTime).name == station.name && !(shiftB.countHowLongAtStation(bStationPrev.name, prevTime, this.dayStartTime) >= bStationPrev.duration + 0.5) ? 0 : 1;
-                        // console.log(`${time.getTimeStringHHMM12()} - ${station.name}\n${shiftA.name.substring(0,9)} is on ${shiftA.getStationAtTime(prevTime,this.dayStartTime)}, ${aVal}\n${shiftB.name.substring(0,9)} is on ${shiftB.getStationAtTime(prevTime,this.dayStartTime)}, ${bVal}\n${aVal-bVal}`)
+                        let aStationPrev = shiftA.getStationAtTime(prevTime);
+                        let bStationPrev = shiftB.getStationAtTime(prevTime);
+                        let aVal = shiftA.getStationAtTime(prevTime).name == station.name && !(shiftA.countHowLongAtStation(aStationPrev.name, prevTime) >= aStationPrev.duration + 0.5) ? 0 : 1;
+                        let bVal = shiftB.getStationAtTime(prevTime).name == station.name && !(shiftB.countHowLongAtStation(bStationPrev.name, prevTime) >= bStationPrev.duration + 0.5) ? 0 : 1;
+                        // console.log(`${time.getTimeStringHHMM12()} - ${station.name}\n${shiftA.name.substring(0,9)} is on ${shiftA.getStationAtTime(prevTime)}, ${aVal}\n${shiftB.name.substring(0,9)} is on ${shiftB.getStationAtTime(prevTime)}, ${bVal}\n${aVal-bVal}`)
                         return aVal - bVal;
                     });
                 }
-                console.log(`${time.getTimeStringHHMM12()}, ${station.name}: ${this.shifts.map(s => s.name).join('\n')}`);
+                // console.log(`${time.getTimeStringHHMM12()}, ${station.name}: ${this.shifts.map(s=>s.name).join('\n')}`)
                 // log("sort by amount of time total at station, as ratio of shift length")
                 // this.shifts.sort((shiftA, shiftB)=>{
-                //   let aTotalStationTime = shiftA.countTotalTimeAtStation(station.name, prevTime, this.dayStartTime, this.dayStartTime)
+                //   let aTotalStationTime = shiftA.countTotalTimeAtStation(station.name, prevTime)
                 //   let aRatioOfShiftAtStation = aTotalStationTime/shiftA.getLength()
-                //   let bTotalStationTime = shiftB.countTotalTimeAtStation(station.name, prevTime, this.dayStartTime, this.dayStartTime)
+                //   let bTotalStationTime = shiftB.countTotalTimeAtStation(station.name, prevTime)
                 //   let bRatioOfShiftAtStation = bTotalStationTime/shiftB.getLength()
                 //   // console.log(`at ${time.getTimeStringHHMM24()}, ${shiftA.name} has been ${station.name} for ${aTotalStationTime} hours and ${aRatioOfShiftAtStation} of shift.`)
                 //   return aRatioOfShiftAtStation - bRatioOfShiftAtStation
                 // })
-                // console.log(time.getTimeStringHHMM24()+' '+station.name+'\n', this.shifts.map(shift=>shift.name.substring(0,3)+': '+shift.countTotalTimeAtStation(station.name, prevTime, this.dayStartTime, this.dayStartTime)+', '+Math.round(shift.countTotalTimeAtStation(station.name, prevTime, this.dayStartTime, this.dayStartTime)/shift.getLength()*100)+'%').join('\n'))
+                // console.log(time.getTimeStringHHMM24()+' '+station.name+'\n', this.shifts.map(shift=>shift.name.substring(0,3)+': '+shift.countTotalTimeAtStation(station.name, prevTime)+', '+Math.round(shift.countTotalTimeAtStation(station.name, prevTime)/shift.getLength()*100)+'%').join('\n'))
                 // this.sortShiftsByWhetherAssignmentLengthReached(station.name, time)
                 //assign
                 this.shifts.forEach(shift => {
                     if (station.positionPriority.length < 1 || station.positionPriority.includes(this.getPositionById(shift.position).name)) { //if staff is assigned to this station
-                        let stationCount = this.getStationCountAtTime(station.name, time, this.dayStartTime);
-                        let currentStation = shift.getStationAtTime(time, this.dayStartTime);
-                        // let prevStation = shift.getStationAtTime(prevTime, this.dayStartTime)
-                        // let timeOnPrevStation = shift.countHowLongAtStation(prevStation.name, new Date(time).addTime(0,-30), this.dayStartTime)
+                        let stationCount = this.getStationCountAtTime(station.name, time);
+                        let currentStation = shift.getStationAtTime(time);
+                        // let prevStation = shift.getStationAtTime(prevTime)
+                        // let timeOnPrevStation = shift.countHowLongAtStation(prevStation.name, new Date(time).addTime(0,-30))
                         // console.log(`at ${time.getTimeStringHHMM24()}, ${shift.name} has been ${prevStation} for ${timeOnPrevStation}hours.`, currentStation, currentStation == this.defaultStations.undefined, stationCount<station.numOfStaff)
                         // console.log(station.name, station.limitToEndTime, station.limitToStartTime)
                         if (currentStation.name == this.defaultStations.undefined
                             && stationCount < station.numOfStaff
                             && (time >= station.limitToStartTime || !station.limitToStartTime)
                             && (time < station.limitToEndTime || !station.limitToEndTime)) {
-                            shift.setStationAtTime(station.name, time, this.dayStartTime);
-                            currentStation = shift.getStationAtTime(time, this.dayStartTime);
-                            // let timeOnCurrStation = shift.countHowLongAtStation(currentStation.name, time, this.dayStartTime)
+                            shift.setStationAtTime(station.name, time);
+                            currentStation = shift.getStationAtTime(time);
+                            // let timeOnCurrStation = shift.countHowLongAtStation(currentStation.name, time)
                             // console.log(`After assigning to ${currentStation} at ${time.getTimeStringHHMM24()}, ${shift.name} has been ${currentStation} for ${timeOnCurrStation}hours.`)
                         }
                     }
@@ -788,9 +788,9 @@ class DeskSchedule {
         for (let time = new Date(startTime); time < endTime; time.addTime(0, 30)) {
             let prevTime = new Date(time).addTime(0, -30).clamp(startTime, new Date(endTime).addTime(0, -30));
             let nextTime = new Date(time).addTime(0, 30).clamp(startTime, new Date(endTime).addTime(0, -30));
-            // this.shifts.forEach(s=>console.log(`as of ${time.getTimeStringHHMM12()}, ${s.name.substring(0,9)} has been pic for ${s.countPicCurrentDuration(prevTime, this.dayStartTime)} hours concurrently, ${s.countPicHoursTotal()} total`))
+            // this.shifts.forEach(s=>console.log(`as of ${time.getTimeStringHHMM12()}, ${s.name.substring(0,9)} has been pic for ${s.countPicCurrentDuration(prevTime)} hours concurrently, ${s.countPicHoursTotal()} total`))
             // this.shifts.sort((shiftA, shiftB)=>
-            //   shiftA.getPicStatusAtTime(prevTime, this.dayStartTime) ? 1 : 0
+            //   shiftA.getPicStatusAtTime(prevTime) ? 1 : 0
             // )
             // console.log(`pics sorted to bring current PIC to first:\n`+this.shifts.map(s=>s.name).join('\n'))
             if (!settings.changeOnTheHour || time.getMinutes() == 0) {
@@ -804,48 +804,48 @@ class DeskSchedule {
                     return bTimeAvailable - aTimeAvailable;
                 });
                 // console.log(`${time.getTimeStringHHMM12()} - pics sorted by how long available, up to 2hr, descending:\n${this.shifts.map(s=>`${s.name.substring(0,9)}, ${s.countPicTimeUcomingAvailability(time).toFixed(1)}`).join('\n')}`)
-                this.shifts.sort((shiftA, shiftB) => shiftB.countPicCurrentDuration(prevTime, this.dayStartTime) - shiftA.countPicCurrentDuration(prevTime, this.dayStartTime));
-                // console.log(`${time.getTimeStringHHMM12()} - pics sorted by how long been PIC, descending:\n${this.shifts.map(s=>`${s.name.substring(0,9)}, ${s.countPicCurrentDuration(prevTime, this.dayStartTime).toFixed(1)} total`).join('\n')}`)
+                this.shifts.sort((shiftA, shiftB) => shiftB.countPicCurrentDuration(prevTime) - shiftA.countPicCurrentDuration(prevTime));
+                // console.log(`${time.getTimeStringHHMM12()} - pics sorted by how long been PIC, descending:\n${this.shifts.map(s=>`${s.name.substring(0,9)}, ${s.countPicCurrentDuration(prevTime).toFixed(1)} total`).join('\n')}`)
                 this.shifts.sort((shiftA, shiftB) => {
-                    let aDur = shiftA.countPicCurrentDuration(prevTime, this.dayStartTime);
-                    let bDur = shiftB.countPicCurrentDuration(prevTime, this.dayStartTime);
+                    let aDur = shiftA.countPicCurrentDuration(prevTime);
+                    let bDur = shiftB.countPicCurrentDuration(prevTime);
                     if (aDur >= this.getPositionById(shiftA.position).picDurationMax
                         || bDur >= this.getPositionById(shiftB.position).picDurationMax)
                         return aDur - bDur;
                     else
                         return 0;
                 });
-                // console.log(`${time.getTimeStringHHMM12()} - pics sorted by moving staff over pic limit to end:\n${this.shifts.map(s=>`${s.name.substring(0,9)}, ${s.countPicCurrentDuration(prevTime, this.dayStartTime).toFixed(1)}, ${this.getPositionById(s.position).picDurationMax} max`).join('\n')}`)
+                // console.log(`${time.getTimeStringHHMM12()} - pics sorted by moving staff over pic limit to end:\n${this.shifts.map(s=>`${s.name.substring(0,9)}, ${s.countPicCurrentDuration(prevTime).toFixed(1)}, ${this.getPositionById(s.position).picDurationMax} max`).join('\n')}`)
                 this.shifts.sort((shiftA, shiftB) => {
                     let aVal = 0;
                     let bVal = 0;
-                    // console.log(shiftA.name, shiftA.getStationAtTime(time,this.dayStartTime).name, shiftA.getStationAtTime(nextTime,this.dayStartTime).name, shiftA.countPicCurrentDuration(prevTime, this.dayStartTime))
-                    if (shiftA.getStationAtTime(time, this.dayStartTime).name == this.defaultStations.mealBreak)
+                    // console.log(shiftA.name, shiftA.getStationAtTime(time).name, shiftA.getStationAtTime(nextTime).name, shiftA.countPicCurrentDuration(prevTime))
+                    if (shiftA.getStationAtTime(time).name == this.defaultStations.mealBreak)
                         aVal--;
-                    if (shiftA.getStationAtTime(nextTime, this.dayStartTime).name == this.defaultStations.mealBreak && shiftA.countPicCurrentDuration(prevTime, this.dayStartTime) == 0)
+                    if (shiftA.getStationAtTime(nextTime).name == this.defaultStations.mealBreak && shiftA.countPicCurrentDuration(prevTime) == 0)
                         aVal--;
-                    if (shiftA.getStationAtTime(time, this.dayStartTime).name == this.defaultStations.programMeeting)
+                    if (shiftA.getStationAtTime(time).name == this.defaultStations.programMeeting)
                         aVal--;
-                    if (shiftA.getStationAtTime(nextTime, this.dayStartTime).name == this.defaultStations.programMeeting && shiftA.countPicCurrentDuration(prevTime, this.dayStartTime) == 0)
+                    if (shiftA.getStationAtTime(nextTime).name == this.defaultStations.programMeeting && shiftA.countPicCurrentDuration(prevTime) == 0)
                         aVal--;
-                    // console.log(shiftB.name, shiftB.getStationAtTime(time,this.dayStartTime).name, shiftB.getStationAtTime(nextTime,this.dayStartTime).name, shiftB.countPicCurrentDuration(prevTime, this.dayStartTime))
-                    if (shiftB.getStationAtTime(time, this.dayStartTime).name == this.defaultStations.mealBreak)
+                    // console.log(shiftB.name, shiftB.getStationAtTime(time).name, shiftB.getStationAtTime(nextTime).name, shiftB.countPicCurrentDuration(prevTime))
+                    if (shiftB.getStationAtTime(time).name == this.defaultStations.mealBreak)
                         bVal--;
-                    if (shiftB.getStationAtTime(nextTime, this.dayStartTime).name == this.defaultStations.mealBreak && shiftB.countPicCurrentDuration(prevTime, this.dayStartTime) == 0)
+                    if (shiftB.getStationAtTime(nextTime).name == this.defaultStations.mealBreak && shiftB.countPicCurrentDuration(prevTime) == 0)
                         bVal--;
-                    if (shiftB.getStationAtTime(time, this.dayStartTime).name == this.defaultStations.programMeeting)
+                    if (shiftB.getStationAtTime(time).name == this.defaultStations.programMeeting)
                         bVal--;
-                    if (shiftB.getStationAtTime(nextTime, this.dayStartTime).name == this.defaultStations.programMeeting && shiftB.countPicCurrentDuration(prevTime, this.dayStartTime) == 0)
+                    if (shiftB.getStationAtTime(nextTime).name == this.defaultStations.programMeeting && shiftB.countPicCurrentDuration(prevTime) == 0)
                         bVal--;
                     return bVal - aVal;
                 });
-                // console.log(`${time.getTimeStringHHMM12()} - pics sorted by moving staff with meals/events now/in next hour to end:\n${this.shifts.map(s=>`${s.name.substring(0,9)}, ${s.countPicCurrentDuration(prevTime, this.dayStartTime).toFixed(1)}]`).join('\n')}`)
+                // console.log(`${time.getTimeStringHHMM12()} - pics sorted by moving staff with meals/events now/in next hour to end:\n${this.shifts.map(s=>`${s.name.substring(0,9)}, ${s.countPicCurrentDuration(prevTime).toFixed(1)}]`).join('\n')}`)
             }
             //Assign top result to PIC
             for (const shift of this.shifts) {
-                if (shift.getStationAtTime(time, this.dayStartTime).name != this.defaultStations.off
+                if (shift.getStationAtTime(time).name != this.defaultStations.off
                     && shift.tags.includes('PIC')) {
-                    shift.setPicStatusAtTime(true, time, this.dayStartTime);
+                    shift.setPicStatusAtTime(true, time);
                     break;
                 }
             }
@@ -912,7 +912,7 @@ class DeskSchedule {
         shuffle(this.shifts);
         let openingDutiesStart = new Date(settings.openHours.open).addTime(0, -30);
         let openingStaffShifts = this.shifts.filter(shift => {
-            let stationAtOpen = shift.getStationAtTime(openingDutiesStart, this.dayStartTime);
+            let stationAtOpen = shift.getStationAtTime(openingDutiesStart);
             return (stationAtOpen.name == this.defaultStations.available) || (stationAtOpen.name == this.defaultStations.undefined);
         });
         for (let i = 0; i < this.openingDuties.length; i++) {
@@ -1044,55 +1044,58 @@ class Shift {
     getLength() {
         return (this.endTime.getTime() - this.startTime.getTime()) / (1000 * 60 * 60);
     }
-    getStationAtTime(time, dayStartTime) {
-        let halfHoursSinceDayStartTime = Math.round(Math.abs(time.getTime() - dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
+    getStationAtTime(time) {
+        let halfHoursSinceDayStartTime = Math.round(Math.abs(time.getTime() - this.deskSchedule.dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
         return this.deskSchedule.getStation(this.stationTimeline[halfHoursSinceDayStartTime]);
     }
-    getPicStatusAtTime(time, dayStartTime) {
-        let halfHoursSinceDayStartTime = Math.round(Math.abs(time.getTime() - dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
+    getPicStatusAtTime(time) {
+        let halfHoursSinceDayStartTime = Math.round(Math.abs(time.getTime() - this.deskSchedule.dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
         return this.picTimeline[halfHoursSinceDayStartTime];
     }
-    setStationAtTime(station, time, dayStartTime) {
-        let halfHoursSinceDayStartTime = Math.round(Math.abs(time.getTime() - dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
+    setStationAtTime(station, time) {
+        let halfHoursSinceDayStartTime = Math.round(Math.abs(time.getTime() - this.deskSchedule.dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
         // console.log(startTime, time, halfHoursSinceStartTime)
         this.stationTimeline[halfHoursSinceDayStartTime] = station;
     }
-    setPicStatusAtTime(status, time, dayStartTime) {
-        let halfHoursSinceDayStartTime = Math.round(Math.abs(time.getTime() - dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
+    setPicStatusAtTime(status, time) {
+        let halfHoursSinceDayStartTime = Math.round(Math.abs(time.getTime() - this.deskSchedule.dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
         // console.log(startTime, time, halfHoursSinceStartTime)
         this.picTimeline[halfHoursSinceDayStartTime] = status;
     }
-    countHowLongAtStation(stationName, time, dayStartTime) {
-        let currentStation = this.getStationAtTime(time, dayStartTime).name;
+    countHowLongAtStation(stationName, time) {
+        let currentStation = this.getStationAtTime(time).name;
         if (currentStation !== stationName)
             return 0; //if 
         let count = 0;
         for (let prevTime = new Date(time); prevTime >= this.startTime; prevTime.addTime(0, -30)) {
-            if (this.getStationAtTime(prevTime, dayStartTime).name === currentStation)
+            if (this.getStationAtTime(prevTime).name === currentStation)
                 count += 0.5;
             else
                 break;
         }
         return count;
     }
-    countHowLongOverAssignmentLength(stationName, time, openingTime) {
-        let hoursAtCurrentStation = this.countHowLongAtStation(stationName, time, openingTime);
+    countHowLongOverAssignmentLength(stationName, time) {
+        let hoursAtCurrentStation = this.countHowLongAtStation(stationName, time);
         let maxHoursAtCurrentStation = this.deskSchedule.getStation(stationName).duration;
         let hoursPastAssignmentLength = hoursAtCurrentStation < maxHoursAtCurrentStation ? -1 : hoursAtCurrentStation - maxHoursAtCurrentStation;
         return hoursPastAssignmentLength;
     }
-    countTotalTimeAtStation(stationName, beforeTime, openingTime, dayStartTime) {
+    countTotalTimeAtStation(stationName, beforeTime = this.deskSchedule.dayEndTime) {
+        ui.alert('countTotalTimeAtStation is untested');
         let count = 0;
-        for (let time = new Date(beforeTime); time >= openingTime; time.addTime(0, -30)) {
-            if (this.getStationAtTime(time, dayStartTime).name === stationName)
+        let firstTimeToCheck = new Date(beforeTime);
+        firstTimeToCheck.addTime(0, -30);
+        for (let time = firstTimeToCheck; time >= this.deskSchedule.dayStartTime; time.addTime(0, -30)) {
+            if (this.getStationAtTime(time).name === stationName)
                 count += 0.5;
         }
         return count;
     }
-    countAvailabilityLength(startingAt, dayStartTime) {
+    countAvailabilityLength(startingAt) {
         let count = 0;
         for (let time = new Date(startingAt); time < this.endTime; time.addTime(0, 30)) {
-            if (this.getStationAtTime(time, dayStartTime).name === "Available")
+            if (this.getStationAtTime(time).name === "Available")
                 count += 0.5;
             else
                 break;
@@ -1107,10 +1110,10 @@ class Shift {
         // }
         // return count
     }
-    countPicCurrentDuration(currentTime, dayStartTime) {
+    countPicCurrentDuration(currentTime) {
         let count = 0;
         for (let time = new Date(currentTime); time >= this.startTime; time.addTime(0, -30)) {
-            if (this.getPicStatusAtTime(time, dayStartTime) === true)
+            if (this.getPicStatusAtTime(time) === true)
                 count += 0.5;
             else
                 break;
@@ -1120,7 +1123,7 @@ class Shift {
     countPicTimeUcomingAvailability(currentTime) {
         let count = 0;
         for (let time = new Date(currentTime); time < this.endTime; time.addTime(0, 30)) {
-            let currentStation = this.getStationAtTime(time, this.deskSchedule.dayStartTime).name;
+            let currentStation = this.getStationAtTime(time).name;
             if (currentStation != this.deskSchedule.defaultStations.off
                 && currentStation != this.deskSchedule.defaultStations.mealBreak
                 && currentStation != this.deskSchedule.defaultStations.programMeeting)
