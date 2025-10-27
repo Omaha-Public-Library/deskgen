@@ -71,6 +71,9 @@ this also affects fragmentation - staffA was previously on stationB for half hou
 what if - before assigning, create a candidate list for each position (or two? preferred, then possible?) of staff who are eligible for a station. Then, instead of going through stations in priority order, sort them by number of preferred candidates available, so the trickier stations are handled first. As stations are assigned, remove staff from other candidate lists.
 
 Could this handled better distribution of time off desk too?
+====================================================
+
+megaphone user shown when only events are all day - check and hide user
 */
 
 
@@ -193,6 +196,7 @@ class DeskSchedule{
   durationTypes = {alwaysWhileOpen: "Always while open", duringTimeRange: "During this time range:", xHoursPerDay: "For X hours per day total", xHoursPerStaff: "For X hours per day for each staff"}
   positionHierarchy: {id:number,name:string, group?:string,picDurationMax?:number}[]
   openingDuties: Duty[] = []
+  closingDuties: Duty[] = []
   //history:
   
   constructor(date:Date, wiwData:WiwData, gCalEvents:GoogleAppsScript.Calendar.CalendarEvent[], settings){
@@ -207,6 +211,7 @@ class DeskSchedule{
     this.stations = []
     
     this.openingDuties = settings.openingDuties.map(d=>new Duty(d.title, undefined, d.requirePic))
+    this.closingDuties = settings.closingDuties.map(d=>new Duty(d.title, undefined, d.requirePic))
     
     settings.stations.forEach(s => {
       let startTime: Date
@@ -368,6 +373,7 @@ class DeskSchedule{
       {"id":11656177,"name":"Part-Time Associate Specialist", "group":"Reference", "picDurationMax":0},
       {"id":11534162,"name":"Senior Clerk", "group":"Clerk","picDurationMax":0},
       {"id":11534163,"name":"Clerk II", "group":"Clerk","picDurationMax":0},
+      {"id":11762122,"name":"Part-Time Clerk II", "group":"Clerk","picDurationMax":0},
       {"id":11534165,"name":"Aide", "group":"Aide", "picDurationMax":0},
       //in wiw, not job titles
       {"id":11613647,"name":"Reference Desk"},
@@ -524,7 +530,7 @@ getStationCountAtTime(stationName:string, time:Date){
         timesString = timesString.replace('12:00-12:00', 'All Day')
         let concatRT = concatRichText([
           SpreadsheetApp.newRichTextValue().setText((i===0?'\n':'')+timesString+' • ').build(),
-          SpreadsheetApp.newRichTextValue().setText(guestNames.join(', ')+ (guestNames.length>0 ? ': ':'')).setTextStyle(boldStyle).build(),
+          SpreadsheetApp.newRichTextValue().setText(!settings.addNamesToEvents ? ' ' : guestNames.join(', ')+ (guestNames.length>0 ? ': ':'')).setTextStyle(boldStyle).build(),
           SpreadsheetApp.newRichTextValue().setText(ev.getTitle()+(i===gCalEvents.length-1?'\n':'')).build()
         ]).setLinkUrl(getEventUrl(ev)).setTextStyle(removeLinkStyle).build()
         return concatRT
@@ -579,6 +585,7 @@ getStationCountAtTime(stationName:string, time:Date){
         return position
       }
     }
+    ui.alert('Contact Corson! These positions are missing definitions:\n' + positions.join('\n'))
   }
   
   getPositionHierarchyIndex(id: number):number{ //convert id to 0-n, where 0 is highest ranked position and n is lowest
@@ -691,6 +698,8 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
         }
         //sort resulting array by availability total (tie broken by existing proximity to ideal order)
         highestAvailabilityTimes.sort((a,b)=>b.availabilityTotal-a.availabilityTotal)
+        //sort to avoid half hours if changeOnTheHour
+        if (settings.changeOnTheHour && settings.mealBreakLength % 1 == 0) highestAvailabilityTimes.sort((a,b)=>(a.time.getMinutes()==0?0:1)-(b.time.getMinutes()==0?0:1))
         //assign staff to best meal time
         if(highestAvailabilityTimes.length>0)
           for(let minutes = 0; minutes<settings.mealBreakLength*60; minutes+=30){
@@ -1019,41 +1028,78 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
   }
 
   displayDuties(displayCells: DisplayCells, wiwData: WiwData) {
-    // let sortedStaffIdList = wiwData.users.map(u=>u.id).sort()
-    // sortedStaffIdList = offset(sortedStaffIdList, this.date.getDayOfYear())
+    
+    //OPENING
+    if (this.openingDuties.length>0){
+      shuffle(this.shifts)
+      let openingDutiesStart = new Date(settings.openHours.open).addTime(0,-30)
+      let openingStaffShifts = this.shifts.filter(shift=>{
+        let stationAtOpen = shift.getStationAtTime(openingDutiesStart)
+        return (stationAtOpen.name == this.defaultStations.available) || (stationAtOpen.name == this.defaultStations.undefined)
+      })
 
-    shuffle(this.shifts)
-    let openingDutiesStart = new Date(settings.openHours.open).addTime(0,-30)
-    let openingStaffShifts = this.shifts.filter(shift=>{
-      let stationAtOpen = shift.getStationAtTime(openingDutiesStart)
-      return (stationAtOpen.name == this.defaultStations.available) || (stationAtOpen.name == this.defaultStations.undefined)
-    })
-
-    for(let i=0; i<this.openingDuties.length; i++){
-      let duty = this.openingDuties[i]
-      if(duty.requirePic){
-        openingStaffShifts.every(shift=>{
-          if (shift.tags.includes('PIC')){
-            //move first PIC shift in array to front of assignment queue
-            openingStaffShifts.sort((shiftA, shiftB)=>shiftA.user_id==shift.user_id ? -1 : shiftB.user_id==shift.user_id ? 1 : 0)
-            return false //exit every loop
-          }
+      for(let i=0; i<this.openingDuties.length; i++){
+        let duty = this.openingDuties[i]
+        if(duty.requirePic){
+          openingStaffShifts.every(shift=>{
+            if (shift.tags.includes('PIC')){
+              //move first PIC shift in array to front of assignment queue
+              openingStaffShifts.sort((shiftA, shiftB)=>shiftA.user_id==shift.user_id ? -1 : shiftB.user_id==shift.user_id ? 1 : 0)
+              return false //exit every loop
+            }
+          })
+        }
+        //assign staff at front of assignment queue
+        duty.staffName = openingStaffShifts[0].name + (openingStaffShifts[0].tags.includes('PIC')?'*':'')
+        //move staff to end of assignment queue
+        openingStaffShifts.sort((shiftA, shiftB)=>{
+          return shiftA.user_id==openingStaffShifts[0].user_id ? 1 : shiftB.user_id==openingStaffShifts[0].user_id ? -1 : 0
         })
       }
-      //assign staff at front of assignment queue
-      duty.staffName = openingStaffShifts[0].name + (openingStaffShifts[0].tags.includes('PIC')?'*':'')
-      //move staff to end of assignment queue
-      openingStaffShifts.sort((shiftA, shiftB)=>{
-        return shiftA.user_id==openingStaffShifts[0].user_id ? 1 : shiftB.user_id==openingStaffShifts[0].user_id ? -1 : 0
-      })
+
+      displayCells.getByNameColumn('openingDutyTitle', '', this.openingDuties.length)
+        .setValues(this.openingDuties.map(d=>[d.title+((d.requirePic?'*':''))]))
+      displayCells.getByNameColumn('openingDutyName', '', this.openingDuties.length)
+        .setValues(this.openingDuties.map(d=>[this.shortenFullName(d.staffName)+(d.staffName.includes('*')?'*':'')]))
+      displayCells.getByNameColumn('openingDutyCheck', '', this.openingDuties.length)
+        .insertCheckboxes()
     }
 
-    displayCells.getByNameColumn('openingDutyTitle', '', this.openingDuties.length)
-      .setValues(this.openingDuties.map(d=>[d.title+((d.requirePic?'*':''))]))
-    displayCells.getByNameColumn('openingDutyName', '', this.openingDuties.length)
-      .setValues(this.openingDuties.map(d=>[this.shortenFullName(d.staffName)+(d.staffName.includes('*')?'*':'')]))
-    displayCells.getByNameColumn('openingDutyCheck', '', this.openingDuties.length)
-      .insertCheckboxes()
+    //CLOSING
+    if (this.closingDuties.length>0){
+      shuffle(this.shifts)
+      let closingDutiesStart = new Date(settings.openHours.close).addTime(0,-30)
+      let closingStaffShifts = this.shifts.filter(shift=>{
+        let stationAtClose = shift.getStationAtTime(closingDutiesStart)
+        return (stationAtClose.name !== this.defaultStations.off) && (stationAtClose.name !== this.defaultStations.programMeeting)
+      })
+  
+      for(let i=0; i<this.closingDuties.length; i++){
+        let duty = this.closingDuties[i]
+        if(duty.requirePic){
+          closingStaffShifts.every(shift=>{
+            if (shift.tags.includes('PIC')){
+              //move first PIC shift in array to front of assignment queue
+              closingStaffShifts.sort((shiftA, shiftB)=>shiftA.user_id==shift.user_id ? -1 : shiftB.user_id==shift.user_id ? 1 : 0)
+              return false //exit every loop
+            }
+          })
+        }
+        //assign staff at front of assignment queue
+        duty.staffName = closingStaffShifts[0].name + (closingStaffShifts[0].tags.includes('PIC')?'*':'')
+        //move staff to end of assignment queue
+        closingStaffShifts.sort((shiftA, shiftB)=>{
+          return shiftA.user_id==closingStaffShifts[0].user_id ? 1 : shiftB.user_id==closingStaffShifts[0].user_id ? -1 : 0
+        })
+      }
+  
+      displayCells.getByNameColumn('closingDutyTitle', '', this.closingDuties.length)
+        .setValues(this.closingDuties.map(d=>[d.title+((d.requirePic?'*':''))]))
+      displayCells.getByNameColumn('closingDutyName', '', this.closingDuties.length)
+        .setValues(this.closingDuties.map(d=>[this.shortenFullName(d.staffName)+(d.staffName.includes('*')?'*':'')]))
+      displayCells.getByNameColumn('closingDutyCheck', '', this.closingDuties.length)
+        .insertCheckboxes()
+    }
   }
   
   logDeskData(description:string){
@@ -1427,6 +1473,9 @@ class DisplayCells{
       'openingDutyTitle',
       'openingDutyName',
       'openingDutyCheck',
+      'closingDutyTitle',
+      'closingDutyName',
+      'closingDutyCheck',
     ]
     requiredDisplayCells.forEach(n=>{
       if(this.list.filter(dc=> n===dc.name).length<1) console.error(`display cell name '${n}' is required and isn't found in loaded cells: ${JSON.stringify(this.list)}`)
@@ -1444,6 +1493,7 @@ class DisplayCells{
       else return SpreadsheetApp.getActiveSheet().getRange(matches[0].a1)
   }
   getByNameColumn(name:string, group:string='', columnLength):GoogleAppsScript.Spreadsheet.Range{
+    if(columnLength<1) return //avoid error calling getRange on 0 length column
     let matches: DisplayCell[] = this.list.filter(d=>d.name==name)
     // console.log(matches[0], matches[0].a1)
     if (matches.length<1) console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`)
@@ -1498,6 +1548,7 @@ class Settings{
   openHours: {open:Date,close:Date}
   onlyGenerateAvailabilityAndEvents: boolean
   generatePicAssignments: boolean
+  addNamesToEvents: boolean
 }
 
 function loadSettings(deskSchedDate: Date): Settings {
@@ -1509,8 +1560,11 @@ function loadSettings(deskSchedDate: Date): Settings {
   
   var settings = Object.fromEntries(getSettingsBlock('Settings Name', settingsTrimmed).map(([k,v])=>[k,v]))
   var openingDuties = getSettingsBlock('Opening Duties', settingsTrimmed).filter(duty => Object.keys(duty).length !== 0)
+  var closingDuties = getSettingsBlock('Closing Duties', settingsTrimmed).filter(duty => Object.keys(duty).length !== 0)
   
   settings.openingDuties = openingDuties.map((line)=>({"title":line[0], "requirePic":line[1]}))
+  settings.closingDuties = closingDuties.map((line)=>({"title":line[0], "requirePic":line[1]}))
+
   // ui.alert(JSON.stringify(settingsSheetAllData))
   settings.stations = getSettingsBlock('Color', settingsSheetAllData)
   .map((line)=>({
@@ -1707,7 +1761,7 @@ function getEventUrl(calendarEvent:GoogleAppsScript.Calendar.CalendarEvent):stri
   const calendarId = settings.googleCalendarID;
   const eventId = calendarEvent.getId();
   const splitEventId = eventId.split('@')[0];
-  const eid = Utilities.base64Encode(`${splitEventId} ${calendarId}`).replace('=', '');
+  const eid = Utilities.base64Encode(`${splitEventId} ${calendarId}`).replaceAll('=', '');
   const eventUrl = `https://www.google.com/calendar/event?eid=${eid}`;
 
   return eventUrl;
@@ -1790,7 +1844,6 @@ function concatRichText(richTextValueArray:GoogleAppsScript.Spreadsheet.RichText
   let first = richTextValueArray.shift()
   let result = first.getText()
   // merge all text into one
-  let seperator = ''
   richTextValueArray.forEach( next => result = result + next.getText())
   // put the first back into first place
   richTextValueArray.unshift(first)
