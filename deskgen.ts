@@ -211,21 +211,21 @@ class DeskSchedule{
     this.stations = []
     
     this.openingDuties = settings.openingDuties.map(d=>new Duty(d.title, undefined, d.requirePic))
-    this.closingDuties = settings.closingDuties.map(d=>new Duty(d.title, undefined, d.requirePic))
+    this.closingDuties = settings.closingDuties?.map(d=>new Duty(d.title, undefined, d.requirePic))
     
     settings.stations.forEach(s => {
-      let startTime: Date
-      if (!Number.isNaN(parseFloat(s.startTime))){
-        startTime = new Date(date)
-        startTime.setHours(s.startTime, s.startTime%1*60)
+      let limitToStartTime: Date
+      if (!Number.isNaN(parseFloat(s.limitToStartTime))){
+        limitToStartTime = new Date(date)
+        limitToStartTime.setHours(s.limitToStartTime, s.limitToStartTime%1*60)
       }
-      let endTime: Date
-      if (!Number.isNaN(parseFloat(s.endTime))){
-        endTime = new Date(date)
-        endTime.setHours(s.endTime, s.endTime%1*60)
+      let limitToEndTime: Date
+      if (!Number.isNaN(parseFloat(s.limitToEndTime))){
+        limitToEndTime = new Date(date)
+        limitToEndTime.setHours(s.limitToEndTime, s.limitToEndTime%1*60)
       }
-      console.log(s.name, startTime, endTime)
-      this.stations.push(new Station(s.name,s.color,s.numOfStaff, s.positionPriority.split(', ').filter(str=>/\S/.test(str)),s.durationType,s.duration===""?settings.assignmentLength:s.duration,startTime,endTime,s.group))
+      console.log(s.name, limitToStartTime, limitToEndTime)
+      this.stations.push(new Station(s.name,s.color,s.numOfStaff, s.positionPriority.split(', ').filter(str=>/\S/.test(str)),s.durationType,s.duration===""?settings.assignmentLength:s.duration,limitToStartTime,limitToEndTime,s.group))
     });
     [ //add required stations if they don't already exist
       new Station(this.defaultStations.undefined, `#ffffff`),
@@ -1066,7 +1066,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
     }
 
     //CLOSING
-    if (this.closingDuties.length>0){
+    if (this.closingDuties?.length>0){
       shuffle(this.shifts)
       let closingDutiesStart = new Date(settings.openHours.close).addTime(0,-30)
       let closingStaffShifts = this.shifts.filter(shift=>{
@@ -1094,11 +1094,11 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
       }
   
       displayCells.getByNameColumn('closingDutyTitle', '', this.closingDuties.length)
-        .setValues(this.closingDuties.map(d=>[d.title+((d.requirePic?'*':''))]))
+        ?.setValues(this.closingDuties.map(d=>[d.title+((d.requirePic?'*':''))]))
       displayCells.getByNameColumn('closingDutyName', '', this.closingDuties.length)
-        .setValues(this.closingDuties.map(d=>[this.shortenFullName(d.staffName)+(d.staffName.includes('*')?'*':'')]))
+        ?.setValues(this.closingDuties.map(d=>[this.shortenFullName(d.staffName)+(d.staffName.includes('*')?'*':'')]))
       displayCells.getByNameColumn('closingDutyCheck', '', this.closingDuties.length)
-        .insertCheckboxes()
+        ?.insertCheckboxes()
     }
   }
   
@@ -1473,9 +1473,9 @@ class DisplayCells{
       'openingDutyTitle',
       'openingDutyName',
       'openingDutyCheck',
-      'closingDutyTitle',
-      'closingDutyName',
-      'closingDutyCheck',
+      // 'closingDutyTitle',
+      // 'closingDutyName',
+      // 'closingDutyCheck',
     ]
     requiredDisplayCells.forEach(n=>{
       if(this.list.filter(dc=> n===dc.name).length<1) console.error(`display cell name '${n}' is required and isn't found in loaded cells: ${JSON.stringify(this.list)}`)
@@ -1489,25 +1489,37 @@ class DisplayCells{
   getByName(name:string, group:string=''):GoogleAppsScript.Spreadsheet.Range{
     let matches: DisplayCell[] = this.list.filter(d=>d.name==name)
     // console.log(matches[0], matches[0].a1)
-    if (matches.length<1) console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`)
+    if (matches.length<1) {
+      console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`)
+    return undefined
+  }
       else return SpreadsheetApp.getActiveSheet().getRange(matches[0].a1)
   }
   getByNameColumn(name:string, group:string='', columnLength):GoogleAppsScript.Spreadsheet.Range{
     if(columnLength<1) return //avoid error calling getRange on 0 length column
     let matches: DisplayCell[] = this.list.filter(d=>d.name==name)
     // console.log(matches[0], matches[0].a1)
-    if (matches.length<1) console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`)
-      else return SpreadsheetApp.getActiveSheet().getRange(matches[0].row, matches[0].col, columnLength, 1)
+    if (matches.length<1) {
+      console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`)
+      return undefined
+    }
+    else return SpreadsheetApp.getActiveSheet().getRange(matches[0].row, matches[0].col, columnLength, 1)
   }
   getByName2D(name:string, group:string='', numRows:number, numColumns:number):GoogleAppsScript.Spreadsheet.Range{
     let matches: DisplayCell[] = this.list.filter(d=>d.name==name)
     // console.log(matches[0], matches[0].a1)
-    if (matches.length<1) console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`)
+    if (matches.length<1) {
+      console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`)
+    return undefined
+  }
       else return SpreadsheetApp.getActiveSheet().getRange(matches[0].row, matches[0].col,numRows, numColumns)
   }
   getAllByName(name:string, group:string=''){
     let matches: DisplayCell[] = this.list.filter(d=>d.name==name)
-    if (matches.length<1) console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`)
+    if (matches.length<1) {
+      console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`)
+    return undefined
+  }
       else return SpreadsheetApp.getActiveSheet().getRangeList((matches.map(dc=>dc.a1)))
   }
 }
@@ -1531,7 +1543,7 @@ function log(arg?:any){
 }
 
 class Settings{
-  stations: Station[]
+  stations: {color:string,name:string,group:string,positionPriority:string[],durationType:string,limitToStartTime:number, limitToEndTime:number, duration:number, numOfStaff:number}[]
   locationID: number
   googleCalendarID: string
   alwaysShowAssistantBranchManager: boolean
@@ -1563,7 +1575,7 @@ function loadSettings(deskSchedDate: Date): Settings {
   var closingDuties = getSettingsBlock('Closing Duties', settingsTrimmed).filter(duty => Object.keys(duty).length !== 0)
   
   settings.openingDuties = openingDuties.map((line)=>({"title":line[0], "requirePic":line[1]}))
-  settings.closingDuties = closingDuties.map((line)=>({"title":line[0], "requirePic":line[1]}))
+  settings.closingDuties = closingDuties.length>0 ? closingDuties.map((line)=>({"title":line[0], "requirePic":line[1]})) : undefined
 
   // ui.alert(JSON.stringify(settingsSheetAllData))
   settings.stations = getSettingsBlock('Color', settingsSheetAllData)
@@ -1573,8 +1585,8 @@ function loadSettings(deskSchedDate: Date): Settings {
     "group":line[2],
     "positionPriority":line[3],
     "durationType":line[4],
-    "startTime":line[5],
-    "endTime":line[6],
+    "limitToStartTime":line[5],
+    "limitToEndTime":line[6],
     "duration":line[7],
     "numOfStaff":line[8]
   }))
