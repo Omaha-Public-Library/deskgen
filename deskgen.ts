@@ -31,6 +31,10 @@ PIC timeline - don't assign new person to last half hour (DT 10/24)
 lots of .5hr islands around .5hr meals - when station assignment order is random, few choices are often left when reaching stations who should be extended .5hr to avoid little islands. Instead of working through stations in priority order, why not get list of stations that can be assigned based on num of unassigned spaces, then sort to prioritize stations where staff only has half hour of availability remaining.
 also factor in time spent on each station?
 
+megaphone user shown when only events are all day - check and hide user
+
+auto hide past schedules
+
 ======== aaron meeting notes ========
 seperate data structure from logic
 consider whether your data format matches the storage medium
@@ -73,7 +77,6 @@ what if - before assigning, create a candidate list for each position (or two? p
 Could this handled better distribution of time off desk too?
 ====================================================
 
-megaphone user shown when only events are all day - check and hide user
 */
 
 
@@ -228,7 +231,7 @@ class DeskSchedule{
       this.stations.push(new Station(s.name,s.color,s.numOfStaff, s.positionPriority.split(', ').filter(str=>/\S/.test(str)),s.durationType,s.duration===""?settings.assignmentLength:s.duration,limitToStartTime,limitToEndTime,s.group))
     });
     [ //add required stations if they don't already exist
-      new Station(this.defaultStations.undefined, `#ffffff`),
+      new Station(this.defaultStations.undefined, `#aaaaaa`),
       new Station(this.defaultStations.programMeeting, `#ffd966`),
       new Station(this.defaultStations.available, `#ffffff`, 99),
       new Station(this.defaultStations.mealBreak, `#cccccc`),
@@ -723,7 +726,42 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
       
       let prevTime = new Date(time).addTime(0,-30).clamp(startTime, new Date(endTime).addTime(0,-30))
       let nextTime = new Date(time).addTime(0,30).clamp(startTime, new Date(endTime).addTime(0,-30))
-      
+
+      if (settings.defragPrePass){
+        this.stations.forEach(station=>{
+          //skip default stations EXCEPT available, the rest are handled in timelineAddAvailabilityAndEvents and timelineAddMeals
+          if(Object.values(this.defaultStations).includes(station.name) && station.name != this.defaultStations.available) return
+  
+          //assign
+          this.shifts.forEach(shift=> {
+            if (station.positionPriority.length<1 || station.positionPriority.includes(this.getPositionById(shift.position).name)){ //if staff is assigned to this station
+              let stationCount = this.getStationCountAtTime(station.name, time)
+              let currentStation = shift.getStationAtTime(time)
+              let nextStation = shift.getStationAtTime(nextTime)
+              let prevStation = shift.getStationAtTime(prevTime)
+              
+              if(
+                currentStation.name == this.defaultStations.undefined
+                && stationCount<station.numOfStaff
+                && (time >= station.limitToStartTime || !station.limitToStartTime)
+                && (time < station.limitToEndTime || !station.limitToEndTime)
+                //if on this station, and available for next half hour, but NOT the half hour after that OR if staff has only been on station half an hour, assign
+                  //add check to make sure less people aren't available in this half hour than were in the previous hour, to avoid higher priority stations going unassigned?
+                && prevStation.name == station.name
+                && station.name != this.defaultStations.available
+                && (nextStation.name != this.defaultStations.undefined || shift.countHowLongAtStation(station.name, prevTime) == 0.5)
+              ){
+                shift.setStationAtTime(station.name, time)
+                currentStation = shift.getStationAtTime(time)
+                // let timeOnCurrStation = shift.countHowLongAtStation(currentStation.name, time)
+                // console.log(`After assigning to ${currentStation} at ${time.getTimeStringHHMM24()}, ${shift.name} has been ${currentStation} for ${timeOnCurrStation}hours.`)
+              }
+            }
+          })
+        })
+        this.logDeskData('user defined stations defrag pre pass at ' + time.getTimeStringHHMM24())
+      }
+
 
       this.stations.forEach(station=>{
         //skip default stations EXCEPT available, the rest are handled in timelineAddAvailabilityAndEvents and timelineAddMeals
@@ -1550,6 +1588,7 @@ class Settings{
   alwaysShowBranchManager: boolean
   alwaysShowAllStaff: boolean
   changeOnTheHour: boolean
+  defragPrePass: boolean
   assignmentLength: number
   openingDuties: any
   verboseLog: boolean
