@@ -231,10 +231,10 @@ class DeskSchedule{
       this.stations.push(new Station(s.name,s.color,s.numOfStaff, s.positionPriority.split(', ').filter(str=>/\S/.test(str)),s.durationType,s.duration===""?settings.assignmentLength:s.duration,limitToStartTime,limitToEndTime,s.group))
     });
     [ //add required stations if they don't already exist
-      new Station(this.defaultStations.undefined, `#aaaaaa`),
+      new Station(this.defaultStations.undefined, `#cccccc`),
       new Station(this.defaultStations.programMeeting, `#ffd966`),
       new Station(this.defaultStations.available, `#ffffff`, 99),
-      new Station(this.defaultStations.mealBreak, `#cccccc`),
+      new Station(this.defaultStations.mealBreak, `#aaaaaa`),
       new Station(this.defaultStations.off, `#666666`),
     ].forEach(requiredStation => {
       let existingStation = this.stations.find(station => station.name == requiredStation.name)
@@ -728,7 +728,9 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
       let nextTime = new Date(time).addTime(0,30).clamp(startTime, new Date(endTime).addTime(0,-30))
 
       if (settings.defragPrePass){
-        this.stations.forEach(station=>{
+        let undefinedCount = this.getStationCountAtTime(this.defaultStations.undefined, time)
+
+        this.stations.forEach((station, stationIndex)=>{
           //skip default stations EXCEPT available, the rest are handled in timelineAddAvailabilityAndEvents and timelineAddMeals
           if(Object.values(this.defaultStations).includes(station.name) && station.name != this.defaultStations.available) return
   
@@ -745,11 +747,13 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
                 && stationCount<station.numOfStaff
                 && (time >= station.limitToStartTime || !station.limitToStartTime)
                 && (time < station.limitToEndTime || !station.limitToEndTime)
-                //if on this station, and available for next half hour, but NOT the half hour after that OR if staff has only been on station half an hour, assign
-                  //add check to make sure less people aren't available in this half hour than were in the previous hour, to avoid higher priority stations going unassigned?
-                && prevStation.name == station.name
-                && station.name != this.defaultStations.available
-                && (nextStation.name != this.defaultStations.undefined || shift.countHowLongAtStation(station.name, prevTime) == 0.5)
+                //extra qualifications for prepass:
+                && prevStation.name == station.name //if already on the station being considered for assignment
+                && station.name != this.defaultStations.available //don't extend available so that it rotates more and half hour before open isn't extended
+                && (nextStation.name != this.defaultStations.undefined //if unavailable in half an hour
+                  || time.getTime() == new Date(this.dayEndTime).addTime(0,-30).getTime() //if it's the last half hour of the day
+                  || shift.countHowLongAtStation(station.name, prevTime) == 0.5) //if staff has only been on station for half a day
+                && stationIndex < undefinedCount //if there's enough availability to assign this and all higher priority stations
               ){
                 shift.setStationAtTime(station.name, time)
                 currentStation = shift.getStationAtTime(time)
