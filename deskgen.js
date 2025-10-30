@@ -1,11 +1,7 @@
 /*
 ======== to do ========
-numOfStaff for positions
-meals - assign to not-open times if possible (sundays)
-explore using branch calendar for event/meeting handling instead of WIW notes
 don't display before/after times (like late night events that don't need to be on sched)
 downside - can't see scheduled staff in GCAL when making events... unless, could you use "meet with" to see staff? would they have to import wiw cal?
-consolidate events involving multiple people so they take up less space in Happening Today - or for all staff events, just say All instead of listing each
 more testing for parseDate (12pm noon)
 
 Station gen - want to revisit this later and try less agressive sorting with more neutral 0 outcomes, to prevent last sorts from having outsized impact, OR switch to using a value sorting system where lots of different factors contribute to a single sorting value
@@ -20,12 +16,6 @@ openHours - implement half-hour times
 
 replace WIW annotation closures with gcal for all branch announcements? maybe...but is it useful for managers to have closures in WIW?
 
-better meal assignment when it's possible to schedule meals outside open hours (sunday meals before 1)
-
-moveActiveSheet to fix sheet reordering
-
-meal time distribution not working for dinner?
-
 PIC timeline - don't assign new person to last half hour (DT 10/24)
 
 lots of .5hr islands around .5hr meals - when station assignment order is random, few choices are often left when reaching stations who should be extended .5hr to avoid little islands. Instead of working through stations in priority order, why not get list of stations that can be assigned based on num of unassigned spaces, then sort to prioritize stations where staff only has half hour of availability remaining.
@@ -34,6 +24,8 @@ also factor in time spent on each station?
 megaphone user shown when only events are all day - check and hide user
 
 auto hide past schedules
+
+nuetral positionpriority sorting option - when none specified, sort staff by name then offset by date for even rotation?
 
 ======== aaron meeting notes ========
 seperate data structure from logic
@@ -66,7 +58,7 @@ we need to think more about - when staff are being shared, what's the procedure?
 is there a better way to have managers
 we're not using locations at all right now...
 
-======== new sorting algorithm notes ========
+======== candidate list sorting algorithm notes ========
 candidate list based
 problem now is that, while going through stations in priority order for a given half hour, we don't conisder later priority stations with limited assignment options
 eg- only one PIC available, and they're required for station third in priority list, but they get assigned to first station, and then no one is available  for #3
@@ -74,7 +66,7 @@ this also affects fragmentation - staffA was previously on stationB for half hou
 
 what if - before assigning, create a candidate list for each position (or two? preferred, then possible?) of staff who are eligible for a station. Then, instead of going through stations in priority order, sort them by number of preferred candidates available, so the trickier stations are handled first. As stations are assigned, remove staff from other candidate lists.
 
-Could this handled better distribution of time off desk too?
+Could this handle better distribution of time off desk too?
 ====================================================
 
 */
@@ -123,8 +115,8 @@ function buildDeskSchedule(tomorrow = false) {
         if (result == ui.Button.YES) {
             deskSheet = ss.getSheetByName(newSheetName);
             deskSheet.activate();
-            return;
         }
+        return;
     }
     let sheetIndex = undefined;
     //if sheet already exists and is open, delete it
@@ -201,7 +193,6 @@ class DeskSchedule {
                 limitToEndTime = new Date(date);
                 limitToEndTime.setHours(s.limitToEndTime, s.limitToEndTime % 1 * 60);
             }
-            console.log(s.name, limitToStartTime, limitToEndTime);
             this.stations.push(new Station(s.name, s.color, s.numOfStaff, s.positionPriority.split(', ').filter(str => /\S/.test(str)), s.durationType, s.duration === "" ? settings.assignmentLength : s.duration, limitToStartTime, limitToEndTime, s.group));
         });
         [
@@ -831,16 +822,9 @@ class DeskSchedule {
             return;
         this.sortShiftsByNameAlphabetically();
         offset(this.shifts, this.date.getDayOfYear());
-        let startTime = this.dayStartTime; //settings.openHours.open
-        let endTime = this.dayEndTime; //settings.openHours.close
-        for (let time = new Date(startTime); time < endTime; time.addTime(0, 30)) {
-            let prevTime = new Date(time).addTime(0, -30).clamp(startTime, new Date(endTime).addTime(0, -30));
-            let nextTime = new Date(time).addTime(0, 30).clamp(startTime, new Date(endTime).addTime(0, -30));
-            // this.shifts.forEach(s=>console.log(`as of ${time.getTimeStringHHMM12()}, ${s.name.substring(0,9)} has been pic for ${s.countPicCurrentDuration(prevTime)} hours concurrently, ${s.countPicHoursTotal()} total`))
-            // this.shifts.sort((shiftA, shiftB)=>
-            //   shiftA.getPicStatusAtTime(prevTime) ? 1 : 0
-            // )
-            // console.log(`pics sorted to bring current PIC to first:\n`+this.shifts.map(s=>s.name).join('\n'))
+        for (let time = new Date(this.dayStartTime); time < this.dayEndTime; time.addTime(0, 30)) {
+            let prevTime = new Date(time).addTime(0, -30).clamp(this.dayStartTime, new Date(this.dayEndTime).addTime(0, -30));
+            let nextTime = new Date(time).addTime(0, 30).clamp(this.dayStartTime, new Date(this.dayEndTime).addTime(0, -30));
             if (!settings.changeOnTheHour || time.getMinutes() == 0) {
                 this.shifts.sort((shiftA, shiftB) => shiftA.countPicHoursTotal() - shiftB.countPicHoursTotal());
                 // console.log(`${time.getTimeStringHHMM12()} - pics sorted by total pic hours, ascending:\n${this.shifts.map(s=>`${s.name.substring(0,9)}, ${s.countPicHoursTotal().toFixed(1)} total`).join('\n')}`)
@@ -854,16 +838,18 @@ class DeskSchedule {
                 // console.log(`${time.getTimeStringHHMM12()} - pics sorted by how long available, up to 2hr, descending:\n${this.shifts.map(s=>`${s.name.substring(0,9)}, ${s.countPicTimeUcomingAvailability(time).toFixed(1)}`).join('\n')}`)
                 this.shifts.sort((shiftA, shiftB) => shiftB.countPicCurrentDuration(prevTime) - shiftA.countPicCurrentDuration(prevTime));
                 // console.log(`${time.getTimeStringHHMM12()} - pics sorted by how long been PIC, descending:\n${this.shifts.map(s=>`${s.name.substring(0,9)}, ${s.countPicCurrentDuration(prevTime).toFixed(1)} total`).join('\n')}`)
-                this.shifts.sort((shiftA, shiftB) => {
-                    let aDur = shiftA.countPicCurrentDuration(prevTime);
-                    let bDur = shiftB.countPicCurrentDuration(prevTime);
-                    if (aDur >= this.getPositionById(shiftA.position).picDurationMax
-                        || bDur >= this.getPositionById(shiftB.position).picDurationMax)
-                        return aDur - bDur;
-                    else
-                        return 0;
-                });
-                // console.log(`${time.getTimeStringHHMM12()} - pics sorted by moving staff over pic limit to end:\n${this.shifts.map(s=>`${s.name.substring(0,9)}, ${s.countPicCurrentDuration(prevTime).toFixed(1)}, ${this.getPositionById(s.position).picDurationMax} max`).join('\n')}`)
+                if (time.getTime() != new Date(this.dayEndTime).addTime(0, -30).getTime()) {
+                    this.shifts.sort((shiftA, shiftB) => {
+                        let aDur = shiftA.countPicCurrentDuration(prevTime);
+                        let bDur = shiftB.countPicCurrentDuration(prevTime);
+                        if (aDur >= this.getPositionById(shiftA.position).picDurationMax
+                            || bDur >= this.getPositionById(shiftB.position).picDurationMax)
+                            return aDur - bDur;
+                        else
+                            return 0;
+                    });
+                }
+                // console.log(`${time.getTimeStringHHMM12()} - pics sorted by moving staff over pic limit to end (except last half hour):\n${this.shifts.map(s=>`${s.name.substring(0,9)}, ${s.countPicCurrentDuration(prevTime).toFixed(1)}, ${this.getPositionById(s.position).picDurationMax} max`).join('\n')}`)
                 this.shifts.sort((shiftA, shiftB) => {
                     let aVal = 0;
                     let bVal = 0;
