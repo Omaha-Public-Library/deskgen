@@ -119,19 +119,21 @@ function buildDeskSchedule(tomorrow = false) {
         return;
     }
     let sheetIndex = undefined;
-    //if sheet already exists and is open, delete it
+    //if sheet already exists and is open, save index
     if (ss.getSheetByName(newSheetName) !== null && ss.getActiveSheet().getName() == newSheetName) {
         sheetIndex = ss.getActiveSheet().getIndex();
-        ss.deleteSheet(ss.getSheetByName(newSheetName));
     }
     //make new sheet
-    if (ss.getSheetByName(newSheetName) == null) {
-        ss.insertSheet(newSheetName, { template: ss.getSheetByName('TEMPLATE') });
-        deskSheet = ss.getSheetByName(newSheetName);
-        deskSheet.activate();
-        if (sheetIndex !== undefined)
-            ss.moveActiveSheet(sheetIndex);
-    }
+    ss.insertSheet("loading...", { template: ss.getSheetByName('TEMPLATE') });
+    deskSheet = ss.getSheetByName("loading...");
+    deskSheet.activate();
+    //move to previous spot, if saved
+    if (sheetIndex !== undefined)
+        ss.moveActiveSheet(sheetIndex);
+    //delete old sheet if it exists
+    if (ss.getSheetByName(newSheetName) !== null)
+        ss.deleteSheet(ss.getSheetByName(newSheetName));
+    deskSheet.setName(newSheetName);
     displayCells.getByName('date').setValue(deskSchedDate.toDateString());
     log('deskSchedDate: ' + deskSchedDate);
     const wiwData = getWiwData(token, deskSchedDate);
@@ -153,7 +155,7 @@ function buildDeskSchedule(tomorrow = false) {
     deskSchedule.displayEvents(displayCells, gCalEvents, deskSchedule.annotationsString);
     deskSchedule.displayPicTimeline(displayCells);
     deskSchedule.displayStationKey(displayCells);
-    deskSchedule.displayDuties(displayCells, wiwData);
+    deskSchedule.displayDuties(displayCells);
     //cleanup - clear template notes used for displayCells
     deskSheet.getDataRange().clearNote();
     // ui.alert(JSON.stringify(deskSchedule, circularReplacer()))
@@ -470,7 +472,7 @@ class DeskSchedule {
             })
         ];
         //Add WIW day annotation
-        console.log('annotationsString:', annotationsString);
+        // console.log('annotationsString:', annotationsString)
         happeningTodayRichTextArray.push(SpreadsheetApp.newRichTextValue().setText('' + annotationsString).build());
         if (happeningTodayRichTextArray.length > 2)
             deskSheet.insertRowsAfter(displayCells.getByName('happeningToday').getRow(), Math.max(0, happeningTodayRichTextArray.length - 2));
@@ -899,7 +901,8 @@ class DeskSchedule {
             row.setValues([values]);
         });
         //Add rows to match number of shifts
-        sheet.insertRowsAfter(displayCells.getByName('shiftName').getRow(), this.shifts.length - 1);
+        if (this.shifts.length > 1)
+            sheet.insertRowsAfter(displayCells.getByName('shiftName').getRow(), this.shifts.length - 1);
         displayCells.update(SpreadsheetApp.getActiveSheet());
         //Fill in columns
         mergeConsecutiveInColumn(//hate this syntax, but can't extend GAS classes
@@ -909,9 +912,11 @@ class DeskSchedule {
             .setValues(this.shifts.map(s => [this.shortenFullName(s.name)]));
         displayCells.getByNameColumn('shiftTime', '', this.shifts.length)
             .setValues(this.shifts.map(s => [
-            s.startTime.getTimeStringHHMM12()
-                + '-' +
-                s.endTime.getTimeStringHHMM12()
+            s.startTime.getTime() - s.endTime.getTime() == 0 ?
+                '' : //for all day events that are loaded as starting and ending at 1, don't display time
+                s.startTime.getTimeStringHHMM12()
+                    + '-' +
+                    s.endTime.getTimeStringHHMM12()
         ]));
         //Display station colors
         let colorArr = this.shifts.map(shift => shift.stationTimeline.map(station => this.getStation(station).color));
@@ -940,7 +945,7 @@ class DeskSchedule {
         displayCells.getByNameColumn('stationName', '', stationsFilteredForDisplay.length)
             .setValues(stationsFilteredForDisplay.map(s => [s.name]));
     }
-    displayDuties(displayCells, wiwData) {
+    displayDuties(displayCells) {
         //OPENING
         if (this.openingDuties.length > 0) {
             shuffle(this.shifts);
@@ -961,7 +966,7 @@ class DeskSchedule {
                     });
                 }
                 //assign staff at front of assignment queue
-                duty.staffName = openingStaffShifts[0].name + (openingStaffShifts[0].tags.includes('PIC') ? '*' : '');
+                duty.staffName = openingStaffShifts[0] == undefined ? "" : openingStaffShifts[0].name + (openingStaffShifts[0].tags.includes('PIC') ? '*' : '');
                 //move staff to end of assignment queue
                 openingStaffShifts.sort((shiftA, shiftB) => {
                     return shiftA.user_id == openingStaffShifts[0].user_id ? 1 : shiftB.user_id == openingStaffShifts[0].user_id ? -1 : 0;
@@ -994,7 +999,7 @@ class DeskSchedule {
                     });
                 }
                 //assign staff at front of assignment queue
-                duty.staffName = closingStaffShifts[0].name + (closingStaffShifts[0].tags.includes('PIC') ? '*' : '');
+                duty.staffName = closingStaffShifts[0] == undefined ? "" : closingStaffShifts[0].name + (closingStaffShifts[0].tags.includes('PIC') ? '*' : '');
                 //move staff to end of assignment queue
                 closingStaffShifts.sort((shiftA, shiftB) => {
                     return shiftA.user_id == closingStaffShifts[0].user_id ? 1 : shiftB.user_id == closingStaffShifts[0].user_id ? -1 : 0;

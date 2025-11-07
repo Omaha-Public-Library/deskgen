@@ -126,18 +126,19 @@ function buildDeskSchedule(tomorrow: Boolean=false){
     return
   }
   let sheetIndex = undefined
-  //if sheet already exists and is open, delete it
+  //if sheet already exists and is open, save index
   if(ss.getSheetByName(newSheetName)!==null && ss.getActiveSheet().getName() == newSheetName){
     sheetIndex = ss.getActiveSheet().getIndex()
-    ss.deleteSheet(ss.getSheetByName(newSheetName))
   }
   //make new sheet
-  if (ss.getSheetByName(newSheetName)==null){
-    ss.insertSheet(newSheetName, {template: ss.getSheetByName('TEMPLATE')})
-    deskSheet=ss.getSheetByName(newSheetName)
-    deskSheet.activate()
-    if (sheetIndex !== undefined) ss.moveActiveSheet(sheetIndex)
-  }
+  ss.insertSheet("loading...", {template: ss.getSheetByName('TEMPLATE')})
+  deskSheet=ss.getSheetByName("loading...")
+  deskSheet.activate()
+  //move to previous spot, if saved
+  if (sheetIndex !== undefined) ss.moveActiveSheet(sheetIndex)
+  //delete old sheet if it exists
+  if (ss.getSheetByName(newSheetName)!==null) ss.deleteSheet(ss.getSheetByName(newSheetName))
+  deskSheet.setName(newSheetName)
   
   displayCells.getByName('date').setValue(deskSchedDate.toDateString())
   log('deskSchedDate: '+deskSchedDate)
@@ -166,7 +167,7 @@ function buildDeskSchedule(tomorrow: Boolean=false){
   deskSchedule.displayEvents(displayCells, gCalEvents, deskSchedule.annotationsString)
   deskSchedule.displayPicTimeline(displayCells)
   deskSchedule.displayStationKey(displayCells)
-  deskSchedule.displayDuties(displayCells, wiwData)
+  deskSchedule.displayDuties(displayCells)
 
   //cleanup - clear template notes used for displayCells
   deskSheet.getDataRange().clearNote()
@@ -531,7 +532,7 @@ getStationCountAtTime(stationName:string, time:Date){
       })
     ]
     //Add WIW day annotation
-    console.log('annotationsString:', annotationsString)
+    // console.log('annotationsString:', annotationsString)
     happeningTodayRichTextArray.push(SpreadsheetApp.newRichTextValue().setText(''+annotationsString).build())
     if(happeningTodayRichTextArray.length>2)
       deskSheet.insertRowsAfter(displayCells.getByName('happeningToday').getRow(), Math.max(0, happeningTodayRichTextArray.length-2))
@@ -1010,7 +1011,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
     })
     
     //Add rows to match number of shifts
-    sheet.insertRowsAfter(displayCells.getByName('shiftName').getRow(), this.shifts.length-1)
+    if (this.shifts.length > 1) sheet.insertRowsAfter(displayCells.getByName('shiftName').getRow(), this.shifts.length-1)
     displayCells.update(SpreadsheetApp.getActiveSheet())
     
     //Fill in columns
@@ -1021,6 +1022,8 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
       .setValues(this.shifts.map(s=>[this.shortenFullName(s.name)]))
       displayCells.getByNameColumn('shiftTime', '', this.shifts.length)
       .setValues(this.shifts.map(s=>[ //start-end as hh:mm-hh:mm
+        s.startTime.getTime()-s.endTime.getTime()==0?
+        '': //for all day events that are loaded as starting and ending at 1, don't display time
         s.startTime.getTimeStringHHMM12()
         +'-'+
         s.endTime.getTimeStringHHMM12()]))
@@ -1056,8 +1059,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
       .setValues(stationsFilteredForDisplay.map(s=>[s.name]))
   }
 
-  displayDuties(displayCells: DisplayCells, wiwData: WiwData) {
-    
+  displayDuties(displayCells: DisplayCells) {
     //OPENING
     if (this.openingDuties.length>0){
       shuffle(this.shifts)
@@ -1079,7 +1081,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
           })
         }
         //assign staff at front of assignment queue
-        duty.staffName = openingStaffShifts[0].name + (openingStaffShifts[0].tags.includes('PIC')?'*':'')
+        duty.staffName = openingStaffShifts[0]==undefined ? "" : openingStaffShifts[0].name + (openingStaffShifts[0].tags.includes('PIC')?'*':'')
         //move staff to end of assignment queue
         openingStaffShifts.sort((shiftA, shiftB)=>{
           return shiftA.user_id==openingStaffShifts[0].user_id ? 1 : shiftB.user_id==openingStaffShifts[0].user_id ? -1 : 0
@@ -1115,7 +1117,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
           })
         }
         //assign staff at front of assignment queue
-        duty.staffName = closingStaffShifts[0].name + (closingStaffShifts[0].tags.includes('PIC')?'*':'')
+        duty.staffName = closingStaffShifts[0]==undefined ? "" : closingStaffShifts[0].name + (closingStaffShifts[0].tags.includes('PIC')?'*':'')
         //move staff to end of assignment queue
         closingStaffShifts.sort((shiftA, shiftB)=>{
           return shiftA.user_id==closingStaffShifts[0].user_id ? 1 : shiftB.user_id==closingStaffShifts[0].user_id ? -1 : 0
