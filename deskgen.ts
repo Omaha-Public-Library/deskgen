@@ -404,24 +404,24 @@ class DeskSchedule{
       }
       
       if (wiwUserObj != undefined){
-          //get events from gcal
-          gCalEvents.forEach(gCalEvent=>{
-            let guestEmailList = gCalEvent.getGuestList().map(guest=>guest.getEmail())
-            if(guestEmailList.includes(wiwUserObj.email)){
-              //if event last all day (gcal without start/end) clamp event start/end to shift start/end
-              let startTime = new Date(gCalEvent.getStartTime().getTime())
-              let endTime = new Date(gCalEvent.getEndTime().getTime())
-              let allDayEvent = Math.abs(endTime.getTime() - startTime.getTime())/3600000 > 22 ? true:false
-              eventsFormatted.push(new ShiftEvent(
-                gCalEvent.getTitle(),
-                startTime,
-                endTime,
-                // displayString: getEventUrl(gCalEvent),
-                getEventUrl(gCalEvent)
-              ))
+        //get events from gcal
+        gCalEvents.forEach(gCalEvent=>{
+          let guestEmailList = gCalEvent.getGuestList().map(guest=>guest.getEmail())
+          if(guestEmailList.includes(wiwUserObj.email)){
+            //if event last all day (gcal without start/end) clamp event start/end to shift start/end
+            let startTime = new Date(gCalEvent.getStartTime().getTime())
+            let endTime = new Date(gCalEvent.getEndTime().getTime())
+            let allDayEvent = Math.abs(endTime.getTime() - startTime.getTime())/3600000 > 22 ? true:false
+            eventsFormatted.push(new ShiftEvent(
+              gCalEvent.getTitle(),
+              startTime,
+              endTime,
+              // displayString: getEventUrl(gCalEvent),
+              getEventUrl(gCalEvent)
+            ))
           }
         })
-        
+      
         let startTime = new Date(s.start_time)
         let endTime = new Date(s.end_time)
         let idealMealTime = undefined
@@ -447,16 +447,28 @@ class DeskSchedule{
           this.getHighestPosition(wiwUserObj.positions).id,
           this.positionHierarchy.filter(obj=>obj.id == wiwUserObj.positions[0])[0].group || 'unknown position group',
           wiwTags.map(tagObj=>tagObj.name),
-        ))}
-      })
-      wiwData.users/*.concat(annotationUser)*/.forEach(u=>{
-      if(wiwData.shifts/*.concat(annotationShifts)*/.filter(shift=>{return shift.user_id == u.id}).length==0){ //if this user doesn't exist in shifts...
-        if(settings.alwaysShowAllStaff || (settings.alwaysShowBranchManager && u.role == 1) || (settings.alwaysShowAssistantBranchManager && u.role ==2)){
-          this.shifts.push(new Shift(
-            this,
-            u.id,
-            u.first_name +' '+ u.last_name
-          ))
+        ))
+      }
+    })
+
+    wiwData.users/*.concat(annotationUser)*/.forEach(u=>{
+      if(settings.alwaysShowAllStaff || (settings.alwaysShowBranchManager && u.role == 1) || (settings.alwaysShowAssistantBranchManager && u.role ==2)){
+        if(u.locations.includes(settings.locationID)){ //if user is assigned to this location...
+          if(wiwData.shifts/*.concat(annotationShifts)*/.filter(shift=>{return shift.user_id == u.id}).length==0){ //and doesn't appear in todays shifts...
+            this.shifts.push(new Shift(
+              this,
+              u.id,
+              u.first_name +' '+ u.last_name,
+              u.email,
+              this.dayStartTime,
+              this.dayStartTime,
+              [],
+              this.dayStartTime,
+              false,
+              this.getHighestPosition(u.positions).id,
+              this.positionHierarchy.filter(obj=>obj.id == u.positions[0])[0].group || 'unknown position group'
+            ))
+          }
         }
       }
     })
@@ -1464,6 +1476,7 @@ class WiwData{
     last_name:string
     positions:any
     role:number
+    locations:number[]
   }[]
   tagsUsers:{
     id:number
@@ -1755,6 +1768,7 @@ function getWiwData(token:string, deskSchedDate:Date):WiwData{
   }
 
   wiwData.users = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/users`, options).getContentText()).users
+  log('wiwUsers:\n'+JSON.stringify(wiwData.users))
 
   wiwData.tagsUsers = JSON.parse(UrlFetchApp.fetch(`https://worktags.api.wheniwork-production.com/users`, 
     {

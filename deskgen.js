@@ -160,7 +160,7 @@ function buildDeskSchedule(tomorrow = false) {
     deskSchedule.displayDuties(displayCells);
     //cleanup - clear template notes used for displayCells
     deskSheet.getDataRange().clearNote();
-    ui.alert(JSON.stringify(deskSchedule, circularReplacer()));
+    // ui.alert(JSON.stringify(deskSchedule, circularReplacer()))
     deskSchedule.popupDeskDataLog();
 }
 class DeskSchedule {
@@ -396,9 +396,11 @@ class DeskSchedule {
             }
         });
         wiwData.users /*.concat(annotationUser)*/.forEach(u => {
-            if (wiwData.shifts /*.concat(annotationShifts)*/.filter(shift => { return shift.user_id == u.id; }).length == 0) { //if this user doesn't exist in shifts...
-                if (settings.alwaysShowAllStaff || (settings.alwaysShowBranchManager && u.role == 1) || (settings.alwaysShowAssistantBranchManager && u.role == 2)) {
-                    this.shifts.push(new Shift(this, u.id, u.first_name + ' ' + u.last_name));
+            if (settings.alwaysShowAllStaff || (settings.alwaysShowBranchManager && u.role == 1) || (settings.alwaysShowAssistantBranchManager && u.role == 2)) {
+                if (u.locations.includes(settings.locationID)) { //if user is assigned to this location...
+                    if (wiwData.shifts /*.concat(annotationShifts)*/.filter(shift => { return shift.user_id == u.id; }).length == 0) { //and doesn't appear in todays shifts...
+                        this.shifts.push(new Shift(this, u.id, u.first_name + ' ' + u.last_name, u.email, this.dayStartTime, this.dayStartTime, [], this.dayStartTime, false, this.getHighestPosition(u.positions).id, this.positionHierarchy.filter(obj => obj.id == u.positions[0])[0].group || 'unknown position group'));
+                    }
                 }
             }
         });
@@ -1488,6 +1490,7 @@ function getWiwData(token, deskSchedDate) {
         return;
     }
     wiwData.users = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/users`, options).getContentText()).users;
+    log('wiwUsers:\n' + JSON.stringify(wiwData.users));
     wiwData.tagsUsers = JSON.parse(UrlFetchApp.fetch(`https://worktags.api.wheniwork-production.com/users`, {
         method: 'post',
         headers: {
