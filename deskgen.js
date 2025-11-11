@@ -23,9 +23,11 @@ also factor in time spent on each station?
 
 megaphone user shown when only events are all day - check and hide user
 
-auto hide past schedules
+auto hide past schedules and settings+template
 
 nuetral positionpriority sorting option - when none specified, sort staff by name then offset by date for even rotation?
+
+instead of counting hours to evenly assign stations to all eligible staff, why not just prioritize eligible staff who haven't been on this shift at all? less counting, simpler, still get people doing varied things throughout day, might be enough to roughly even out distribution
 
 ======== aaron meeting notes ========
 seperate data structure from logic
@@ -170,7 +172,7 @@ class DeskSchedule {
         this.annotationUser = [];
         this.logDeskDataRecord = [];
         this.defaultStations = { undefined: "undefined", off: "Off", available: "Available", programMeeting: "Program/Meeting", mealBreak: "Meal/Break" };
-        this.durationTypes = { alwaysWhileOpen: "Always while open", duringTimeRange: "During this time range:", xHoursPerDay: "For X hours per day total", xHoursPerStaff: "For X hours per day for each staff" };
+        this.durationTypes = { alwaysWhileOpen: "Always while open", xHoursPerDay: "For X hours per day total", xHoursPerStaff: "For X hours per day for each staff" };
         this.openingDuties = [];
         this.closingDuties = [];
         this.date = date;
@@ -448,8 +450,26 @@ class DeskSchedule {
         let count = 0;
         this.shifts.forEach(s => {
             if (s.getStationAtTime(time).name == stationName)
-                count++;
+                count += 1;
         });
+        return count;
+    }
+    getTotalStationCount(shift, stationName, upToTime) {
+        let count = 0;
+        for (let time = new Date(this.dayStartTime); time < upToTime; time.addTime(0, 30)) {
+            if (shift.getStationAtTime(time).name == stationName)
+                count += 0.5;
+        }
+        return count;
+    }
+    getTotalStationCountAllStaff(stationName, upToTime) {
+        let count = 0;
+        for (let time = new Date(this.dayStartTime); time < upToTime; time.addTime(0, 30)) {
+            this.shifts.forEach(s => {
+                if (s.getStationAtTime(time).name == stationName)
+                    count += 0.5;
+            });
+        }
         return count;
     }
     displayEvents(displayCells, gCalEvents, annotationsString) {
@@ -652,14 +672,10 @@ class DeskSchedule {
                     //assign
                     this.shifts.forEach(shift => {
                         if (station.positionPriority.length < 1 || station.positionPriority.includes(this.getPositionById(shift.position).name)) { //if staff is assigned to this station
-                            let stationCount = this.getStationCountAtTime(station.name, time);
                             let currentStation = shift.getStationAtTime(time);
                             let nextStation = shift.getStationAtTime(nextTime);
                             let prevStation = shift.getStationAtTime(prevTime);
-                            if (currentStation.name == this.defaultStations.undefined
-                                && stationCount < station.numOfStaff
-                                && (time >= station.limitToStartTime || !station.limitToStartTime)
-                                && (time < station.limitToEndTime || !station.limitToEndTime)
+                            if (this.assignmentEligibilityCheck(shift, station, time)
                                 //extra qualifications for prepass:
                                 && prevStation.name == station.name //if already on the station being considered for assignment
                                 && station.name != this.defaultStations.available //don't extend available so that it rotates more and half hour before open isn't extended
@@ -791,16 +807,12 @@ class DeskSchedule {
                 //assign
                 this.shifts.forEach(shift => {
                     if (station.positionPriority.length < 1 || station.positionPriority.includes(this.getPositionById(shift.position).name)) { //if staff is assigned to this station
-                        let stationCount = this.getStationCountAtTime(station.name, time);
                         let currentStation = shift.getStationAtTime(time);
                         // let prevStation = shift.getStationAtTime(prevTime)
                         // let timeOnPrevStation = shift.countHowLongAtStation(prevStation.name, new Date(time).addTime(0,-30))
                         // console.log(`at ${time.getTimeStringHHMM24()}, ${shift.name} has been ${prevStation} for ${timeOnPrevStation}hours.`, currentStation, currentStation == this.defaultStations.undefined, stationCount<station.numOfStaff)
                         // console.log(station.name, station.limitToEndTime, station.limitToStartTime)
-                        if (currentStation.name == this.defaultStations.undefined
-                            && stationCount < station.numOfStaff
-                            && (time >= station.limitToStartTime || !station.limitToStartTime)
-                            && (time < station.limitToEndTime || !station.limitToEndTime)) {
+                        if (this.assignmentEligibilityCheck(shift, station, time)) {
                             shift.setStationAtTime(station.name, time);
                             currentStation = shift.getStationAtTime(time);
                             // let timeOnCurrStation = shift.countHowLongAtStation(currentStation.name, time)
@@ -811,6 +823,24 @@ class DeskSchedule {
             });
             this.logDeskData('user defined stations pass at ' + time.getTimeStringHHMM24());
         }
+    }
+    assignmentEligibilityCheck(shift, station, time) {
+        let stationCount = this.getStationCountAtTime(station.name, time);
+        let currentStation = shift.getStationAtTime(time);
+        if (currentStation.name == this.defaultStations.undefined
+            && stationCount < station.numOfStaff
+            && (time >= station.limitToStartTime || !station.limitToStartTime)
+            && (time < station.limitToEndTime || !station.limitToEndTime)) {
+            if (station.durationType == this.durationTypes.alwaysWhileOpen)
+                return true;
+            else if (station.durationType == this.durationTypes.xHoursPerDay
+                && this.getTotalStationCountAllStaff(station.name, time) < station.duration)
+                return true;
+            else if (station.durationType == this.durationTypes.xHoursPerStaff
+                && this.getTotalStationCount(shift, station.name, time) < station.duration)
+                return true;
+        }
+        return false;
     }
     forEachShiftBlock(startTime = this.dayStartTime, endTime = this.dayEndTime, func) {
         for (let time = new Date(startTime); time < endTime; time.addTime(0, 30)) {
