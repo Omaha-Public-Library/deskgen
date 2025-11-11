@@ -572,7 +572,7 @@ class DeskSchedule{
 
   displayPicTimeline(displayCells: DisplayCells){
     //Merge individual shift picTimelines into one timeline of names
-    if(!settings.generatePicAssignments) return
+    if(!settings.generatePicAssignments || this.shifts.length<1) return
     let picNamesArr = this.shifts[0].picTimeline.map(e=>undefined)
     picNamesArr.forEach((status, i)=>{
       let name = ''
@@ -670,64 +670,64 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
         shift.setStationAtTime(this.defaultStations.undefined, time)
       else
       shift.setStationAtTime(this.defaultStations.off, time)
-    shift.events.forEach(event=>{
-      if (time >= event.startTime && time < event.endTime)
-        //all day events only get shown during a person's shift. always display normal meeting/program/events even outside scheduled shift
-      if (
-        (event.getDurationInHours()>22 && time >= shift.startTime && time<shift.endTime)
-        ||
-        (event.getDurationInHours()<=22)
-      )
-      shift.setStationAtTime(this.defaultStations.programMeeting, time)
+      shift.events.forEach(event=>{
+        if (time >= event.startTime && time < event.endTime)
+          //all day events only get shown during a person's shift. always display normal meeting/program/events even outside scheduled shift
+        if (
+          (event.getDurationInHours()>22 && time >= shift.startTime && time<shift.endTime)
+          ||
+          (event.getDurationInHours()<=22)
+        )
+        shift.setStationAtTime(this.defaultStations.programMeeting, time)
+      })
     })
-  })
-  this.logDeskData('after initializing availability and events')
-}
+    this.logDeskData('after initializing availability and events')
+  }
 
   timelineAddMeals(){
-    if(settings.onlyGenerateAvailabilityAndEvents) return
+    if(settings.onlyGenerateAvailabilityAndEvents || this.shifts.length < 1) return
     //sort shifts by longest time worked before meal
     this.shifts.sort((a,b)=>
-      (b.idealMealTime?.getTime()-b.startTime.getTime()) - (a.idealMealTime?.getTime()-a.startTime.getTime())
+      (b.idealMealTime?.getTime()-b.startTime?.getTime()) - (a.idealMealTime?.getTime()-a.startTime?.getTime())
   )
   //for each shift...
   this.shifts.forEach(shift=>{
     if(!shift.idealMealTime) return //idealMealTime will be undefined if <8hr shift
-        let highestAvailabilityTimes: {time:Date, availabilityTotal:number}[] = []
-        //in 30 minute increments, step alternating forward/back (0, 30, -30, 60, -60) to possible start times, in decreasing proximity to ideal
-        for(let startMinutes = 0; startMinutes<=settings.idealMealTimePlusMinusHours*60; startMinutes = startMinutes>0 ? startMinutes*-1 : startMinutes*-1+30){
-          let startTime = new Date(shift.idealMealTime).addTime(0, startMinutes)
-          let availabilityTotal = 0
-          //for each start time, count total available staff for each half hour over length of break
-          let duringOpenHours = false
-          for(let minutes = 0; minutes<settings.mealBreakLength*60; minutes+=30){
-            let time = new Date(shift.idealMealTime).addTime(0, startMinutes+minutes)
-            availabilityTotal += this.getStationCountAtTime(this.defaultStations.undefined, time)
-            if (
-              !(shift.getStationAtTime(time).name == this.defaultStations.undefined
-              || shift.getStationAtTime(time,).name == this.defaultStations.available)
-            ) availabilityTotal -= 1000
-            if (time >= settings.openHours.open && time < settings.openHours.close) duringOpenHours = true
-          }
-          if (!duringOpenHours) availabilityTotal += 100
-          //add count to array
-          if(availabilityTotal>0)highestAvailabilityTimes.push({time: startTime, availabilityTotal: availabilityTotal})
-        }
-        //sort resulting array by availability total (tie broken by existing proximity to ideal order)
-        highestAvailabilityTimes.sort((a,b)=>b.availabilityTotal-a.availabilityTotal)
-        //sort to avoid half hours if changeOnTheHour
-        if (settings.changeOnTheHour && settings.mealBreakLength % 1 == 0) highestAvailabilityTimes.sort((a,b)=>(a.time.getMinutes()==0?0:1)-(b.time.getMinutes()==0?0:1))
-        //assign staff to best meal time
-        if(highestAvailabilityTimes.length>0)
-          for(let minutes = 0; minutes<settings.mealBreakLength*60; minutes+=30){
-            shift.setStationAtTime(this.defaultStations.mealBreak, highestAvailabilityTimes[0].time.addTime(0,minutes))
-        }
-      })
-      this.logDeskData('after adding meal breaks')
+    let highestAvailabilityTimes: {time:Date, availabilityTotal:number}[] = []
+    //in 30 minute increments, step alternating forward/back (0, 30, -30, 60, -60) to possible start times, in decreasing proximity to ideal
+    for(let startMinutes = 0; startMinutes<=settings.idealMealTimePlusMinusHours*60; startMinutes = startMinutes>0 ? startMinutes*-1 : startMinutes*-1+30){
+      let startTime = new Date(shift.idealMealTime).addTime(0, startMinutes)
+      let availabilityTotal = 0
+      //for each start time, count total available staff for each half hour over length of break
+      let duringOpenHours = false
+      for(let minutes = 0; minutes<settings.mealBreakLength*60; minutes+=30){
+        let time = new Date(shift.idealMealTime).addTime(0, startMinutes+minutes)
+        availabilityTotal += this.getStationCountAtTime(this.defaultStations.undefined, time)
+        if (
+          !(shift.getStationAtTime(time).name == this.defaultStations.undefined
+          || shift.getStationAtTime(time,).name == this.defaultStations.available)
+        ) availabilityTotal -= 1000
+        if (time >= settings.openHours.open && time < settings.openHours.close) duringOpenHours = true
+      }
+      if (!duringOpenHours) availabilityTotal += 100
+      //add count to array
+      if(availabilityTotal>0)highestAvailabilityTimes.push({time: startTime, availabilityTotal: availabilityTotal})
     }
+    //sort resulting array by availability total (tie broken by existing proximity to ideal order)
+    highestAvailabilityTimes.sort((a,b)=>b.availabilityTotal-a.availabilityTotal)
+    //sort to avoid half hours if changeOnTheHour
+    if (settings.changeOnTheHour && settings.mealBreakLength % 1 == 0) highestAvailabilityTimes.sort((a,b)=>(a.time.getMinutes()==0?0:1)-(b.time.getMinutes()==0?0:1))
+    //assign staff to best meal time
+    if(highestAvailabilityTimes.length>0)
+      for(let minutes = 0; minutes<settings.mealBreakLength*60; minutes+=30){
+        shift.setStationAtTime(this.defaultStations.mealBreak, highestAvailabilityTimes[0].time.addTime(0,minutes))
+      }
+    })
+    this.logDeskData('after adding meal breaks')
+  }
 
-    timelineAddStations(){
-      if(settings.onlyGenerateAvailabilityAndEvents) return
+  timelineAddStations(){
+    if(settings.onlyGenerateAvailabilityAndEvents || this.shifts.length < 1) return
     //  things to weigh:
     //position hierarchy
     //percentage of shift spent at position
@@ -750,7 +750,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
   
           //assign
           this.shifts.forEach(shift=> {
-            if (station.positionPriority.length<1 || station.positionPriority.includes(this.getPositionById(shift.position).name)){ //if staff is assigned to this station
+            if (station.positionPriority.length<1 || station.positionPriority.includes(this.getPositionById(shift.position)?.name)){ //if staff is assigned to this station
               let currentStation = shift.getStationAtTime(time)
               let nextStation = shift.getStationAtTime(nextTime)
               let prevStation = shift.getStationAtTime(prevTime)
@@ -907,7 +907,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
         
         //assign
         this.shifts.forEach(shift=> {
-          if (station.positionPriority.length<1 || station.positionPriority.includes(this.getPositionById(shift.position).name)){ //if staff is assigned to this station
+          if (station.positionPriority.length<1 || station.positionPriority.includes(this.getPositionById(shift.position)?.name)){ //if staff is assigned to this station
             let currentStation = shift.getStationAtTime(time)
             // let prevStation = shift.getStationAtTime(prevTime)
             // let timeOnPrevStation = shift.countHowLongAtStation(prevStation.name, new Date(time).addTime(0,-30))
@@ -1057,37 +1057,39 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
     //Fill in columns
     mergeConsecutiveInColumn( //hate this syntax, but can't extend GAS classes
       displayCells.getByNameColumn('shiftPosition', '', this.shifts.length)
-      .setValues(this.shifts.map(s=>[s.positionGroup])))
+      ?.setValues(this.shifts.map(s=>[s.positionGroup])))
       displayCells.getByNameColumn('shiftName', '', this.shifts.length)
-      .setValues(this.shifts.map(s=>[this.shortenFullName(s.name)]))
+      ?.setValues(this.shifts.map(s=>[this.shortenFullName(s.name)]))
       displayCells.getByNameColumn('shiftTime', '', this.shifts.length)
-      .setValues(this.shifts.map(s=>[ //start-end as hh:mm-hh:mm
-        s.startTime.getTime()-s.endTime.getTime()==0?
+      ?.setValues(this.shifts.map(s=>[ //start-end as hh:mm-hh:mm
+        (s.startTime?.getTime()-s.endTime?.getTime()==0 || s.startTime==undefined || s.endTime==undefined)?
         '': //for all day events that are loaded as starting and ending at 1, don't display time
         s.startTime.getTimeStringHHMM12()
         +'-'+
         s.endTime.getTimeStringHHMM12()]))
         
-        //Display station colors
-        let colorArr = this.shifts.map(shift=>shift.stationTimeline.map(station=>this.getStation(station).color))
-        let timelineRange = displayCells.getByName2D('shiftStationGridStart', '', this.shifts.length, this.shifts[0].stationTimeline.length)
-        timelineRange.setBackgrounds(colorArr)
-        
-        //Add event links
-        let stationGridStart = displayCells.getByName('shiftStationGridStart', '')
-        this.shifts.forEach((shift, i)=>{
-          shift.events.forEach(event=>{
-            if (!(shift.startTime.getTime()-shift.endTime.getTime()==0 && event.getDurationInHours()>22)){ //don't add event links for event that lasts all day and isn't assigned to any staff
-              let eventStart = event.getDurationInHours()>22 ? shift.startTime.getTime() : event.startTime.getTime()
-              let eventEnd = event.getDurationInHours()>22 ? shift.endTime.getTime() : event.endTime.getTime()
-              
-              let halfHoursSinceDayStart = Math.round((eventStart-this.dayStartTime.getTime())/3600000*2)
-              let eventLengthInHalfHours = Math.round((eventEnd-eventStart)/3600000*2)
-              deskSheet.getRange(stationGridStart.getRow()+i, stationGridStart.getColumn()+halfHoursSinceDayStart, 1, eventLengthInHalfHours)
-              .setValue(`=HYPERLINK("${event.gCalUrl}","...")`)
-              .setFontColor(this.getStation(this.defaultStations.programMeeting).color)
-            }
-          })
+    //Display station colors
+    let colorArr = this.shifts.map(shift=>shift.stationTimeline.map(station=>this.getStation(station).color))
+    if (this.shifts.length>0){
+      let timelineRange = displayCells.getByName2D('shiftStationGridStart', '', this.shifts.length, this.shifts[0].stationTimeline.length)
+      timelineRange.setBackgrounds(colorArr)
+    }
+    
+    //Add event links
+    let stationGridStart = displayCells.getByName('shiftStationGridStart', '')
+    this.shifts.forEach((shift, i)=>{
+      shift.events.forEach(event=>{
+        if (!(shift.startTime.getTime()-shift.endTime.getTime()==0 && event.getDurationInHours()>22)){ //don't add event links for event that lasts all day and isn't assigned to any staff
+          let eventStart = event.getDurationInHours()>22 ? shift.startTime.getTime() : event.startTime.getTime()
+          let eventEnd = event.getDurationInHours()>22 ? shift.endTime.getTime() : event.endTime.getTime()
+          
+          let halfHoursSinceDayStart = Math.round((eventStart-this.dayStartTime.getTime())/3600000*2)
+          let eventLengthInHalfHours = Math.round((eventEnd-eventStart)/3600000*2)
+          deskSheet.getRange(stationGridStart.getRow()+i, stationGridStart.getColumn()+halfHoursSinceDayStart, 1, eventLengthInHalfHours)
+            .setValue(`=HYPERLINK("${event.gCalUrl}","...")`)
+            .setFontColor(this.getStation(this.defaultStations.programMeeting).color)
+        }
+      })
     })
   }
   
@@ -1656,10 +1658,10 @@ function loadSettings(deskSchedDate: Date): Settings {
     "name":line[1],
     "group":line[2],
     "positionPriority":line[3],
-    "durationType":line[4],
-    "limitToStartTime":line[5],
-    "limitToEndTime":line[6],
-    "duration":line[7],
+    "duration":line[4],
+    "durationType":line[5],
+    "limitToStartTime":line[6],
+    "limitToEndTime":line[7],
     "numOfStaff":line[8]
   }))
   let startRow = 0
@@ -1786,6 +1788,7 @@ function IndexToA1(num:number){
 
 
 function mergeConsecutiveInRow(range:GoogleAppsScript.Spreadsheet.Range){
+  if (!range) return
   let values = range.getValues()
   // console.log("mergevalues: ", values)
   
@@ -1811,6 +1814,7 @@ function mergeConsecutiveInRow(range:GoogleAppsScript.Spreadsheet.Range){
 }
   
 function mergeConsecutiveInColumn(range:GoogleAppsScript.Spreadsheet.Range){
+  if (!range) return
   let values = range.getValues()
   // console.log("mergevalues: ", values)
   

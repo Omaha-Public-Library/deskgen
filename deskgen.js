@@ -160,7 +160,7 @@ function buildDeskSchedule(tomorrow = false) {
     deskSchedule.displayDuties(displayCells);
     //cleanup - clear template notes used for displayCells
     deskSheet.getDataRange().clearNote();
-    // ui.alert(JSON.stringify(deskSchedule, circularReplacer()))
+    ui.alert(JSON.stringify(deskSchedule, circularReplacer()));
     deskSchedule.popupDeskDataLog();
 }
 class DeskSchedule {
@@ -509,7 +509,7 @@ class DeskSchedule {
     }
     displayPicTimeline(displayCells) {
         //Merge individual shift picTimelines into one timeline of names
-        if (!settings.generatePicAssignments)
+        if (!settings.generatePicAssignments || this.shifts.length < 1)
             return;
         let picNamesArr = this.shifts[0].picTimeline.map(e => undefined);
         picNamesArr.forEach((status, i) => {
@@ -607,10 +607,10 @@ class DeskSchedule {
         this.logDeskData('after initializing availability and events');
     }
     timelineAddMeals() {
-        if (settings.onlyGenerateAvailabilityAndEvents)
+        if (settings.onlyGenerateAvailabilityAndEvents || this.shifts.length < 1)
             return;
         //sort shifts by longest time worked before meal
-        this.shifts.sort((a, b) => (b.idealMealTime?.getTime() - b.startTime.getTime()) - (a.idealMealTime?.getTime() - a.startTime.getTime()));
+        this.shifts.sort((a, b) => (b.idealMealTime?.getTime() - b.startTime?.getTime()) - (a.idealMealTime?.getTime() - a.startTime?.getTime()));
         //for each shift...
         this.shifts.forEach(shift => {
             if (!shift.idealMealTime)
@@ -651,7 +651,7 @@ class DeskSchedule {
         this.logDeskData('after adding meal breaks');
     }
     timelineAddStations() {
-        if (settings.onlyGenerateAvailabilityAndEvents)
+        if (settings.onlyGenerateAvailabilityAndEvents || this.shifts.length < 1)
             return;
         //  things to weigh:
         //position hierarchy
@@ -671,7 +671,7 @@ class DeskSchedule {
                         return;
                     //assign
                     this.shifts.forEach(shift => {
-                        if (station.positionPriority.length < 1 || station.positionPriority.includes(this.getPositionById(shift.position).name)) { //if staff is assigned to this station
+                        if (station.positionPriority.length < 1 || station.positionPriority.includes(this.getPositionById(shift.position)?.name)) { //if staff is assigned to this station
                             let currentStation = shift.getStationAtTime(time);
                             let nextStation = shift.getStationAtTime(nextTime);
                             let prevStation = shift.getStationAtTime(prevTime);
@@ -806,7 +806,7 @@ class DeskSchedule {
                 // this.sortShiftsByWhetherAssignmentLengthReached(station.name, time)
                 //assign
                 this.shifts.forEach(shift => {
-                    if (station.positionPriority.length < 1 || station.positionPriority.includes(this.getPositionById(shift.position).name)) { //if staff is assigned to this station
+                    if (station.positionPriority.length < 1 || station.positionPriority.includes(this.getPositionById(shift.position)?.name)) { //if staff is assigned to this station
                         let currentStation = shift.getStationAtTime(time);
                         // let prevStation = shift.getStationAtTime(prevTime)
                         // let timeOnPrevStation = shift.countHowLongAtStation(prevStation.name, new Date(time).addTime(0,-30))
@@ -937,12 +937,12 @@ class DeskSchedule {
         //Fill in columns
         mergeConsecutiveInColumn(//hate this syntax, but can't extend GAS classes
         displayCells.getByNameColumn('shiftPosition', '', this.shifts.length)
-            .setValues(this.shifts.map(s => [s.positionGroup])));
+            ?.setValues(this.shifts.map(s => [s.positionGroup])));
         displayCells.getByNameColumn('shiftName', '', this.shifts.length)
-            .setValues(this.shifts.map(s => [this.shortenFullName(s.name)]));
+            ?.setValues(this.shifts.map(s => [this.shortenFullName(s.name)]));
         displayCells.getByNameColumn('shiftTime', '', this.shifts.length)
-            .setValues(this.shifts.map(s => [
-            s.startTime.getTime() - s.endTime.getTime() == 0 ?
+            ?.setValues(this.shifts.map(s => [
+            (s.startTime?.getTime() - s.endTime?.getTime() == 0 || s.startTime == undefined || s.endTime == undefined) ?
                 '' : //for all day events that are loaded as starting and ending at 1, don't display time
                 s.startTime.getTimeStringHHMM12()
                     + '-' +
@@ -950,8 +950,10 @@ class DeskSchedule {
         ]));
         //Display station colors
         let colorArr = this.shifts.map(shift => shift.stationTimeline.map(station => this.getStation(station).color));
-        let timelineRange = displayCells.getByName2D('shiftStationGridStart', '', this.shifts.length, this.shifts[0].stationTimeline.length);
-        timelineRange.setBackgrounds(colorArr);
+        if (this.shifts.length > 0) {
+            let timelineRange = displayCells.getByName2D('shiftStationGridStart', '', this.shifts.length, this.shifts[0].stationTimeline.length);
+            timelineRange.setBackgrounds(colorArr);
+        }
         //Add event links
         let stationGridStart = displayCells.getByName('shiftStationGridStart', '');
         this.shifts.forEach((shift, i) => {
@@ -1396,10 +1398,10 @@ function loadSettings(deskSchedDate) {
         "name": line[1],
         "group": line[2],
         "positionPriority": line[3],
-        "durationType": line[4],
-        "limitToStartTime": line[5],
-        "limitToEndTime": line[6],
-        "duration": line[7],
+        "duration": line[4],
+        "durationType": line[5],
+        "limitToStartTime": line[6],
+        "limitToEndTime": line[7],
         "numOfStaff": line[8]
     }));
     let startRow = 0;
@@ -1511,6 +1513,8 @@ function IndexToA1(num) {
     return (num / 26 <= 1 ? '' : String.fromCharCode(((Math.floor((num - 1) / 26) - 1) % 26) + 65)) + String.fromCharCode(((num - 1) % 26) + 65);
 }
 function mergeConsecutiveInRow(range) {
+    if (!range)
+        return;
     let values = range.getValues();
     // console.log("mergevalues: ", values)
     let startCol = 0;
@@ -1530,6 +1534,8 @@ function mergeConsecutiveInRow(range) {
     }
 }
 function mergeConsecutiveInColumn(range) {
+    if (!range)
+        return;
     let values = range.getValues();
     // console.log("mergevalues: ", values)
     let startRow = 0;
