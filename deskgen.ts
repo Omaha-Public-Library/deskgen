@@ -29,6 +29,16 @@ nuetral positionpriority sorting option - when none specified, sort staff by nam
 
 instead of counting hours to evenly assign stations to all eligible staff, why not just prioritize eligible staff who haven't been on this shift at all? less counting, simpler, still get people doing varied things throughout day, might be enough to roughly even out distribution
 
+right now, if someone isn't on todays schedule, but is assigned to location, and have an event on gcal, AND showing all staff... event will display on event timeline, not the staff's timeline
+
+maybe have prepass consider available and meal as equal, so that it doesn't avoid half hour time off fragments next to meal
+
+pictimeline won't defrag if no one is available (sundays,half hour where all staff are on lunch, DT 11.16)
+
+if loading sheet already exists, delete before making/renaming new one
+
+add warning to make new spreadsheet when too many sheets
+
 ======== aaron meeting notes ========
 seperate data structure from logic
 consider whether your data format matches the storage medium
@@ -73,6 +83,8 @@ Could this handle better distribution of time off desk too?
 
 */
 
+var prevClock = new Date()
+var performanceLogOutput = ""
 
 var settings: Settings
 var displayCells: DisplayCells
@@ -81,6 +93,12 @@ var deskSheet = ss.getActiveSheet()
 const ui = SpreadsheetApp.getUi()
 const templateSheet = ss.getSheetByName('TEMPLATE')
 var token: string = null
+
+function performanceLog(description:string){
+  let newTime = new Date()
+  performanceLogOutput += ((newTime.getTime()-prevClock.getTime())/1000).toFixed(3) + " sec" + description.padStart(40, '.') + '\n'
+  prevClock = newTime
+}
 
 function onOpen(){
   SpreadsheetApp.getUi().createMenu('Generator')
@@ -93,8 +111,9 @@ function buildDeskScheduleTomorrow(){
 }
 
 function buildDeskSchedule(tomorrow: Boolean=false){
+  performanceLog("start")
   deskSheet = ss.getActiveSheet()
-  displayCells = new DisplayCells(ss.getSheetByName('TEMPLATE'))
+  displayCells = new DisplayCells(templateSheet)
   var deskSchedDate: Date
   
   //Make sure not running on template
@@ -114,68 +133,79 @@ function buildDeskSchedule(tomorrow: Boolean=false){
   
   //Load settings
   settings = loadSettings(deskSchedDate)
+  performanceLog("load settings")
     
   var newSheetName = sheetNameFromDate(deskSchedDate)
-  log(`setting up sheet:${deskSchedDate}, ${newSheetName}, ${ss.getSheetByName(newSheetName)}`)
+  log(`setting up sheet:${deskSchedDate}, ${newSheetName}, ${/*ss.getSheetByName(newSheetName)*/'removed lookup for perf'}`)
   
+  let existingSheet = ss.getSheetByName(newSheetName)
+
   //if sheet exists but is not the active sheet, open it
-  if(ss.getSheetByName(newSheetName)!==null && ss.getActiveSheet().getName() !== newSheetName) {
+  if(existingSheet!==null && ss.getActiveSheet().getName() !== newSheetName) {
     let result = ui.alert("A sheet for "+newSheetName+" already exists.","Open this sheet?",ui.ButtonSet.YES_NO)
     if (result == ui.Button.YES){
-      deskSheet=ss.getSheetByName(newSheetName)
-      deskSheet.activate()
+      existingSheet.activate()
     }
     return
   }
-  let sheetIndex = undefined
-  //if sheet already exists and is open, save index
-  if(ss.getSheetByName(newSheetName)!==null && ss.getActiveSheet().getName() == newSheetName){
-    sheetIndex = ss.getActiveSheet().getIndex()
+
+  else{
+    //if sheet already exists and is open, save index...
+    let sheetIndex = undefined
+    if(existingSheet!==null && ss.getActiveSheet().getName() == newSheetName){
+      sheetIndex = ss.getActiveSheet().getIndex()
+    }
+    //...if previous loading sheet exists, use that, otherwise make a new one from template
+    let existingLoadingSheet = ss.getSheetByName("loading...")
+    deskSheet = existingLoadingSheet!==null ? existingLoadingSheet : ss.insertSheet("loading...", {template: templateSheet})
+    deskSheet.activate()
+    //move to previous spot, if saved
+    if (sheetIndex !== undefined) ss.moveActiveSheet(sheetIndex)
+    //...and delete old sheet if it exists
+    if (existingSheet!==null) ss.deleteSheet(existingSheet)
+    deskSheet.setName(newSheetName)
   }
-  //make new sheet
-  ss.insertSheet("loading...", {template: ss.getSheetByName('TEMPLATE')})
-  deskSheet=ss.getSheetByName("loading...")
-  deskSheet.activate()
-  //move to previous spot, if saved
-  if (sheetIndex !== undefined) ss.moveActiveSheet(sheetIndex)
-  //delete old sheet if it exists
-  if (ss.getSheetByName(newSheetName)!==null) ss.deleteSheet(ss.getSheetByName(newSheetName))
-  deskSheet.setName(newSheetName)
-  
+
   displayCells.getByName('date').setValue(deskSchedDate.toDateString())
   log('deskSchedDate: '+deskSchedDate)
+
+  performanceLog("sheet setup")
   
   const wiwData = getWiwData(token, deskSchedDate)
+  performanceLog("load WIW data")
 
   let deskSchedDateEnd = new Date(deskSchedDate.getTime()+86399000)
   const gCal = CalendarApp.getCalendarById(settings.googleCalendarID)
   const gCalEvents = gCal.getEvents(deskSchedDate, deskSchedDateEnd)
   log(`Loaded events from google calendar: ${gCal.getName()}`)
   //MUST BE SUBSCRIBED TO CAL - add check if user is subscribed, if they're not, notify them that you're subscribing them to it, give option to unsubscribe after
+  performanceLog("load gCal events")
   
   var deskSchedule = new DeskSchedule(deskSchedDate, wiwData, gCalEvents, settings)
+  performanceLog("initialize DeskSchedule")
   
   //generate timeline
-  deskSchedule.timelineInit()
-  deskSchedule.timelineAddAvailabilityAndEvents()
-  deskSchedule.timelineAddMeals()
-  deskSchedule.timelineAddStations()
-  deskSchedule.timelineAssignPics()
+  deskSchedule.timelineInit();                      performanceLog("timeline init")
+  deskSchedule.timelineAddAvailabilityAndEvents();  performanceLog("timeline add availability and events")
+  deskSchedule.timelineAddMeals();                  performanceLog("timeline add meals")
+  deskSchedule.timelineAddStations();               performanceLog("timeline add stations")
+  deskSchedule.timelineAssignPics();                performanceLog("timeline assign PICs")
 
   //display timeline
-  deskSchedule.timelineDisplay()
+  deskSchedule.timelineDisplay(); performanceLog("display timeline")
 
   //other displays
-  deskSchedule.displayEvents(displayCells, gCalEvents, deskSchedule.annotationsString)
-  deskSchedule.displayPicTimeline(displayCells)
-  deskSchedule.displayStationKey(displayCells)
-  deskSchedule.displayDuties(displayCells)
+  deskSchedule.displayEvents(displayCells, gCalEvents, deskSchedule.annotationsString);   performanceLog("display events")
+  deskSchedule.displayPicTimeline(displayCells);                                          performanceLog("display PIC Timeline")
+  deskSchedule.displayStationKey(displayCells);                                           performanceLog("display station key")
+  deskSchedule.displayDuties(displayCells);                                               performanceLog("display duties")
 
   //cleanup - clear template notes used for displayCells
-  deskSheet.getDataRange().clearNote()
+  deskSheet.getDataRange().clearNote(); performanceLog("clear notes")
 
   // ui.alert(JSON.stringify(deskSchedule, circularReplacer()))
   deskSchedule.popupDeskDataLog()
+  ui.alert(performanceLogOutput + "\nTotal: " + performanceLogOutput.split('\n').map(e=>Number.isNaN(parseFloat(e.split(' ')[0])) ? 0 : parseFloat(e.split(' ')[0])).reduce((prev,curr)=>prev+curr).toFixed(3)+" sec")
 }
 
 class DeskSchedule{
@@ -545,10 +575,12 @@ class DeskSchedule{
   }
   
   displayEvents(displayCells: DisplayCells, gCalEvents: GoogleAppsScript.Calendar.CalendarEvent[], annotationsString: string){
-    displayCells.update(SpreadsheetApp.getActiveSheet())
+    displayCells.update(deskSheet)
     
     let boldStyle = SpreadsheetApp.newTextStyle().setBold(true).build()
     let removeLinkStyle = SpreadsheetApp.newTextStyle().setUnderline(false).setForegroundColor("black").build()
+
+    performanceLog("display events - setup styles")
     
     const happeningTodayRichTextArray = [
       // SpreadsheetApp.newRichTextValue().setText('\n').setTextStyle(SpreadsheetApp.newTextStyle().setItalic(true).build()).build(),
@@ -565,21 +597,26 @@ class DeskSchedule{
         return concatRT
       })
     ]
+    happeningTodayRichTextArray.push(SpreadsheetApp.newRichTextValue().setText(''+annotationsString).build())
+    performanceLog("display events - setup RTV array")
+
     //Add WIW day annotation
     // console.log('annotationsString:', annotationsString)
-    happeningTodayRichTextArray.push(SpreadsheetApp.newRichTextValue().setText(''+annotationsString).build())
+    let htDisplayCell = displayCells.getByName('happeningToday')
     if(happeningTodayRichTextArray.length>2)
-      deskSheet.insertRowsAfter(displayCells.getByName('happeningToday').getRow(), Math.max(0, happeningTodayRichTextArray.length-2))
-    deskSheet.getRange
-    displayCells.update(SpreadsheetApp.getActiveSheet())
+      deskSheet.insertRowsAfter(htDisplayCell.getRow(), Math.max(0, happeningTodayRichTextArray.length-2))
+    displayCells.update(deskSheet)
+    performanceLog("display events - add rows, update DCs")
+
     happeningTodayRichTextArray.forEach((rt,i)=>{
-      deskSheet.getRange(displayCells.getByName('happeningToday').getRow()+i, displayCells.getByName('happeningToday').getColumn(), 1, deskSheet.getDataRange().getNumColumns()-(displayCells.getByName('happeningToday').getColumn()-1))
+      deskSheet.getRange(htDisplayCell.getRow()+i, htDisplayCell.getColumn(), 1, deskSheet.getDataRange().getNumColumns()-(htDisplayCell.getColumn()-1))
       .merge()
-      // .setRichTextValue(rt)
     })
-    deskSheet.getRange(displayCells.getByName('happeningToday').getRow(), displayCells.getByName('happeningToday').getColumn(), happeningTodayRichTextArray.length)
+    performanceLog("display events - merge RTVs")
+
+    deskSheet.getRange(htDisplayCell.getRow(), htDisplayCell.getColumn(), happeningTodayRichTextArray.length)
     .setRichTextValues(happeningTodayRichTextArray.map(e=>[e]))
-    // displayCells.getByName('happeningToday').setRichTextValue(happeningTodayRichText)
+    performanceLog("display events - display")
   }
 
   displayPicTimeline(displayCells: DisplayCells){
@@ -1047,24 +1084,27 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
   }
   
   timelineDisplay(){
-    const sheet = ss.getActiveSheet()
-    
+
     this.sortShiftsForDisplay()
     //todo: sort by whether person is working, if there's a setting for showing staff that aren't working
     
     //Add times to timeline - need to test if this works for <830am >8pm timelines
-    displayCells.getAllByName('timeStart').getRanges().forEach(startRange=>{
-      let values = []
-      for(let time = new Date(this.dayStartTime); time < this.dayEndTime; time.addTime(0, 30)){
-        values.push(time.toLocaleTimeString([], {hour: "numeric", minute: "2-digit", hour12: true}).replace('AM','').replace('PM','').replace(' ',''))
-      }
-      let row = sheet.getRange(startRange.getRow(), startRange.getColumn(), 1, values.length)
-      row.setValues([values])
-    })
+    // if (this.dayStartTime.getTimeStringHHMM12() != "8:30" || this.dayEndTime.getTimeStringHHMM12() != "8:00"){ //Skip if not default hours
+      displayCells.getAllByName('timeStart').getRanges().forEach(startRange=>{
+        let values = []
+        for(let time = new Date(this.dayStartTime); time < this.dayEndTime; time.addTime(0, 30)){
+          values.push(time.toLocaleTimeString([], {hour: "numeric", minute: "2-digit", hour12: true}).replace('AM','').replace('PM','').replace(' ',''))
+        }
+        let row = deskSheet.getRange(startRange.getRow(), startRange.getColumn(), 1, values.length)
+        row.setValues([values]) //for some reason, if this doesn't get called, the happeningTodayRichTextArray .merge fails: "Exception: You must select all cells in a merged range to merge or unmerge them."
+      })
+    // }
+    performanceLog("display timline - time display")
     
     //Add rows to match number of shifts
-    if (this.shifts.length > 1) sheet.insertRowsAfter(displayCells.getByName('shiftName').getRow(), this.shifts.length-1)
-    displayCells.update(SpreadsheetApp.getActiveSheet())
+    if (this.shifts.length > 1) deskSheet.insertRowsAfter(displayCells.getByName('shiftName').getRow(), this.shifts.length-1)
+    displayCells.update(deskSheet)
+    performanceLog("display timline - add shift rows")
     
     //Fill in columns
     mergeConsecutiveInColumn( //hate this syntax, but can't extend GAS classes
@@ -1079,13 +1119,15 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
         s.startTime.getTimeStringHHMM12()
         +'-'+
         s.endTime.getTimeStringHHMM12()]))
-        
+    performanceLog("display timline - shift info columns")
+    
     //Display station colors
     let colorArr = this.shifts.map(shift=>shift.stationTimeline.map(station=>this.getStation(station).color))
     if (this.shifts.length>0){
       let timelineRange = displayCells.getByName2D('shiftStationGridStart', '', this.shifts.length, this.shifts[0].stationTimeline.length)
       timelineRange.setBackgrounds(colorArr)
     }
+    performanceLog("display timline - station colors")
     
     //Add event links
     let stationGridStart = displayCells.getByName('shiftStationGridStart', '')
@@ -1103,6 +1145,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
         }
       })
     })
+    performanceLog("display timline - event")
   }
   
   displayStationKey(displayCells: DisplayCells) {
@@ -1519,14 +1562,14 @@ class DisplayCell{
 }
 class DisplayCells{
   list = []
-  constructor(sheet:GoogleAppsScript.Spreadsheet.Sheet){
-    this.update(sheet)
+  constructor(deskSheet: GoogleAppsScript.Spreadsheet.Sheet){
+    this.update(deskSheet)
   }
   // get list() {return this.data}
   // get row() {retrun this.data.}
-  update(sheet:GoogleAppsScript.Spreadsheet.Sheet){
+  update(deskSheet:GoogleAppsScript.Spreadsheet.Sheet){
     // let template = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('TEMPLATE')
-    let notes = sheet.getRange(1,1,sheet.getMaxRows(),sheet.getMaxColumns()).getNotes()
+    let notes = deskSheet.getRange(1,1,deskSheet.getMaxRows(),deskSheet.getMaxColumns()).getNotes()
     this.list = (()=>{
       let result = []
       for(let row = 0; row<notes.length; row++){
@@ -1579,7 +1622,7 @@ class DisplayCells{
       console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`)
     return undefined
   }
-      else return SpreadsheetApp.getActiveSheet().getRange(matches[0].a1)
+      else return deskSheet.getRange(matches[0].a1)
   }
   getByNameColumn(name:string, group:string='', columnLength):GoogleAppsScript.Spreadsheet.Range{
     if(columnLength<1) return //avoid error calling getRange on 0 length column
@@ -1589,7 +1632,7 @@ class DisplayCells{
       console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`)
       return undefined
     }
-    else return SpreadsheetApp.getActiveSheet().getRange(matches[0].row, matches[0].col, columnLength, 1)
+    else return deskSheet.getRange(matches[0].row, matches[0].col, columnLength, 1)
   }
   getByName2D(name:string, group:string='', numRows:number, numColumns:number):GoogleAppsScript.Spreadsheet.Range{
     let matches: DisplayCell[] = this.list.filter(d=>d.name==name)
@@ -1598,7 +1641,7 @@ class DisplayCells{
       console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`)
     return undefined
   }
-      else return SpreadsheetApp.getActiveSheet().getRange(matches[0].row, matches[0].col,numRows, numColumns)
+      else return deskSheet.getRange(matches[0].row, matches[0].col,numRows, numColumns)
   }
   getAllByName(name:string, group:string=''){
     let matches: DisplayCell[] = this.list.filter(d=>d.name==name)
@@ -1606,7 +1649,7 @@ class DisplayCells{
       console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`)
     return undefined
   }
-      else return SpreadsheetApp.getActiveSheet().getRangeList((matches.map(dc=>dc.a1)))
+      else return deskSheet.getRangeList((matches.map(dc=>dc.a1)))
   }
 }
 
