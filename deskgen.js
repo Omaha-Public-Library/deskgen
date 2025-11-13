@@ -6,7 +6,7 @@ more testing for parseDate (12pm noon)
 
 Station gen - want to revisit this later and try less agressive sorting with more neutral 0 outcomes, to prevent last sorts from having outsized impact, OR switch to using a value sorting system where lots of different factors contribute to a single sorting value
 
-should settings be saved in deskschedule? or in history?
+should settings be saved in deskschedule? or in history? or properties service?
 
 warning about events scheduled outside shifts?
 
@@ -38,6 +38,10 @@ pictimeline won't defrag if no one is available (sundays,half hour where all sta
 if loading sheet already exists, delete before making/renaming new one
 
 add warning to make new spreadsheet when too many sheets
+
+performance, sheet history management - move past dates to seperate sheet? automatically overnight?
+
+gcal event hover isn't working on non-scheduled user events in bottom cell (but timeline is?) GEN 11.13.25
 
 ======== aaron meeting notes ========
 seperate data structure from logic
@@ -82,15 +86,12 @@ Could this handle better distribution of time off desk too?
 ====================================================
 
 */
+function intervalTrigger() {
+    console.log("interval trigger: " + new Date().toISOString());
+    //get first sheet by index. check date, if today/future stop. otherwise, check if it exists in archive, if so stop and warn. if not, copy to archive spreadsheet. then check if it exists in archive spreadsheet, if so delete. repeat x nums of times or until reaching today/future date.
+}
 var prevClock = new Date();
 var performanceLogOutput = "";
-var settings;
-var displayCells;
-var ss = SpreadsheetApp.getActiveSpreadsheet();
-var deskSheet = ss.getActiveSheet();
-const ui = SpreadsheetApp.getUi();
-const templateSheet = ss.getSheetByName('TEMPLATE');
-var token = null;
 function performanceLog(description) {
     let newTime = new Date();
     performanceLogOutput += ((newTime.getTime() - prevClock.getTime()) / 1000).toFixed(3) + " sec" + description.padStart(40, '.') + '\n';
@@ -106,8 +107,13 @@ function buildDeskScheduleTomorrow() {
 }
 function buildDeskSchedule(tomorrow = false) {
     performanceLog("start");
+    var settings;
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var deskSheet = ss.getActiveSheet();
+    const ui = SpreadsheetApp.getUi();
+    const templateSheet = ss.getSheetByName('TEMPLATE');
+    var token = null;
     deskSheet = ss.getActiveSheet();
-    displayCells = new DisplayCells(templateSheet);
     var deskSchedDate;
     //Make sure not running on template
     if (deskSheet.getSheetName() == 'TEMPLATE') {
@@ -115,7 +121,7 @@ function buildDeskSchedule(tomorrow = false) {
         return;
     }
     //Make sure date is present in sheet
-    var dateCell = displayCells.getByName('date').getValue();
+    var dateCell = deskSheet.getRange('A1').getValue();
     if (isNaN(Date.parse(dateCell))) {
         ui.alert("No date found in top-left of sheet, please enter date in mm/dd/yyyy format", ui.ButtonSet.OK);
         return;
@@ -157,10 +163,11 @@ function buildDeskSchedule(tomorrow = false) {
             ss.deleteSheet(existingSheet);
         deskSheet.setName(newSheetName);
     }
+    let displayCells = new DisplayCells(deskSheet);
     displayCells.getByName('date').setValue(deskSchedDate.toDateString());
     log('deskSchedDate: ' + deskSchedDate);
     performanceLog("sheet setup");
-    const wiwData = getWiwData(token, deskSchedDate);
+    const wiwData = getWiwData(token, deskSchedDate, settings);
     performanceLog("load WIW data");
     let deskSchedDateEnd = new Date(deskSchedDate.getTime() + 86399000);
     const gCal = CalendarApp.getCalendarById(settings.googleCalendarID);
@@ -168,7 +175,7 @@ function buildDeskSchedule(tomorrow = false) {
     log(`Loaded events from google calendar: ${gCal.getName()}`);
     //MUST BE SUBSCRIBED TO CAL - add check if user is subscribed, if they're not, notify them that you're subscribing them to it, give option to unsubscribe after
     performanceLog("load gCal events");
-    var deskSchedule = new DeskSchedule(deskSchedDate, wiwData, gCalEvents, settings);
+    var deskSchedule = new DeskSchedule(deskSchedDate, wiwData, gCalEvents, settings, deskSheet, displayCells);
     performanceLog("initialize DeskSchedule");
     //generate timeline
     deskSchedule.timelineInit();
@@ -202,7 +209,7 @@ function buildDeskSchedule(tomorrow = false) {
 }
 class DeskSchedule {
     //history:
-    constructor(date, wiwData, gCalEvents, settings) {
+    constructor(date, wiwData, gCalEvents, settings, deskSheet, displayCells) {
         this.eventsErrorLog = []; //test if this works?
         this.annotationEvents = [];
         this.annotationShifts = [];
@@ -212,6 +219,9 @@ class DeskSchedule {
         this.durationTypes = { alwaysWhileOpen: "Always while open", xHoursPerDay: "For X hours per day total", xHoursPerStaff: "For X hours per day for each staff" };
         this.openingDuties = [];
         this.closingDuties = [];
+        this.settings = settings;
+        this.deskSheet = deskSheet;
+        this.displayCells = displayCells;
         this.date = date;
         this.dayStartTime = new Date(this.date);
         this.dayStartTime.setHours(8, 30);
@@ -225,16 +235,16 @@ class DeskSchedule {
         this.closingDuties = settings.closingDuties?.map(d => new Duty(d.title, undefined, d.requirePic));
         settings.stations.forEach(s => {
             let limitToStartTime;
-            if (!Number.isNaN(parseFloat(s.limitToStartTime))) {
+            if (!Number.isNaN(s.limitToStartTime)) {
                 limitToStartTime = new Date(date);
                 limitToStartTime.setHours(s.limitToStartTime, s.limitToStartTime % 1 * 60);
             }
             let limitToEndTime;
-            if (!Number.isNaN(parseFloat(s.limitToEndTime))) {
+            if (!Number.isNaN(s.limitToEndTime)) {
                 limitToEndTime = new Date(date);
                 limitToEndTime.setHours(s.limitToEndTime, s.limitToEndTime % 1 * 60);
             }
-            this.stations.push(new Station(s.name, s.color, s.numOfStaff, s.positionPriority.split(', ').filter(str => /\S/.test(str)), s.durationType, s.duration === "" ? settings.assignmentLength : s.duration, limitToStartTime, limitToEndTime, s.group));
+            this.stations.push(new Station(s.name, s.color, s.numOfStaff, s.positionPriority.split(', ').filter(str => /\S/.test(str)), s.durationType, Number.isNaN(s.duration) ? settings.assignmentLength : s.duration, limitToStartTime, limitToEndTime, s.group));
         });
         [
             new Station(this.defaultStations.undefined, `#cccccc`),
@@ -266,7 +276,7 @@ class DeskSchedule {
             if (!wiwData.shifts.some(shift => guestIdList.includes(shift.user_id))) {
                 let startTime = new Date(gCalEvent.getStartTime().getTime());
                 let endTime = new Date(gCalEvent.getEndTime().getTime());
-                nonScheduledStaffEvents.push(new ShiftEvent(gCalEvent.getTitle(), startTime, endTime, getEventUrl(gCalEvent)));
+                nonScheduledStaffEvents.push(new ShiftEvent(gCalEvent.getTitle(), startTime, endTime, this.getEventUrl(gCalEvent)));
                 // if event guest list doesn't include ANY wiw users, scheduled or not
                 // if(!wiwData.users.some(u=>guestEmailList.includes(u.email))){}
             }
@@ -390,6 +400,7 @@ class DeskSchedule {
             { "id": 0, "name": "Annotation Event" }
         ];
         var eventErrorLog = [];
+        this.ui = SpreadsheetApp.getUi();
         wiwData.shifts /*.concat(annotationShifts)*/.forEach(s => {
             let eventsFormatted = [];
             let wiwUserObj = wiwData.users /*.concat(annotationUser)*/.filter(u => u.id == s.user_id)[0];
@@ -415,7 +426,7 @@ class DeskSchedule {
                         let allDayEvent = Math.abs(endTime.getTime() - startTime.getTime()) / 3600000 > 22 ? true : false;
                         eventsFormatted.push(new ShiftEvent(gCalEvent.getTitle(), startTime, endTime, 
                         // displayString: getEventUrl(gCalEvent),
-                        getEventUrl(gCalEvent)));
+                        this.getEventUrl(gCalEvent)));
                     }
                 });
                 let startTime = new Date(s.start_time);
@@ -443,7 +454,7 @@ class DeskSchedule {
         });
         if (eventErrorLog.length > 0) {
             log('eventErrorLog:\n' + eventErrorLog);
-            ui.alert(`Cannot parse events:
+            this.ui.alert(`Cannot parse events:
         -----
         ${eventErrorLog.join(',\n\n')}
         -----
@@ -475,13 +486,13 @@ class DeskSchedule {
             }
         });
         if (this.shifts.length < 1)
-            ui.alert('No shifts found for today, and no closure marked in WIW. If the branch is closed today, that day should have a closure annotation in WIW.');
+            this.ui.alert('No shifts found for today, and no closure marked in WIW. If the branch is closed today, that day should have a closure annotation in WIW.');
         // log('shifts:\n'+ JSON.stringify(this.shifts))
     }
     getStation(stationName) {
         let matches = this.stations.filter(d => d.name == stationName);
         if (matches.length < 1)
-            ui.alert(`station '${stationName}' is required and does not exist in stations:\n${JSON.stringify(this.stations)}`);
+            SpreadsheetApp.getUi().alert(`station '${stationName}' is required and does not exist in stations:\n${JSON.stringify(this.stations)}`);
         else
             return matches[0];
     }
@@ -511,8 +522,16 @@ class DeskSchedule {
         }
         return count;
     }
+    getEventUrl(calendarEvent) {
+        const calendarId = this.settings.googleCalendarID;
+        const eventId = calendarEvent.getId();
+        const splitEventId = eventId.split('@')[0];
+        const eid = Utilities.base64Encode(`${splitEventId} ${calendarId}`).replaceAll('=', '');
+        const eventUrl = `https://www.google.com/calendar/event?eid=${eid}`;
+        return eventUrl;
+    }
     displayEvents(displayCells, gCalEvents, annotationsString) {
-        displayCells.update(deskSheet);
+        displayCells.update(this.deskSheet);
         let boldStyle = SpreadsheetApp.newTextStyle().setBold(true).build();
         let removeLinkStyle = SpreadsheetApp.newTextStyle().setUnderline(false).setForegroundColor("black").build();
         performanceLog("display events - setup styles");
@@ -525,9 +544,9 @@ class DeskSchedule {
                 timesString = timesString.replace('12:00-12:00', 'All Day');
                 let concatRT = concatRichText([
                     SpreadsheetApp.newRichTextValue().setText((i === 0 ? '\n' : '') + timesString + ' • ').build(),
-                    SpreadsheetApp.newRichTextValue().setText(!settings.addNamesToEvents ? ' ' : guestNames.join(', ') + (guestNames.length > 0 ? ': ' : '')).setTextStyle(boldStyle).build(),
+                    SpreadsheetApp.newRichTextValue().setText(!this.settings.addNamesToEvents ? ' ' : guestNames.join(', ') + (guestNames.length > 0 ? ': ' : '')).setTextStyle(boldStyle).build(),
                     SpreadsheetApp.newRichTextValue().setText(ev.getTitle() + (i === gCalEvents.length - 1 ? '\n' : '')).build()
-                ]).setLinkUrl(getEventUrl(ev)).setTextStyle(removeLinkStyle).build();
+                ]).setLinkUrl(this.getEventUrl(ev)).setTextStyle(removeLinkStyle).build();
                 return concatRT;
             })
         ];
@@ -537,21 +556,21 @@ class DeskSchedule {
         // console.log('annotationsString:', annotationsString)
         let htDisplayCell = displayCells.getByName('happeningToday');
         if (happeningTodayRichTextArray.length > 2)
-            deskSheet.insertRowsAfter(htDisplayCell.getRow(), Math.max(0, happeningTodayRichTextArray.length - 2));
-        displayCells.update(deskSheet);
+            this.deskSheet.insertRowsAfter(htDisplayCell.getRow(), Math.max(0, happeningTodayRichTextArray.length - 2));
+        displayCells.update(this.deskSheet);
         performanceLog("display events - add rows, update DCs");
         happeningTodayRichTextArray.forEach((rt, i) => {
-            deskSheet.getRange(htDisplayCell.getRow() + i, htDisplayCell.getColumn(), 1, deskSheet.getDataRange().getNumColumns() - (htDisplayCell.getColumn() - 1))
+            this.deskSheet.getRange(htDisplayCell.getRow() + i, htDisplayCell.getColumn(), 1, this.deskSheet.getDataRange().getNumColumns() - (htDisplayCell.getColumn() - 1))
                 .merge();
         });
         performanceLog("display events - merge RTVs");
-        deskSheet.getRange(htDisplayCell.getRow(), htDisplayCell.getColumn(), happeningTodayRichTextArray.length)
+        this.deskSheet.getRange(htDisplayCell.getRow(), htDisplayCell.getColumn(), happeningTodayRichTextArray.length)
             .setRichTextValues(happeningTodayRichTextArray.map(e => [e]));
         performanceLog("display events - display");
     }
     displayPicTimeline(displayCells) {
         //Merge individual shift picTimelines into one timeline of names
-        if (!settings.generatePicAssignments || this.shifts.length < 1)
+        if (!this.settings.generatePicAssignments || this.shifts.length < 1)
             return;
         let picNamesArr = this.shifts[0].picTimeline.map(e => undefined);
         picNamesArr.forEach((status, i) => {
@@ -580,7 +599,7 @@ class DeskSchedule {
                 return position;
             }
         }
-        ui.alert('Contact Corson! These positions are missing definitions:\n' + positions.join('\n'));
+        this.ui.alert('Contact Corson! These positions are missing definitions:\n' + positions.join('\n'));
     }
     getPositionHierarchyIndex(id) {
         return this.positionHierarchy.map(p => p.id).indexOf(id);
@@ -631,7 +650,7 @@ class DeskSchedule {
     timelineAddAvailabilityAndEvents() {
         //fill in availability and events
         this.forEachShiftBlock(this.dayStartTime, this.dayEndTime, (shift, time) => {
-            if ((time < settings.openHours.open || time >= settings.openHours.close) && (time >= shift.startTime && time < shift.endTime))
+            if ((time < this.settings.openHours.open || time >= this.settings.openHours.close) && (time >= shift.startTime && time < shift.endTime))
                 shift.setStationAtTime(this.defaultStations.available, time);
             else if (time >= shift.startTime && time < shift.endTime)
                 shift.setStationAtTime(this.defaultStations.undefined, time);
@@ -649,7 +668,7 @@ class DeskSchedule {
         this.logDeskData('after initializing availability and events');
     }
     timelineAddMeals() {
-        if (settings.onlyGenerateAvailabilityAndEvents || this.shifts.length < 1)
+        if (this.settings.onlyGenerateAvailabilityAndEvents || this.shifts.length < 1)
             return;
         //sort shifts by longest time worked before meal
         this.shifts.sort((a, b) => (b.idealMealTime?.getTime() - b.startTime?.getTime()) - (a.idealMealTime?.getTime() - a.startTime?.getTime()));
@@ -659,18 +678,18 @@ class DeskSchedule {
                 return; //idealMealTime will be undefined if <8hr shift
             let highestAvailabilityTimes = [];
             //in 30 minute increments, step alternating forward/back (0, 30, -30, 60, -60) to possible start times, in decreasing proximity to ideal
-            for (let startMinutes = 0; startMinutes <= settings.idealMealTimePlusMinusHours * 60; startMinutes = startMinutes > 0 ? startMinutes * -1 : startMinutes * -1 + 30) {
+            for (let startMinutes = 0; startMinutes <= this.settings.idealMealTimePlusMinusHours * 60; startMinutes = startMinutes > 0 ? startMinutes * -1 : startMinutes * -1 + 30) {
                 let startTime = new Date(shift.idealMealTime).addTime(0, startMinutes);
                 let availabilityTotal = 0;
                 //for each start time, count total available staff for each half hour over length of break
                 let duringOpenHours = false;
-                for (let minutes = 0; minutes < settings.mealBreakLength * 60; minutes += 30) {
+                for (let minutes = 0; minutes < this.settings.mealBreakLength * 60; minutes += 30) {
                     let time = new Date(shift.idealMealTime).addTime(0, startMinutes + minutes);
                     availabilityTotal += this.getStationCountAtTime(this.defaultStations.undefined, time);
                     if (!(shift.getStationAtTime(time).name == this.defaultStations.undefined
                         || shift.getStationAtTime(time).name == this.defaultStations.available))
                         availabilityTotal -= 1000;
-                    if (time >= settings.openHours.open && time < settings.openHours.close)
+                    if (time >= this.settings.openHours.open && time < this.settings.openHours.close)
                         duringOpenHours = true;
                 }
                 if (!duringOpenHours)
@@ -682,18 +701,18 @@ class DeskSchedule {
             //sort resulting array by availability total (tie broken by existing proximity to ideal order)
             highestAvailabilityTimes.sort((a, b) => b.availabilityTotal - a.availabilityTotal);
             //sort to avoid half hours if changeOnTheHour
-            if (settings.changeOnTheHour && settings.mealBreakLength % 1 == 0)
+            if (this.settings.changeOnTheHour && this.settings.mealBreakLength % 1 == 0)
                 highestAvailabilityTimes.sort((a, b) => (a.time.getMinutes() == 0 ? 0 : 1) - (b.time.getMinutes() == 0 ? 0 : 1));
             //assign staff to best meal time
             if (highestAvailabilityTimes.length > 0)
-                for (let minutes = 0; minutes < settings.mealBreakLength * 60; minutes += 30) {
+                for (let minutes = 0; minutes < this.settings.mealBreakLength * 60; minutes += 30) {
                     shift.setStationAtTime(this.defaultStations.mealBreak, highestAvailabilityTimes[0].time.addTime(0, minutes));
                 }
         });
         this.logDeskData('after adding meal breaks');
     }
     timelineAddStations() {
-        if (settings.onlyGenerateAvailabilityAndEvents || this.shifts.length < 1)
+        if (this.settings.onlyGenerateAvailabilityAndEvents || this.shifts.length < 1)
             return;
         //  things to weigh:
         //position hierarchy
@@ -705,7 +724,7 @@ class DeskSchedule {
         for (let time = new Date(startTime); time < endTime; time.addTime(0, 30)) {
             let prevTime = new Date(time).addTime(0, -30).clamp(startTime, new Date(endTime).addTime(0, -30));
             let nextTime = new Date(time).addTime(0, 30).clamp(startTime, new Date(endTime).addTime(0, -30));
-            if (settings.defragPrePass) {
+            if (this.settings.defragPrePass) {
                 let undefinedCount = this.getStationCountAtTime(this.defaultStations.undefined, time);
                 this.stations.forEach((station, stationIndex) => {
                     //skip default stations EXCEPT available, the rest are handled in timelineAddAvailabilityAndEvents and timelineAddMeals
@@ -824,7 +843,7 @@ class DeskSchedule {
                     return aVal - bVal;
                 });
                 //if changeOnTheHour AND on this station AND not more than half an hour over, move to front
-                if (settings.changeOnTheHour && time.getMinutes() != 0) {
+                if (this.settings.changeOnTheHour && time.getMinutes() != 0) {
                     this.shifts.sort((shiftA, shiftB) => {
                         let aStationPrev = shiftA.getStationAtTime(prevTime);
                         let bStationPrev = shiftB.getStationAtTime(prevTime);
@@ -892,14 +911,14 @@ class DeskSchedule {
         }
     }
     timelineAssignPics() {
-        if (!settings.generatePicAssignments)
+        if (!this.settings.generatePicAssignments)
             return;
         this.sortShiftsByNameAlphabetically();
         offset(this.shifts, this.date.getDayOfYear());
         for (let time = new Date(this.dayStartTime); time < this.dayEndTime; time.addTime(0, 30)) {
             let prevTime = new Date(time).addTime(0, -30).clamp(this.dayStartTime, new Date(this.dayEndTime).addTime(0, -30));
             let nextTime = new Date(time).addTime(0, 30).clamp(this.dayStartTime, new Date(this.dayEndTime).addTime(0, -30));
-            if (!settings.changeOnTheHour || time.getMinutes() == 0) {
+            if (!this.settings.changeOnTheHour || time.getMinutes() == 0) {
                 this.shifts.sort((shiftA, shiftB) => shiftA.countPicHoursTotal() - shiftB.countPicHoursTotal());
                 // console.log(`${time.getTimeStringHHMM12()} - pics sorted by total pic hours, ascending:\n${this.shifts.map(s=>`${s.name.substring(0,9)}, ${s.countPicHoursTotal().toFixed(1)} total`).join('\n')}`)
                 //sort by descending first to prioritize reassigning current PIC until their max time or conflict is reached
@@ -964,28 +983,28 @@ class DeskSchedule {
         //todo: sort by whether person is working, if there's a setting for showing staff that aren't working
         //Add times to timeline - need to test if this works for <830am >8pm timelines
         // if (this.dayStartTime.getTimeStringHHMM12() != "8:30" || this.dayEndTime.getTimeStringHHMM12() != "8:00"){ //Skip if not default hours
-        displayCells.getAllByName('timeStart').getRanges().forEach(startRange => {
+        this.displayCells.getAllByName('timeStart').getRanges().forEach(startRange => {
             let values = [];
             for (let time = new Date(this.dayStartTime); time < this.dayEndTime; time.addTime(0, 30)) {
                 values.push(time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }).replace('AM', '').replace('PM', '').replace(' ', ''));
             }
-            let row = deskSheet.getRange(startRange.getRow(), startRange.getColumn(), 1, values.length);
+            let row = this.deskSheet.getRange(startRange.getRow(), startRange.getColumn(), 1, values.length);
             row.setValues([values]); //for some reason, if this doesn't get called, the happeningTodayRichTextArray .merge fails: "Exception: You must select all cells in a merged range to merge or unmerge them."
         });
         // }
         performanceLog("display timline - time display");
         //Add rows to match number of shifts
         if (this.shifts.length > 1)
-            deskSheet.insertRowsAfter(displayCells.getByName('shiftName').getRow(), this.shifts.length - 1);
-        displayCells.update(deskSheet);
+            this.deskSheet.insertRowsAfter(this.displayCells.getByName('shiftName').getRow(), this.shifts.length - 1);
+        this.displayCells.update(this.deskSheet);
         performanceLog("display timline - add shift rows");
         //Fill in columns
         mergeConsecutiveInColumn(//hate this syntax, but can't extend GAS classes
-        displayCells.getByNameColumn('shiftPosition', '', this.shifts.length)
+        this.displayCells.getByNameColumn('shiftPosition', '', this.shifts.length)
             ?.setValues(this.shifts.map(s => [s.positionGroup])));
-        displayCells.getByNameColumn('shiftName', '', this.shifts.length)
+        this.displayCells.getByNameColumn('shiftName', '', this.shifts.length)
             ?.setValues(this.shifts.map(s => [this.shortenFullName(s.name)]));
-        displayCells.getByNameColumn('shiftTime', '', this.shifts.length)
+        this.displayCells.getByNameColumn('shiftTime', '', this.shifts.length)
             ?.setValues(this.shifts.map(s => [
             (s.startTime?.getTime() - s.endTime?.getTime() == 0 || s.startTime == undefined || s.endTime == undefined) ?
                 '' : //for all day events that are loaded as starting and ending at 1, don't display time
@@ -997,12 +1016,12 @@ class DeskSchedule {
         //Display station colors
         let colorArr = this.shifts.map(shift => shift.stationTimeline.map(station => this.getStation(station).color));
         if (this.shifts.length > 0) {
-            let timelineRange = displayCells.getByName2D('shiftStationGridStart', '', this.shifts.length, this.shifts[0].stationTimeline.length);
+            let timelineRange = this.displayCells.getByName2D('shiftStationGridStart', '', this.shifts.length, this.shifts[0].stationTimeline.length);
             timelineRange.setBackgrounds(colorArr);
         }
         performanceLog("display timline - station colors");
         //Add event links
-        let stationGridStart = displayCells.getByName('shiftStationGridStart', '');
+        let stationGridStart = this.displayCells.getByName('shiftStationGridStart', '');
         this.shifts.forEach((shift, i) => {
             shift.events.forEach(event => {
                 if (!(shift.startTime.getTime() - shift.endTime.getTime() == 0 && event.getDurationInHours() > 22)) { //don't add event links for event that lasts all day and isn't assigned to any staff
@@ -1010,7 +1029,7 @@ class DeskSchedule {
                     let eventEnd = event.getDurationInHours() > 22 ? shift.endTime.getTime() : event.endTime.getTime();
                     let halfHoursSinceDayStart = Math.round((eventStart - this.dayStartTime.getTime()) / 3600000 * 2);
                     let eventLengthInHalfHours = Math.round((eventEnd - eventStart) / 3600000 * 2);
-                    deskSheet.getRange(stationGridStart.getRow() + i, stationGridStart.getColumn() + halfHoursSinceDayStart, 1, eventLengthInHalfHours)
+                    this.deskSheet.getRange(stationGridStart.getRow() + i, stationGridStart.getColumn() + halfHoursSinceDayStart, 1, eventLengthInHalfHours)
                         .setValue(`=HYPERLINK("${event.gCalUrl}","...")`)
                         .setFontColor(this.getStation(this.defaultStations.programMeeting).color);
                 }
@@ -1029,7 +1048,7 @@ class DeskSchedule {
         //OPENING
         if (this.openingDuties.length > 0) {
             shuffle(this.shifts);
-            let openingDutiesStart = new Date(settings.openHours.open).addTime(0, -30);
+            let openingDutiesStart = new Date(this.settings.openHours.open).addTime(0, -30);
             let openingStaffShifts = this.shifts.filter(shift => {
                 let stationAtOpen = shift.getStationAtTime(openingDutiesStart);
                 return (stationAtOpen.name == this.defaultStations.available) || (stationAtOpen.name == this.defaultStations.undefined);
@@ -1062,7 +1081,7 @@ class DeskSchedule {
         //CLOSING
         if (this.closingDuties?.length > 0) {
             shuffle(this.shifts);
-            let closingDutiesStart = new Date(settings.openHours.close).addTime(0, -30);
+            let closingDutiesStart = new Date(this.settings.openHours.close).addTime(0, -30);
             let closingStaffShifts = this.shifts.filter(shift => {
                 let stationAtClose = shift.getStationAtTime(closingDutiesStart);
                 return (stationAtClose.name !== this.defaultStations.off) && (stationAtClose.name !== this.defaultStations.programMeeting);
@@ -1095,13 +1114,13 @@ class DeskSchedule {
     }
     logDeskData(description) {
         this.sortShiftsForDisplay();
-        if (!settings.verboseLog)
+        if (!this.settings.verboseLog)
             return;
         let s = this.shifts.map(shift => shift.name.substring(0, 8).replaceAll(' ', '.') + ' ' + shift.stationTimeline.map((station, i) => `<span class="outline" title="${new Date(this.dayStartTime.getTime() + i * 1000 * 60 * 30).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}&#10${station}"; style="color:${this.getStation(station).color}">◼</span>`).join('')).join('<br>');
         this.logDeskDataRecord.push('     ' + description + '<br><br>' + s);
     }
     popupDeskDataLog() {
-        if (settings.verboseLog) {
+        if (this.settings.verboseLog) {
             var htmlTemplate = HtmlService.createTemplate(`<style>
         .outline {
           color: white;
@@ -1134,7 +1153,7 @@ class DeskSchedule {
         </script>`);
             htmlTemplate.logDeskDataRecord = this.logDeskDataRecord;
             var htmlOutput = htmlTemplate.evaluate().setSandboxMode(HtmlService.SandboxMode.IFRAME).setWidth(700).setHeight(700);
-            ui.showModalDialog(htmlOutput, 'Timeline Debug');
+            this.ui.showModalDialog(htmlOutput, 'Timeline Debug');
         }
     }
     shortenFullName(name) {
@@ -1152,7 +1171,7 @@ class DeskSchedule {
 }
 class Station {
     constructor(name, color = `#ffffff`, numOfStaff = 1, positionPriority = [], //position[] when implemented
-    durationType = "Always", duration = settings.assignmentLength, limitToStartTime = undefined, limitToEndTime = undefined, group = "") {
+    durationType = "Always", duration = 0, limitToStartTime = undefined, limitToEndTime = undefined, group = "") {
         this.name = name;
         this.color = color;
         this.numOfStaff = numOfStaff;
@@ -1235,7 +1254,6 @@ class Shift {
         return hoursPastAssignmentLength;
     }
     countTotalTimeAtStation(stationName, beforeTime = this.deskSchedule.dayEndTime) {
-        ui.alert('countTotalTimeAtStation is untested');
         let count = 0;
         let firstTimeToCheck = new Date(beforeTime);
         firstTimeToCheck.addTime(0, -30);
@@ -1318,13 +1336,13 @@ class DisplayCells {
     constructor(deskSheet) {
         this.list = [];
         this.deskSheet = deskSheet;
-        this.update(deskSheet);
+        this.update(this.deskSheet);
     }
     // get list() {return this.data}
     // get row() {retrun this.data.}
     update(deskSheet) {
-        // let template = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('TEMPLATE')
-        let notes = deskSheet.getRange(1, 1, deskSheet.getMaxRows(), deskSheet.getMaxColumns()).getNotes();
+        this.deskSheet = deskSheet;
+        let notes = this.deskSheet.getRange(1, 1, this.deskSheet.getMaxRows(), this.deskSheet.getMaxColumns()).getNotes();
         this.list = (() => {
             let result = [];
             for (let row = 0; row < notes.length; row++) {
@@ -1382,7 +1400,7 @@ class DisplayCells {
             return undefined;
         }
         else
-            return deskSheet.getRange(matches[0].a1);
+            return this.deskSheet.getRange(matches[0].a1);
     }
     getByNameColumn(name, group = '', columnLength) {
         if (columnLength < 1)
@@ -1394,7 +1412,7 @@ class DisplayCells {
             return undefined;
         }
         else
-            return deskSheet.getRange(matches[0].row, matches[0].col, columnLength, 1);
+            return this.deskSheet.getRange(matches[0].row, matches[0].col, columnLength, 1);
     }
     getByName2D(name, group = '', numRows, numColumns) {
         let matches = this.list.filter(d => d.name == name);
@@ -1404,7 +1422,7 @@ class DisplayCells {
             return undefined;
         }
         else
-            return deskSheet.getRange(matches[0].row, matches[0].col, numRows, numColumns);
+            return this.deskSheet.getRange(matches[0].row, matches[0].col, numRows, numColumns);
     }
     getAllByName(name, group = '') {
         let matches = this.list.filter(d => d.name == name);
@@ -1413,7 +1431,7 @@ class DisplayCells {
             return undefined;
         }
         else
-            return deskSheet.getRangeList((matches.map(dc => dc.a1)));
+            return this.deskSheet.getRangeList((matches.map(dc => dc.a1)));
     }
 }
 class Duty {
@@ -1424,7 +1442,7 @@ class Duty {
     }
 }
 function log(arg) {
-    if (settings.verboseLog) {
+    if (this.settings?.verboseLog) {
         console.log.apply(console, arguments);
     }
 }
@@ -1447,11 +1465,11 @@ function loadSettings(deskSchedDate) {
         "name": line[1],
         "group": line[2],
         "positionPriority": line[3],
-        "duration": line[4],
+        "duration": parseFloat(line[4]),
         "durationType": line[5],
-        "limitToStartTime": line[6],
-        "limitToEndTime": line[7],
-        "numOfStaff": line[8]
+        "limitToStartTime": parseFloat(line[6]),
+        "limitToEndTime": parseFloat(line[7]),
+        "numOfStaff": parseInt(line[8])
     }));
     let startRow = 0;
     for (let j = 0; j < settingsSheetAllData.length; j++) {
@@ -1505,7 +1523,8 @@ function loadSettings(deskSchedDate) {
 function sheetNameFromDate(date) {
     return `${['SUN', 'MON', 'TUES', 'WED', 'THUR', 'FRI', 'SAT'][date.getDay()]} ${date.getMonth() + 1}.${date.getDate()}`;
 }
-function getWiwData(token, deskSchedDate) {
+function getWiwData(token, deskSchedDate, settings) {
+    let ui = SpreadsheetApp.getUi();
     let wiwData = new WiwData();
     //Get Token
     if (token == null) {
@@ -1606,14 +1625,6 @@ function mergeConsecutiveInColumn(range) {
             // console.log('startRow increment, ', startRow, row)
         }
     }
-}
-function getEventUrl(calendarEvent) {
-    const calendarId = settings.googleCalendarID;
-    const eventId = calendarEvent.getId();
-    const splitEventId = eventId.split('@')[0];
-    const eid = Utilities.base64Encode(`${splitEventId} ${calendarId}`).replaceAll('=', '');
-    const eventUrl = `https://www.google.com/calendar/event?eid=${eid}`;
-    return eventUrl;
 }
 function parseDate(deskScheduleDate, timeString, earliestHour) {
     let h = parseInt(timeString.split(':')[0]);

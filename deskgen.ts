@@ -6,7 +6,7 @@ more testing for parseDate (12pm noon)
 
 Station gen - want to revisit this later and try less agressive sorting with more neutral 0 outcomes, to prevent last sorts from having outsized impact, OR switch to using a value sorting system where lots of different factors contribute to a single sorting value
 
-should settings be saved in deskschedule? or in history?
+should settings be saved in deskschedule? or in history? or properties service?
 
 warning about events scheduled outside shifts?
 
@@ -38,6 +38,10 @@ pictimeline won't defrag if no one is available (sundays,half hour where all sta
 if loading sheet already exists, delete before making/renaming new one
 
 add warning to make new spreadsheet when too many sheets
+
+performance, sheet history management - move past dates to seperate sheet? automatically overnight?
+
+gcal event hover isn't working on non-scheduled user events in bottom cell (but timeline is?) GEN 11.13.25
 
 ======== aaron meeting notes ========
 seperate data structure from logic
@@ -83,17 +87,13 @@ Could this handle better distribution of time off desk too?
 
 */
 
+function intervalTrigger(){
+  console.log("interval trigger: "+new Date().toISOString())
+  //get first sheet by index. check date, if today/future stop. otherwise, check if it exists in archive, if so stop and warn. if not, copy to archive spreadsheet. then check if it exists in archive spreadsheet, if so delete. repeat x nums of times or until reaching today/future date.
+}
+
 var prevClock = new Date()
 var performanceLogOutput = ""
-
-var settings: Settings
-var displayCells: DisplayCells
-var ss = SpreadsheetApp.getActiveSpreadsheet()
-var deskSheet = ss.getActiveSheet()
-const ui = SpreadsheetApp.getUi()
-const templateSheet = ss.getSheetByName('TEMPLATE')
-var token: string = null
-
 function performanceLog(description:string){
   let newTime = new Date()
   performanceLogOutput += ((newTime.getTime()-prevClock.getTime())/1000).toFixed(3) + " sec" + description.padStart(40, '.') + '\n'
@@ -112,8 +112,15 @@ function buildDeskScheduleTomorrow(){
 
 function buildDeskSchedule(tomorrow: Boolean=false){
   performanceLog("start")
+
+  var settings: Settings
+  var ss = SpreadsheetApp.getActiveSpreadsheet() 
+  var deskSheet = ss.getActiveSheet()
+  const ui = SpreadsheetApp.getUi()
+  const templateSheet = ss.getSheetByName('TEMPLATE')
+  var token: string = null
+  
   deskSheet = ss.getActiveSheet()
-  displayCells = new DisplayCells(templateSheet)
   var deskSchedDate: Date
   
   //Make sure not running on template
@@ -122,7 +129,7 @@ function buildDeskSchedule(tomorrow: Boolean=false){
     return
   }
   //Make sure date is present in sheet
-  var dateCell = displayCells.getByName('date').getValue()
+  var dateCell = deskSheet.getRange('A1').getValue()
   if(isNaN(Date.parse(dateCell))){
     ui.alert("No date found in top-left of sheet, please enter date in mm/dd/yyyy format",ui.ButtonSet.OK)
     return
@@ -130,29 +137,29 @@ function buildDeskSchedule(tomorrow: Boolean=false){
 
   //If making schedule for tomorrow, check if tomorrow sheet exists, if not, make it
   if(tomorrow) deskSchedDate = new Date(deskSchedDate.setDate(deskSchedDate.getDate() + 1))
-  
-  //Load settings
-  settings = loadSettings(deskSchedDate)
-  performanceLog("load settings")
     
-  var newSheetName = sheetNameFromDate(deskSchedDate)
-  log(`setting up sheet:${deskSchedDate}, ${newSheetName}, ${/*ss.getSheetByName(newSheetName)*/'removed lookup for perf'}`)
-  
-  let existingSheet = ss.getSheetByName(newSheetName)
-
-  //if sheet exists but is not the active sheet, open it
-  if(existingSheet!==null && ss.getActiveSheet().getName() !== newSheetName) {
-    let result = ui.alert("A sheet for "+newSheetName+" already exists.","Open this sheet?",ui.ButtonSet.YES_NO)
-    if (result == ui.Button.YES){
-      existingSheet.activate()
+    //Load settings
+    settings = loadSettings(deskSchedDate)
+    performanceLog("load settings")
+    
+    var newSheetName = sheetNameFromDate(deskSchedDate)
+    log(`setting up sheet:${deskSchedDate}, ${newSheetName}, ${/*ss.getSheetByName(newSheetName)*/'removed lookup for perf'}`)
+    
+    let existingSheet = ss.getSheetByName(newSheetName)
+    
+    //if sheet exists but is not the active sheet, open it
+    if(existingSheet!==null && ss.getActiveSheet().getName() !== newSheetName) {
+      let result = ui.alert("A sheet for "+newSheetName+" already exists.","Open this sheet?",ui.ButtonSet.YES_NO)
+      if (result == ui.Button.YES){
+        existingSheet.activate()
+      }
+      return
     }
-    return
-  }
-
-  else{
-    //if sheet already exists and is open, save index...
-    let sheetIndex = undefined
-    if(existingSheet!==null && ss.getActiveSheet().getName() == newSheetName){
+    
+    else{
+      //if sheet already exists and is open, save index...
+      let sheetIndex = undefined
+      if(existingSheet!==null && ss.getActiveSheet().getName() == newSheetName){
       sheetIndex = ss.getActiveSheet().getIndex()
     }
     //...if previous loading sheet exists, use that, otherwise make a new one from template
@@ -161,17 +168,18 @@ function buildDeskSchedule(tomorrow: Boolean=false){
     deskSheet.activate()
     //move to previous spot, if saved
     if (sheetIndex !== undefined) ss.moveActiveSheet(sheetIndex)
-    //...and delete old sheet if it exists
+      //...and delete old sheet if it exists
     if (existingSheet!==null) ss.deleteSheet(existingSheet)
-    deskSheet.setName(newSheetName)
+      deskSheet.setName(newSheetName)
   }
-
+  
+  let displayCells: DisplayCells = new DisplayCells(deskSheet)
   displayCells.getByName('date').setValue(deskSchedDate.toDateString())
   log('deskSchedDate: '+deskSchedDate)
 
   performanceLog("sheet setup")
   
-  const wiwData = getWiwData(token, deskSchedDate)
+  const wiwData = getWiwData(token, deskSchedDate, settings)
   performanceLog("load WIW data")
 
   let deskSchedDateEnd = new Date(deskSchedDate.getTime()+86399000)
@@ -181,7 +189,7 @@ function buildDeskSchedule(tomorrow: Boolean=false){
   //MUST BE SUBSCRIBED TO CAL - add check if user is subscribed, if they're not, notify them that you're subscribing them to it, give option to unsubscribe after
   performanceLog("load gCal events")
   
-  var deskSchedule = new DeskSchedule(deskSchedDate, wiwData, gCalEvents, settings)
+  var deskSchedule = new DeskSchedule(deskSchedDate, wiwData, gCalEvents, settings, deskSheet, displayCells)
   performanceLog("initialize DeskSchedule")
   
   //generate timeline
@@ -209,6 +217,10 @@ function buildDeskSchedule(tomorrow: Boolean=false){
 }
 
 class DeskSchedule{
+  settings: Settings
+  deskSheet: GoogleAppsScript.Spreadsheet.Sheet
+  displayCells: DisplayCells
+  ui: GoogleAppsScript.Base.Ui
   date: Date
   dayStartTime: Date
   dayEndTime: Date
@@ -227,7 +239,10 @@ class DeskSchedule{
   closingDuties: Duty[] = []
   //history:
   
-  constructor(date:Date, wiwData:WiwData, gCalEvents:GoogleAppsScript.Calendar.CalendarEvent[], settings){
+  constructor(date:Date, wiwData:WiwData, gCalEvents:GoogleAppsScript.Calendar.CalendarEvent[], settings: Settings, deskSheet: GoogleAppsScript.Spreadsheet.Sheet, displayCells: DisplayCells){
+    this.settings = settings
+    this.deskSheet = deskSheet
+    this.displayCells = displayCells
     this.date = date
     this.dayStartTime = new Date(this.date)
     this.dayStartTime.setHours(8, 30)
@@ -243,16 +258,16 @@ class DeskSchedule{
     
     settings.stations.forEach(s => {
       let limitToStartTime: Date
-      if (!Number.isNaN(parseFloat(s.limitToStartTime))){
+      if (!Number.isNaN(s.limitToStartTime)){
         limitToStartTime = new Date(date)
         limitToStartTime.setHours(s.limitToStartTime, s.limitToStartTime%1*60)
       }
       let limitToEndTime: Date
-      if (!Number.isNaN(parseFloat(s.limitToEndTime))){
+      if (!Number.isNaN(s.limitToEndTime)){
         limitToEndTime = new Date(date)
         limitToEndTime.setHours(s.limitToEndTime, s.limitToEndTime%1*60)
       }
-      this.stations.push(new Station(s.name,s.color,s.numOfStaff, s.positionPriority.split(', ').filter(str=>/\S/.test(str)),s.durationType,s.duration===""?settings.assignmentLength:s.duration,limitToStartTime,limitToEndTime,s.group))
+      this.stations.push(new Station(s.name,s.color,s.numOfStaff, s.positionPriority.split(', ').filter(str=>/\S/.test(str)),s.durationType,Number.isNaN(s.duration)?settings.assignmentLength:s.duration,limitToStartTime,limitToEndTime,s.group))
     });
     [ //add required stations if they don't already exist
       new Station(this.defaultStations.undefined, `#cccccc`),
@@ -287,7 +302,7 @@ class DeskSchedule{
           gCalEvent.getTitle(),
           startTime,
           endTime,
-          getEventUrl(gCalEvent)
+          this.getEventUrl(gCalEvent)
         ))
         // if event guest list doesn't include ANY wiw users, scheduled or not
         // if(!wiwData.users.some(u=>guestEmailList.includes(u.email))){}
@@ -419,6 +434,7 @@ class DeskSchedule{
     ]
     
     var eventErrorLog = []
+    this.ui = SpreadsheetApp.getUi()
     
     wiwData.shifts/*.concat(annotationShifts)*/.forEach(s=>{
       let eventsFormatted = []
@@ -447,7 +463,7 @@ class DeskSchedule{
               startTime,
               endTime,
               // displayString: getEventUrl(gCalEvent),
-              getEventUrl(gCalEvent)
+              this.getEventUrl(gCalEvent)
             ))
           }
         })
@@ -505,7 +521,7 @@ class DeskSchedule{
     
     if(eventErrorLog.length>0){
       log('eventErrorLog:\n'+ eventErrorLog)
-      ui.alert(
+      this.ui.alert(
         `Cannot parse events:
         -----
         ${eventErrorLog.join(',\n\n')}
@@ -535,13 +551,13 @@ class DeskSchedule{
     } 
   })
 
-  if(this.shifts.length<1) ui.alert('No shifts found for today, and no closure marked in WIW. If the branch is closed today, that day should have a closure annotation in WIW.')
+  if(this.shifts.length<1) this.ui.alert('No shifts found for today, and no closure marked in WIW. If the branch is closed today, that day should have a closure annotation in WIW.')
   // log('shifts:\n'+ JSON.stringify(this.shifts))
   }
 
   getStation(stationName:string):Station{
     let matches: Station[] = this.stations.filter(d=>d.name==stationName)
-    if (matches.length<1) ui.alert(`station '${stationName}' is required and does not exist in stations:\n${JSON.stringify(this.stations)}`)
+    if (matches.length<1) SpreadsheetApp.getUi().alert(`station '${stationName}' is required and does not exist in stations:\n${JSON.stringify(this.stations)}`)
       else return matches[0]
   }
 
@@ -573,9 +589,19 @@ class DeskSchedule{
     }
     return count
   }
+
+  getEventUrl(calendarEvent:GoogleAppsScript.Calendar.CalendarEvent):string {
+    const calendarId = this.settings.googleCalendarID;
+    const eventId = calendarEvent.getId();
+    const splitEventId = eventId.split('@')[0];
+    const eid = Utilities.base64Encode(`${splitEventId} ${calendarId}`).replaceAll('=', '');
+    const eventUrl = `https://www.google.com/calendar/event?eid=${eid}`;
+
+    return eventUrl;
+  }
   
   displayEvents(displayCells: DisplayCells, gCalEvents: GoogleAppsScript.Calendar.CalendarEvent[], annotationsString: string){
-    displayCells.update(deskSheet)
+    displayCells.update(this.deskSheet)
     
     let boldStyle = SpreadsheetApp.newTextStyle().setBold(true).build()
     let removeLinkStyle = SpreadsheetApp.newTextStyle().setUnderline(false).setForegroundColor("black").build()
@@ -591,9 +617,9 @@ class DeskSchedule{
         timesString = timesString.replace('12:00-12:00', 'All Day')
         let concatRT = concatRichText([
           SpreadsheetApp.newRichTextValue().setText((i===0?'\n':'')+timesString+' • ').build(),
-          SpreadsheetApp.newRichTextValue().setText(!settings.addNamesToEvents ? ' ' : guestNames.join(', ')+ (guestNames.length>0 ? ': ':'')).setTextStyle(boldStyle).build(),
+          SpreadsheetApp.newRichTextValue().setText(!this.settings.addNamesToEvents ? ' ' : guestNames.join(', ')+ (guestNames.length>0 ? ': ':'')).setTextStyle(boldStyle).build(),
           SpreadsheetApp.newRichTextValue().setText(ev.getTitle()+(i===gCalEvents.length-1?'\n':'')).build()
-        ]).setLinkUrl(getEventUrl(ev)).setTextStyle(removeLinkStyle).build()
+        ]).setLinkUrl(this.getEventUrl(ev)).setTextStyle(removeLinkStyle).build()
         return concatRT
       })
     ]
@@ -604,24 +630,24 @@ class DeskSchedule{
     // console.log('annotationsString:', annotationsString)
     let htDisplayCell = displayCells.getByName('happeningToday')
     if(happeningTodayRichTextArray.length>2)
-      deskSheet.insertRowsAfter(htDisplayCell.getRow(), Math.max(0, happeningTodayRichTextArray.length-2))
-    displayCells.update(deskSheet)
+      this.deskSheet.insertRowsAfter(htDisplayCell.getRow(), Math.max(0, happeningTodayRichTextArray.length-2))
+    displayCells.update(this.deskSheet)
     performanceLog("display events - add rows, update DCs")
 
     happeningTodayRichTextArray.forEach((rt,i)=>{
-      deskSheet.getRange(htDisplayCell.getRow()+i, htDisplayCell.getColumn(), 1, deskSheet.getDataRange().getNumColumns()-(htDisplayCell.getColumn()-1))
+      this.deskSheet.getRange(htDisplayCell.getRow()+i, htDisplayCell.getColumn(), 1, this.deskSheet.getDataRange().getNumColumns()-(htDisplayCell.getColumn()-1))
       .merge()
     })
     performanceLog("display events - merge RTVs")
 
-    deskSheet.getRange(htDisplayCell.getRow(), htDisplayCell.getColumn(), happeningTodayRichTextArray.length)
+    this.deskSheet.getRange(htDisplayCell.getRow(), htDisplayCell.getColumn(), happeningTodayRichTextArray.length)
     .setRichTextValues(happeningTodayRichTextArray.map(e=>[e]))
     performanceLog("display events - display")
   }
 
   displayPicTimeline(displayCells: DisplayCells){
     //Merge individual shift picTimelines into one timeline of names
-    if(!settings.generatePicAssignments || this.shifts.length<1) return
+    if(!this.settings.generatePicAssignments || this.shifts.length<1) return
     let picNamesArr = this.shifts[0].picTimeline.map(e=>undefined)
     picNamesArr.forEach((status, i)=>{
       let name = ''
@@ -651,7 +677,7 @@ class DeskSchedule{
         return position
       }
     }
-    ui.alert('Contact Corson! These positions are missing definitions:\n' + positions.join('\n'))
+    this.ui.alert('Contact Corson! These positions are missing definitions:\n' + positions.join('\n'))
   }
   
   getPositionHierarchyIndex(id: number):number{ //convert id to 0-n, where 0 is highest ranked position and n is lowest
@@ -713,7 +739,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
   timelineAddAvailabilityAndEvents(){
     //fill in availability and events
     this.forEachShiftBlock(this.dayStartTime, this.dayEndTime, (shift, time)=>{
-      if ((time < settings.openHours.open || time >= settings.openHours.close) && (time >= shift.startTime && time < shift.endTime))
+      if ((time < this.settings.openHours.open || time >= this.settings.openHours.close) && (time >= shift.startTime && time < shift.endTime))
         shift.setStationAtTime(this.defaultStations.available, time)
       else if (time >= shift.startTime && time < shift.endTime)
         shift.setStationAtTime(this.defaultStations.undefined, time)
@@ -734,7 +760,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
   }
 
   timelineAddMeals(){
-    if(settings.onlyGenerateAvailabilityAndEvents || this.shifts.length < 1) return
+    if(this.settings.onlyGenerateAvailabilityAndEvents || this.shifts.length < 1) return
     //sort shifts by longest time worked before meal
     this.shifts.sort((a,b)=>
       (b.idealMealTime?.getTime()-b.startTime?.getTime()) - (a.idealMealTime?.getTime()-a.startTime?.getTime())
@@ -744,19 +770,19 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
     if(!shift.idealMealTime) return //idealMealTime will be undefined if <8hr shift
     let highestAvailabilityTimes: {time:Date, availabilityTotal:number}[] = []
     //in 30 minute increments, step alternating forward/back (0, 30, -30, 60, -60) to possible start times, in decreasing proximity to ideal
-    for(let startMinutes = 0; startMinutes<=settings.idealMealTimePlusMinusHours*60; startMinutes = startMinutes>0 ? startMinutes*-1 : startMinutes*-1+30){
+    for(let startMinutes = 0; startMinutes<=this.settings.idealMealTimePlusMinusHours*60; startMinutes = startMinutes>0 ? startMinutes*-1 : startMinutes*-1+30){
       let startTime = new Date(shift.idealMealTime).addTime(0, startMinutes)
       let availabilityTotal = 0
       //for each start time, count total available staff for each half hour over length of break
       let duringOpenHours = false
-      for(let minutes = 0; minutes<settings.mealBreakLength*60; minutes+=30){
+      for(let minutes = 0; minutes<this.settings.mealBreakLength*60; minutes+=30){
         let time = new Date(shift.idealMealTime).addTime(0, startMinutes+minutes)
         availabilityTotal += this.getStationCountAtTime(this.defaultStations.undefined, time)
         if (
           !(shift.getStationAtTime(time).name == this.defaultStations.undefined
           || shift.getStationAtTime(time,).name == this.defaultStations.available)
         ) availabilityTotal -= 1000
-        if (time >= settings.openHours.open && time < settings.openHours.close) duringOpenHours = true
+        if (time >= this.settings.openHours.open && time < this.settings.openHours.close) duringOpenHours = true
       }
       if (!duringOpenHours) availabilityTotal += 100
       //add count to array
@@ -765,10 +791,10 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
     //sort resulting array by availability total (tie broken by existing proximity to ideal order)
     highestAvailabilityTimes.sort((a,b)=>b.availabilityTotal-a.availabilityTotal)
     //sort to avoid half hours if changeOnTheHour
-    if (settings.changeOnTheHour && settings.mealBreakLength % 1 == 0) highestAvailabilityTimes.sort((a,b)=>(a.time.getMinutes()==0?0:1)-(b.time.getMinutes()==0?0:1))
+    if (this.settings.changeOnTheHour && this.settings.mealBreakLength % 1 == 0) highestAvailabilityTimes.sort((a,b)=>(a.time.getMinutes()==0?0:1)-(b.time.getMinutes()==0?0:1))
     //assign staff to best meal time
     if(highestAvailabilityTimes.length>0)
-      for(let minutes = 0; minutes<settings.mealBreakLength*60; minutes+=30){
+      for(let minutes = 0; minutes<this.settings.mealBreakLength*60; minutes+=30){
         shift.setStationAtTime(this.defaultStations.mealBreak, highestAvailabilityTimes[0].time.addTime(0,minutes))
       }
     })
@@ -776,7 +802,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
   }
 
   timelineAddStations(){
-    if(settings.onlyGenerateAvailabilityAndEvents || this.shifts.length < 1) return
+    if(this.settings.onlyGenerateAvailabilityAndEvents || this.shifts.length < 1) return
     //  things to weigh:
     //position hierarchy
     //percentage of shift spent at position
@@ -790,7 +816,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
       let prevTime = new Date(time).addTime(0,-30).clamp(startTime, new Date(endTime).addTime(0,-30))
       let nextTime = new Date(time).addTime(0,30).clamp(startTime, new Date(endTime).addTime(0,-30))
 
-      if (settings.defragPrePass){
+      if (this.settings.defragPrePass){
         let undefinedCount = this.getStationCountAtTime(this.defaultStations.undefined, time)
 
         this.stations.forEach((station, stationIndex)=>{
@@ -924,7 +950,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
         })
 
         //if changeOnTheHour AND on this station AND not more than half an hour over, move to front
-        if(settings.changeOnTheHour && time.getMinutes()!=0){
+        if(this.settings.changeOnTheHour && time.getMinutes()!=0){
           this.shifts.sort((shiftA, shiftB)=>{
             let aStationPrev = shiftA.getStationAtTime(prevTime)
             let bStationPrev = shiftB.getStationAtTime(prevTime)
@@ -1012,7 +1038,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
   }
 
   timelineAssignPics(){
-    if(!settings.generatePicAssignments) return
+    if(!this.settings.generatePicAssignments) return
 
     this.sortShiftsByNameAlphabetically()
     offset(this.shifts, this.date.getDayOfYear())
@@ -1022,7 +1048,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
       let prevTime = new Date(time).addTime(0,-30).clamp(this.dayStartTime, new Date(this.dayEndTime).addTime(0,-30))
       let nextTime = new Date(time).addTime(0,30).clamp(this.dayStartTime, new Date(this.dayEndTime).addTime(0,-30))
 
-      if(!settings.changeOnTheHour || time.getMinutes()==0){
+      if(!this.settings.changeOnTheHour || time.getMinutes()==0){
 
         this.shifts.sort((shiftA, shiftB)=>
           shiftA.countPicHoursTotal() - shiftB.countPicHoursTotal()
@@ -1090,29 +1116,29 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
     
     //Add times to timeline - need to test if this works for <830am >8pm timelines
     // if (this.dayStartTime.getTimeStringHHMM12() != "8:30" || this.dayEndTime.getTimeStringHHMM12() != "8:00"){ //Skip if not default hours
-      displayCells.getAllByName('timeStart').getRanges().forEach(startRange=>{
+      this.displayCells.getAllByName('timeStart').getRanges().forEach(startRange=>{
         let values = []
         for(let time = new Date(this.dayStartTime); time < this.dayEndTime; time.addTime(0, 30)){
           values.push(time.toLocaleTimeString([], {hour: "numeric", minute: "2-digit", hour12: true}).replace('AM','').replace('PM','').replace(' ',''))
         }
-        let row = deskSheet.getRange(startRange.getRow(), startRange.getColumn(), 1, values.length)
+        let row = this.deskSheet.getRange(startRange.getRow(), startRange.getColumn(), 1, values.length)
         row.setValues([values]) //for some reason, if this doesn't get called, the happeningTodayRichTextArray .merge fails: "Exception: You must select all cells in a merged range to merge or unmerge them."
       })
     // }
     performanceLog("display timline - time display")
     
     //Add rows to match number of shifts
-    if (this.shifts.length > 1) deskSheet.insertRowsAfter(displayCells.getByName('shiftName').getRow(), this.shifts.length-1)
-    displayCells.update(deskSheet)
+    if (this.shifts.length > 1) this.deskSheet.insertRowsAfter(this.displayCells.getByName('shiftName').getRow(), this.shifts.length-1)
+    this.displayCells.update(this.deskSheet)
     performanceLog("display timline - add shift rows")
     
     //Fill in columns
     mergeConsecutiveInColumn( //hate this syntax, but can't extend GAS classes
-      displayCells.getByNameColumn('shiftPosition', '', this.shifts.length)
+      this.displayCells.getByNameColumn('shiftPosition', '', this.shifts.length)
       ?.setValues(this.shifts.map(s=>[s.positionGroup])))
-      displayCells.getByNameColumn('shiftName', '', this.shifts.length)
+      this.displayCells.getByNameColumn('shiftName', '', this.shifts.length)
       ?.setValues(this.shifts.map(s=>[this.shortenFullName(s.name)]))
-      displayCells.getByNameColumn('shiftTime', '', this.shifts.length)
+      this.displayCells.getByNameColumn('shiftTime', '', this.shifts.length)
       ?.setValues(this.shifts.map(s=>[ //start-end as hh:mm-hh:mm
         (s.startTime?.getTime()-s.endTime?.getTime()==0 || s.startTime==undefined || s.endTime==undefined)?
         '': //for all day events that are loaded as starting and ending at 1, don't display time
@@ -1124,13 +1150,13 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
     //Display station colors
     let colorArr = this.shifts.map(shift=>shift.stationTimeline.map(station=>this.getStation(station).color))
     if (this.shifts.length>0){
-      let timelineRange = displayCells.getByName2D('shiftStationGridStart', '', this.shifts.length, this.shifts[0].stationTimeline.length)
+      let timelineRange = this.displayCells.getByName2D('shiftStationGridStart', '', this.shifts.length, this.shifts[0].stationTimeline.length)
       timelineRange.setBackgrounds(colorArr)
     }
     performanceLog("display timline - station colors")
     
     //Add event links
-    let stationGridStart = displayCells.getByName('shiftStationGridStart', '')
+    let stationGridStart = this.displayCells.getByName('shiftStationGridStart', '')
     this.shifts.forEach((shift, i)=>{
       shift.events.forEach(event=>{
         if (!(shift.startTime.getTime()-shift.endTime.getTime()==0 && event.getDurationInHours()>22)){ //don't add event links for event that lasts all day and isn't assigned to any staff
@@ -1139,7 +1165,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
           
           let halfHoursSinceDayStart = Math.round((eventStart-this.dayStartTime.getTime())/3600000*2)
           let eventLengthInHalfHours = Math.round((eventEnd-eventStart)/3600000*2)
-          deskSheet.getRange(stationGridStart.getRow()+i, stationGridStart.getColumn()+halfHoursSinceDayStart, 1, eventLengthInHalfHours)
+          this.deskSheet.getRange(stationGridStart.getRow()+i, stationGridStart.getColumn()+halfHoursSinceDayStart, 1, eventLengthInHalfHours)
             .setValue(`=HYPERLINK("${event.gCalUrl}","...")`)
             .setFontColor(this.getStation(this.defaultStations.programMeeting).color)
         }
@@ -1160,7 +1186,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
     //OPENING
     if (this.openingDuties.length>0){
       shuffle(this.shifts)
-      let openingDutiesStart = new Date(settings.openHours.open).addTime(0,-30)
+      let openingDutiesStart = new Date(this.settings.openHours.open).addTime(0,-30)
       let openingStaffShifts = this.shifts.filter(shift=>{
         let stationAtOpen = shift.getStationAtTime(openingDutiesStart)
         return (stationAtOpen.name == this.defaultStations.available) || (stationAtOpen.name == this.defaultStations.undefined)
@@ -1196,7 +1222,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
     //CLOSING
     if (this.closingDuties?.length>0){
       shuffle(this.shifts)
-      let closingDutiesStart = new Date(settings.openHours.close).addTime(0,-30)
+      let closingDutiesStart = new Date(this.settings.openHours.close).addTime(0,-30)
       let closingStaffShifts = this.shifts.filter(shift=>{
         let stationAtClose = shift.getStationAtTime(closingDutiesStart)
         return (stationAtClose.name !== this.defaultStations.off) && (stationAtClose.name !== this.defaultStations.programMeeting)
@@ -1232,7 +1258,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
   
   logDeskData(description:string){
     this.sortShiftsForDisplay()
-    if (!settings.verboseLog) return
+    if (!this.settings.verboseLog) return
     let s = this.shifts.map(shift =>shift.name.substring(0, 8).replaceAll(' ','.') + ' ' + shift.stationTimeline.map((station, i)=>`<span class="outline" title="${
       new Date(this.dayStartTime.getTime()+i*1000*60*30).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
     }&#10${station}"; style="color:${this.getStation(station).color}">◼</span>`).join('')).join('<br>')
@@ -1240,7 +1266,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
   }
   
   popupDeskDataLog(){
-    if(settings.verboseLog){
+    if(this.settings.verboseLog){
       var htmlTemplate = HtmlService.createTemplate(
         `<style>
         .outline {
@@ -1275,7 +1301,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
       )
       htmlTemplate.logDeskDataRecord = this.logDeskDataRecord
       var htmlOutput = htmlTemplate.evaluate().setSandboxMode(HtmlService.SandboxMode.IFRAME).setWidth(700).setHeight(700);
-      ui.showModalDialog(htmlOutput, 'Timeline Debug');
+      this.ui.showModalDialog(htmlOutput, 'Timeline Debug');
     }
   }
 
@@ -1309,7 +1335,7 @@ class Station{
     numOfStaff = 1,
     positionPriority: string[] = [], //position[] when implemented
     durationType: string = "Always",
-    duration: number = settings.assignmentLength,
+    duration: number = 0,
     limitToStartTime: Date = undefined,
     limitToEndTime: Date = undefined,
     group: string = ""
@@ -1443,7 +1469,6 @@ class Shift{
   }
   
   countTotalTimeAtStation(stationName:string, beforeTime:Date = this.deskSchedule.dayEndTime):number{
-    ui.alert('countTotalTimeAtStation is untested')
     let count = 0
     let firstTimeToCheck = new Date(beforeTime)
     firstTimeToCheck.addTime(0,-30)
@@ -1562,14 +1587,16 @@ class DisplayCell{
 }
 class DisplayCells{
   list = []
+  deskSheet: GoogleAppsScript.Spreadsheet.Sheet
   constructor(deskSheet: GoogleAppsScript.Spreadsheet.Sheet){
-    this.update(deskSheet)
+    this.deskSheet=deskSheet
+    this.update(this.deskSheet)
   }
   // get list() {return this.data}
   // get row() {retrun this.data.}
   update(deskSheet:GoogleAppsScript.Spreadsheet.Sheet){
-    // let template = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('TEMPLATE')
-    let notes = deskSheet.getRange(1,1,deskSheet.getMaxRows(),deskSheet.getMaxColumns()).getNotes()
+    this.deskSheet = deskSheet
+    let notes = this.deskSheet.getRange(1,1,this.deskSheet.getMaxRows(),this.deskSheet.getMaxColumns()).getNotes()
     this.list = (()=>{
       let result = []
       for(let row = 0; row<notes.length; row++){
@@ -1622,7 +1649,7 @@ class DisplayCells{
       console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`)
     return undefined
   }
-      else return deskSheet.getRange(matches[0].a1)
+      else return this.deskSheet.getRange(matches[0].a1)
   }
   getByNameColumn(name:string, group:string='', columnLength):GoogleAppsScript.Spreadsheet.Range{
     if(columnLength<1) return //avoid error calling getRange on 0 length column
@@ -1632,7 +1659,7 @@ class DisplayCells{
       console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`)
       return undefined
     }
-    else return deskSheet.getRange(matches[0].row, matches[0].col, columnLength, 1)
+    else return this.deskSheet.getRange(matches[0].row, matches[0].col, columnLength, 1)
   }
   getByName2D(name:string, group:string='', numRows:number, numColumns:number):GoogleAppsScript.Spreadsheet.Range{
     let matches: DisplayCell[] = this.list.filter(d=>d.name==name)
@@ -1641,7 +1668,7 @@ class DisplayCells{
       console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`)
     return undefined
   }
-      else return deskSheet.getRange(matches[0].row, matches[0].col,numRows, numColumns)
+      else return this.deskSheet.getRange(matches[0].row, matches[0].col,numRows, numColumns)
   }
   getAllByName(name:string, group:string=''){
     let matches: DisplayCell[] = this.list.filter(d=>d.name==name)
@@ -1649,7 +1676,7 @@ class DisplayCells{
       console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`)
     return undefined
   }
-      else return deskSheet.getRangeList((matches.map(dc=>dc.a1)))
+      else return this.deskSheet.getRangeList((matches.map(dc=>dc.a1)))
   }
 }
 
@@ -1666,13 +1693,13 @@ class Duty{
 }
 
 function log(arg?:any){
-  if(settings.verboseLog){
+  if(this.settings?.verboseLog){
     console.log.apply(console, arguments);
   }
 }
 
 class Settings{
-  stations: {color:string,name:string,group:string,positionPriority:string[],durationType:string,limitToStartTime:number, limitToEndTime:number, duration:number, numOfStaff:number}[]
+  stations: {color:ColorHex,name:string,group:string,positionPriority:string,durationType:string,limitToStartTime:number, limitToEndTime:number, duration:number, numOfStaff:number}[]
   locationID: number
   googleCalendarID: string
   alwaysShowAssistantBranchManager: boolean
@@ -1682,6 +1709,7 @@ class Settings{
   defragPrePass: boolean
   assignmentLength: number
   openingDuties: any
+  closingDuties: any
   verboseLog: boolean
   idealEarlyMealHour: number
   idealLateMealHour: number
@@ -1714,11 +1742,11 @@ function loadSettings(deskSchedDate: Date): Settings {
     "name":line[1],
     "group":line[2],
     "positionPriority":line[3],
-    "duration":line[4],
+    "duration":parseFloat(line[4]),
     "durationType":line[5],
-    "limitToStartTime":line[6],
-    "limitToEndTime":line[7],
-    "numOfStaff":line[8]
+    "limitToStartTime":parseFloat(line[6]),
+    "limitToEndTime":parseFloat(line[7]),
+    "numOfStaff":parseInt(line[8])
   }))
   let startRow = 0
   for (let j=0; j<settingsSheetAllData.length; j++){
@@ -1773,7 +1801,8 @@ function loadSettings(deskSchedDate: Date): Settings {
       return `${['SUN','MON','TUES','WED','THUR','FRI','SAT'][date.getDay()]} ${date.getMonth()+1}.${date.getDate()}`
 }
 
-function getWiwData(token:string, deskSchedDate:Date):WiwData{
+function getWiwData(token:string, deskSchedDate:Date, settings: Settings):WiwData{
+  let ui = SpreadsheetApp.getUi()
   let wiwData:WiwData = new WiwData()
   //Get Token
   if(token==null){
@@ -1900,16 +1929,6 @@ function mergeConsecutiveInColumn(range:GoogleAppsScript.Spreadsheet.Range){
       // console.log('startRow increment, ', startRow, row)
     }
   }
-}
-
-function getEventUrl(calendarEvent:GoogleAppsScript.Calendar.CalendarEvent):string {
-  const calendarId = settings.googleCalendarID;
-  const eventId = calendarEvent.getId();
-  const splitEventId = eventId.split('@')[0];
-  const eid = Utilities.base64Encode(`${splitEventId} ${calendarId}`).replaceAll('=', '');
-  const eventUrl = `https://www.google.com/calendar/event?eid=${eid}`;
-
-  return eventUrl;
 }
 
 function parseDate(deskScheduleDate:Date, timeString:string, earliestHour:number){
