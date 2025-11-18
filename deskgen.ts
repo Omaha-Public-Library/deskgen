@@ -87,11 +87,6 @@ Could this handle better distribution of time off desk too?
 
 */
 
-function intervalTrigger(){
-  console.log("interval trigger: "+new Date().toISOString())
-  //get first sheet by index. check date, if today/future stop. otherwise, check if it exists in archive, if so stop and warn. if not, copy to archive spreadsheet. then check if it exists in archive spreadsheet, if so delete. repeat x nums of times or until reaching today/future date.
-}
-
 var prevClock = new Date()
 var performanceLogOutput = ""
 function performanceLog(description:string){
@@ -102,8 +97,53 @@ function performanceLog(description:string){
 
 function onOpen(){
   SpreadsheetApp.getUi().createMenu('Generator')
-    .addItem('Redo Schedule for current date', 'deskgen.buildDeskSchedule')
-    .addItem('New schedule for following date', 'deskgen.buildDeskScheduleTomorrow').addToUi()
+  .addItem('Redo Schedule for current date', 'deskgen.buildDeskSchedule')
+  .addItem('New schedule for following date', 'deskgen.buildDeskScheduleTomorrow')
+  .addToUi()
+  // if(Session.getActiveUser().getEmail() === "candroski@omahalibrary.org")
+  //   SpreadsheetApp.getUi().createMenu('Generator Admin')
+  //     .addItem('archive past schedules', 'deskgen.archivePastSchedules')
+  //     .addToUi()
+}
+
+function intervalTrigger(){
+  console.log("running interval trigger at: "+new Date().toISOString())
+  archivePastSchedules(7)
+}
+
+function archivePastSchedules(count:number = 7){
+  //get first sheet by index. check date, if today/future stop. otherwise, check if it exists in archive, if so stop and warn. if not, copy to archive spreadsheet. then check if it exists in archive spreadsheet, if so delete. repeat x nums of times or until reaching today/future date.
+  let settings = loadSettings(new Date())
+  if (!settings.archiveSheetURL){
+    console.log("no archive sheet defined in settings, skipping archiving")
+    return
+  }
+  let sourceSpreadsheet = SpreadsheetApp.getActiveSpreadsheet()
+  let archiveSpreadsheet = SpreadsheetApp.openByUrl(settings.archiveSheetURL)
+  let sourceSheetList = sourceSpreadsheet.getSheets()
+  let archiveSheetsList = archiveSpreadsheet.getSheets()
+  let todayStart = new Date()
+  todayStart.setHours(0,0,0,0)
+  for(let i = 0; i < count; i++){
+    console.log("today time: ", todayStart.getTime(), "delete candidate "+ sourceSheetList[i].getName() +" time: ", sourceSheetList[i].getRange('A1').getValue().getTime(), sourceSheetList[i].getRange('A1').getValue().getTime() >= todayStart.getTime())
+    if (sourceSheetList.length<7 || sourceSheetList[i].getRange('A1').getValue().getTime() >= todayStart.getTime()) {
+      console.log("up to the present, no sheets left to archive (or less than seven sheets in spreadsheet)")
+      return
+    }
+    let archivedSheetsMatchingName = archiveSheetsList.filter(s=>s.getName()==sourceSheetList[i].getName())
+    console.log('name matches:\n'+archivedSheetsMatchingName.map(s=>s.getName()).join('\n'))
+    let archivedSheetsMatchingNameAndDate = archivedSheetsMatchingName.filter(s=>s.getRange('A1').getValue().toDateString()==sourceSheetList[i].getRange('A1').getValue().toDateString())
+    console.log('date matches:\n'+archivedSheetsMatchingNameAndDate.map(s=>s.getName()+', '+s.getRange('A1').getValue().toDateString()).join('\n'))
+    if (archivedSheetsMatchingNameAndDate.length>0) {
+      console.log(archivedSheetsMatchingNameAndDate.length + " sheet in archive matches name and date of "+ sourceSheetList[i].getName() +", deleting")
+      sourceSpreadsheet.deleteSheet(sourceSheetList[i])
+    }
+    else {
+      sourceSheetList[i].copyTo(archiveSpreadsheet).setName(sourceSheetList[i].getName())
+      sourceSheetList[i].hideSheet()
+      console.log("no name+date match for sheet "+ sourceSheetList[i].getName() +" in archive, copying sheet to archive. Will delete next interval.")
+    }
+  }
 }
 
 function buildDeskScheduleTomorrow(){
@@ -1719,6 +1759,7 @@ class Settings{
   onlyGenerateAvailabilityAndEvents: boolean
   generatePicAssignments: boolean
   addNamesToEvents: boolean
+  archiveSheetURL: string
 }
 
 function loadSettings(deskSchedDate: Date): Settings {
