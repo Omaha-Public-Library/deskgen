@@ -99,11 +99,28 @@ function onOpen(){
   SpreadsheetApp.getUi().createMenu('Generator')
   .addItem('Redo Schedule for current date', 'deskgen.buildDeskSchedule')
   .addItem('New schedule for following date', 'deskgen.buildDeskScheduleTomorrow')
+  .addItem('Open archive', 'deskgen.openArchive')
   .addToUi()
   // if(Session.getActiveUser().getEmail() === "candroski@omahalibrary.org")
   //   SpreadsheetApp.getUi().createMenu('Generator Admin')
   //     .addItem('archive past schedules', 'deskgen.archivePastSchedules')
   //     .addToUi()
+}
+
+function openArchive(){
+  let settings = loadSettings(new Date())
+  if (!settings.archiveSheetURL){
+    SpreadsheetApp.getUi().alert(`No archive set!\n\nGo to the SETTINGS sheet and change "archiveSheetURL" to the URL of a spreadsheet you'd like old schedules to be archived in.`)
+  }
+  else{
+    showAnchor("Click here to open archive", settings.archiveSheetURL)
+  }
+}
+
+function showAnchor(name,url) {
+  var html = '<html><body><a href="'+url+'" target="blank" onclick="google.script.host.close()">'+name+'</a></body></html>';
+  var ui = HtmlService.createHtmlOutput(html)
+  SpreadsheetApp.getUi().showModelessDialog(ui,"Link to archive");
 }
 
 function intervalTrigger(){
@@ -139,7 +156,7 @@ function archivePastSchedules(count:number = 7){
       sourceSpreadsheet.deleteSheet(sourceSheetList[i])
     }
     else {
-      sourceSheetList[i].copyTo(archiveSpreadsheet).setName(sourceSheetList[i].getName())
+      sourceSheetList[i].copyTo(archiveSpreadsheet).setName(sourceSheetList[i].getName()).hideSheet()
       sourceSheetList[i].hideSheet()
       console.log("no name+date match for sheet "+ sourceSheetList[i].getName() +" in archive, copying sheet to archive. Will delete next interval.")
     }
@@ -253,7 +270,7 @@ function buildDeskSchedule(tomorrow: Boolean=false){
 
   // ui.alert(JSON.stringify(deskSchedule, circularReplacer()))
   deskSchedule.popupDeskDataLog()
-  ui.alert(performanceLogOutput + "\nTotal: " + performanceLogOutput.split('\n').map(e=>Number.isNaN(parseFloat(e.split(' ')[0])) ? 0 : parseFloat(e.split(' ')[0])).reduce((prev,curr)=>prev+curr).toFixed(3)+" sec")
+  // ui.alert(performanceLogOutput + "\nTotal: " + performanceLogOutput.split('\n').map(e=>Number.isNaN(parseFloat(e.split(' ')[0])) ? 0 : parseFloat(e.split(' ')[0])).reduce((prev,curr)=>prev+curr).toFixed(3)+" sec")
 }
 
 class DeskSchedule{
