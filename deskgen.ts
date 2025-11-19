@@ -16,14 +16,9 @@ openHours - implement half-hour times
 
 replace WIW annotation closures with gcal for all branch announcements? maybe...but is it useful for managers to have closures in WIW?
 
-PIC timeline - don't assign new person to last half hour (DT 10/24)
-
-lots of .5hr islands around .5hr meals - when station assignment order is random, few choices are often left when reaching stations who should be extended .5hr to avoid little islands. Instead of working through stations in priority order, why not get list of stations that can be assigned based on num of unassigned spaces, then sort to prioritize stations where staff only has half hour of availability remaining.
-also factor in time spent on each station?
-
 megaphone user shown when only events are all day - check and hide user
 
-auto hide past schedules and settings+template
+auto hide settings+template
 
 nuetral positionpriority sorting option - when none specified, sort staff by name then offset by date for even rotation?
 
@@ -34,12 +29,6 @@ right now, if someone isn't on todays schedule, but is assigned to location, and
 maybe have prepass consider available and meal as equal, so that it doesn't avoid half hour time off fragments next to meal
 
 pictimeline won't defrag if no one is available (sundays,half hour where all staff are on lunch, DT 11.16)
-
-if loading sheet already exists, delete before making/renaming new one
-
-add warning to make new spreadsheet when too many sheets
-
-performance, sheet history management - move past dates to seperate sheet? automatically overnight?
 
 gcal event hover isn't working on non-scheduled user events in bottom cell (but timeline is?) GEN 11.13.25
 
@@ -110,7 +99,7 @@ function onOpen(){
 function openArchive(){
   let settings = loadSettings(new Date())
   if (!settings.archiveSheetURL){
-    SpreadsheetApp.getUi().alert(`No archive set!\n\nGo to the SETTINGS sheet and change "archiveSheetURL" to the URL of a spreadsheet you'd like old schedules to be archived in.`)
+    console.log(`No archive set!\n\nGo to the SETTINGS sheet and change "archiveSheetURL" to the URL of a spreadsheet you'd like old schedules to be archived in.`)
   }
   else{
     showAnchor("Click here to open archive", settings.archiveSheetURL)
@@ -123,16 +112,12 @@ function showAnchor(name,url) {
   SpreadsheetApp.getUi().showModelessDialog(ui,"Link to archive");
 }
 
-function intervalTrigger(){
-  console.log("running interval trigger at: "+new Date().toISOString())
-  archivePastSchedules(7)
-}
-
 function archivePastSchedules(count:number = 7){
   //get first sheet by index. check date, if today/future stop. otherwise, check if it exists in archive, if so stop and warn. if not, copy to archive spreadsheet. then check if it exists in archive spreadsheet, if so delete. repeat x nums of times or until reaching today/future date.
   let settings = loadSettings(new Date())
+  console.log("settings.archiveSheetURL :", settings.archiveSheetURL)
   if (!settings.archiveSheetURL){
-    console.log("no archive sheet defined in settings, skipping archiving")
+    console.error("no archive sheet defined in settings, skipping archiving")
     return
   }
   let sourceSpreadsheet = SpreadsheetApp.getActiveSpreadsheet()
@@ -142,6 +127,7 @@ function archivePastSchedules(count:number = 7){
   let todayStart = new Date()
   todayStart.setHours(0,0,0,0)
   for(let i = 0; i < count; i++){
+    if(!sourceSheetList[i].getRange('A1').getValue()) console.error("no value in A1 of " + sourceSheetList[i].getName())
     console.log("today time: ", todayStart.getTime(), "delete candidate "+ sourceSheetList[i].getName() +" time: ", sourceSheetList[i].getRange('A1').getValue().getTime(), sourceSheetList[i].getRange('A1').getValue().getTime() >= todayStart.getTime())
     if (sourceSheetList.length<7 || sourceSheetList[i].getRange('A1').getValue().getTime() >= todayStart.getTime()) {
       console.log("up to the present, no sheets left to archive (or less than seven sheets in spreadsheet)")
@@ -149,7 +135,15 @@ function archivePastSchedules(count:number = 7){
     }
     let archivedSheetsMatchingName = archiveSheetsList.filter(s=>s.getName()==sourceSheetList[i].getName())
     console.log('name matches:\n'+archivedSheetsMatchingName.map(s=>s.getName()).join('\n'))
-    let archivedSheetsMatchingNameAndDate = archivedSheetsMatchingName.filter(s=>s.getRange('A1').getValue().toDateString()==sourceSheetList[i].getRange('A1').getValue().toDateString())
+    let archivedSheetsMatchingNameAndDate = archivedSheetsMatchingName.filter(s=>{
+      console.log(
+        s.getRange('A1').getValue(),
+        s.getRange('A1').getValue().toDateString(),
+        sourceSheetList[i].getRange('A1').getValue(),
+        sourceSheetList[i].getRange('A1').getValue().toDateString(),
+        s.getRange('A1').getValue().toDateString()==sourceSheetList[i].getRange('A1').getValue().toDateString())
+      return s.getRange('A1').getValue().toDateString()==sourceSheetList[i].getRange('A1').getValue().toDateString()}
+    )
     console.log('date matches:\n'+archivedSheetsMatchingNameAndDate.map(s=>s.getName()+', '+s.getRange('A1').getValue().toDateString()).join('\n'))
     if (archivedSheetsMatchingNameAndDate.length>0) {
       console.log(archivedSheetsMatchingNameAndDate.length + " sheet in archive matches name and date of "+ sourceSheetList[i].getName() +", deleting")
@@ -873,6 +867,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
       let prevTime = new Date(time).addTime(0,-30).clamp(startTime, new Date(endTime).addTime(0,-30))
       let nextTime = new Date(time).addTime(0,30).clamp(startTime, new Date(endTime).addTime(0,-30))
 
+      //prepass
       if (this.settings.defragPrePass){
         let undefinedCount = this.getStationCountAtTime(this.defaultStations.undefined, time)
 
@@ -908,7 +903,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
         this.logDeskData('user defined stations defrag pre pass at ' + time.getTimeStringHHMM24())
       }
 
-
+      //main pass
       this.stations.forEach(station=>{
         //skip default stations EXCEPT available, the rest are handled in timelineAddAvailabilityAndEvents and timelineAddMeals
         if(Object.values(this.defaultStations).includes(station.name) && station.name != this.defaultStations.available) return
