@@ -1854,14 +1854,20 @@ function loadSettings(deskSchedDate: Date): Settings {
       return `${['SUN','MON','TUES','WED','THUR','FRI','SAT'][date.getDay()]} ${date.getMonth()+1}.${date.getDate()}`
 }
 
+function getScriptProperty(key):string {
+  let property = PropertiesService.getScriptProperties().getProperty(key)
+  if (!property) throw Error(`Property ${key} is empty`)
+  return property
+}
+
 function getWiwData(token:string, deskSchedDate:Date, settings: Settings):WiwData{
   let ui = SpreadsheetApp.getUi()
   let wiwData:WiwData = new WiwData()
   //Get Token
   if(token==null){
     const data = {
-      email: "candroski@omahalibrary.org",
-      password: "pleasetest111"
+      email: getScriptProperty("wiwAuthEmail"),
+      password: getScriptProperty("wiwAuthPassword")
     }
     let options: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {
       method: 'post',

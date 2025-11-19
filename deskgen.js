@@ -1570,14 +1570,20 @@ function loadSettings(deskSchedDate) {
 function sheetNameFromDate(date) {
     return `${['SUN', 'MON', 'TUES', 'WED', 'THUR', 'FRI', 'SAT'][date.getDay()]} ${date.getMonth() + 1}.${date.getDate()}`;
 }
+function getScriptProperty(key) {
+    let property = PropertiesService.getScriptProperties().getProperty(key);
+    if (!property)
+        throw Error(`Property ${key} is empty`);
+    return property;
+}
 function getWiwData(token, deskSchedDate, settings) {
     let ui = SpreadsheetApp.getUi();
     let wiwData = new WiwData();
     //Get Token
     if (token == null) {
         const data = {
-            email: "candroski@omahalibrary.org",
-            password: "pleasetest111"
+            email: getScriptProperty("wiwAuthEmail"),
+            password: getScriptProperty("wiwAuthPassword")
         };
         let options = {
             method: 'post',
