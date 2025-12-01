@@ -86,7 +86,7 @@ function performanceLog(description:string){
 
 function onOpen(){
   SpreadsheetApp.getUi().createMenu('Generator')
-  .addItem('Redo Schedule for current date', 'deskgen.buildDeskSchedule')
+  .addItem('Redo schedule for current date', 'deskgen.buildDeskSchedule')
   .addItem('New schedule for following date', 'deskgen.buildDeskScheduleTomorrow')
   .addItem('Open archive', 'deskgen.openArchive')
   .addToUi()
@@ -175,10 +175,10 @@ function buildDeskSchedule(tomorrow: Boolean=false){
   var deskSchedDate: Date
   
   //Make sure not running on template
-  if(deskSheet.getSheetName()=='TEMPLATE'){
-    ui.alert(`The generator can't be run from the template. Choose another sheet, or make a blank sheet with a date in cell A1.`)
-    return
-  }
+  // if(deskSheet.getSheetName()=='TEMPLATE'){
+  //   ui.alert(`The generator can't be run from the template. Choose another sheet, or make a blank sheet with a date in cell A1.`)
+  //   return
+  // }
   //Make sure date is present in sheet
   var dateCell = deskSheet.getRange('A1').getValue()
   if(isNaN(Date.parse(dateCell))){
@@ -1879,21 +1879,24 @@ function getWiwData(token:string, deskSchedDate:Date, settings: Settings):WiwDat
   }
   const options = {headers:{Authorization: 'Bearer ' + token}}
   
-  if (!settings.locationID) ui.alert(`location id missing from settings - go to the SETTINGS sheet and make sure the setting "locationID" has a value from the following:\n\n${JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/locations`, options).getContentText()).locations.map(l=>l.name+': '+l.id).join('\n')}`, ui.ButtonSet.OK)
+  if (!settings.locationID) {
+    ui.alert(`location id missing from settings - go to the SETTINGS sheet and make sure the setting "locationID" has a value from the following:\n\n${JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/locations`, options).getContentText()).locations.map(l=>l.name+': '+l.id).join('\n')}`, ui.ButtonSet.OK)
+    return
+  }
     
-    if (!settings.googleCalendarID) ui.alert(`events/meetings google calendar id missing from settings - go to the SETTINGS sheet and make sure the setting "googleCalendarID" has a value`, ui.ButtonSet.OK)
+  if (!settings.googleCalendarID) ui.alert(`events/meetings google calendar id missing from settings - go to the SETTINGS sheet and make sure the setting "googleCalendarID" has a value. This ID can be found in Google Calendar, click the ⋮ next to your branch calendar > Settings and sharing > integrate calendar > Calendar ID`, ui.ButtonSet.OK)
       
-      let deskSchedDateEnd = new Date(deskSchedDate.getTime()+86399000)
-      
-      wiwData.shifts = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/shifts?location_id=${settings.locationID}&start=${deskSchedDate.toISOString()}&end=${deskSchedDateEnd.toISOString()}`, options).getContentText()).shifts //change to setDate, getDate+1, currently will break on daylight savings... or make seperate deskSchedDateEnd where you set the time to 23:59:59
-      
-      wiwData.annotations = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/annotations?&start_date=${deskSchedDate.toISOString()}&end_date=${deskSchedDateEnd.toISOString()}`, options).getContentText()).annotations //change to setDate, getDate+1, currently will break on daylight savings
-      log("wiwData.annotations:\n"+JSON.stringify(wiwData.annotations))
-      
-      wiwData.positions = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/positions`, options).getContentText()).positions
-      log("wiwData.positions:\n"+JSON.stringify(wiwData.positions))
-      
-      if(wiwData.shifts.length<1 && wiwData.annotations.length<0){
+  let deskSchedDateEnd = new Date(deskSchedDate.getTime()+86399000)
+  
+  wiwData.shifts = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/shifts?location_id=${settings.locationID}&start=${deskSchedDate.toISOString()}&end=${deskSchedDateEnd.toISOString()}`, options).getContentText()).shifts //change to setDate, getDate+1, currently will break on daylight savings... or make seperate deskSchedDateEnd where you set the time to 23:59:59
+  
+  wiwData.annotations = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/annotations?&start_date=${deskSchedDate.toISOString()}&end_date=${deskSchedDateEnd.toISOString()}`, options).getContentText()).annotations //change to setDate, getDate+1, currently will break on daylight savings
+  log("wiwData.annotations:\n"+JSON.stringify(wiwData.annotations))
+  
+  wiwData.positions = JSON.parse(UrlFetchApp.fetch(`https://api.wheniwork.com/2/positions`, options).getContentText()).positions
+  log("wiwData.positions:\n"+JSON.stringify(wiwData.positions))
+  
+  if(wiwData.shifts.length<1 && wiwData.annotations.length<0){
     ui.alert(`There are no shifts or announcements (annotations) published in WhenIWork at location: \n—${settings.locationID} (${settings.locationID})\nbetween\n—${deskSchedDate.toString()}\nand\n—${deskSchedDateEnd.toString()}`)
     return
   }

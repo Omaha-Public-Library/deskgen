@@ -1,7 +1,7 @@
 # Deskgen, the OPL desk schedule generator
 Deskgen is an app that automatically builds desk schedules using information from WhenIWork and your branch Google Calendar, customized using settings chosen by branch managers. It runs right from your branch desk schedule spreadsheet, and produces schedules in the form of sheets that are familiar and easy to edit. Our goal is to make generating schedules faster, easier, and more standardized across the system, while making sure managers can still customize their schedules to fit their specific branches and teams.
 
-Deskgen is still being developed with your input. Over the next few months, it will be rolled out one branch at a time for testing and feedback. If you have questions, ideas, or have run into a problem, [contact Corson](mailto:candroski@omahalibrary.org). We're hoping it will be available to all branches by the time Central opens. [Check rollout status below](#rollout).
+Deskgen is still being developed with your input. Over the next few months, it will be rolled out one branch at a time for testing and feedback. If you have questions, ideas, or have run into a problem, [contact Corson](mailto:candroski@omahalibrary.org). Check rollout status [below](#rollout).
 
 ## Quick Start
 ### Making a schedule
