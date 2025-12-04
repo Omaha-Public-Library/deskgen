@@ -429,21 +429,15 @@ class DeskSchedule {
             { "id": 11534163, "name": "Clerk II", "group": "Clerk", "picDurationMax": 0 },
             { "id": 11762122, "name": "Part-Time Clerk II", "group": "Clerk", "picDurationMax": 0 },
             { "id": 11534165, "name": "Aide", "group": "Aide", "picDurationMax": 0 },
-            //in wiw, not job titles
-            { "id": 11613647, "name": "Reference Desk" },
-            { "id": 11621015, "name": "PIC " }, //remove from WIW, now a tag
-            { "id": 11614106, "name": "Opening Duties" },
-            { "id": 11614107, "name": "1st floor" },
-            { "id": 11614108, "name": "2nd floor" },
-            { "id": 11614109, "name": "Phones" },
-            { "id": 11614110, "name": "Sorting Room" },
-            { "id": 11614115, "name": "Floating" },
-            { "id": 11614116, "name": "Meeting" },
-            { "id": 11614117, "name": "Program" },
-            { "id": 11614118, "name": "Off-desk" },
             //custom, not in WIW, for annotation events
             { "id": 0, "name": "Annotation Event" }
         ];
+        /*
+          Descending:
+        Branch Manager, Assistant Branch Manager, Specialist, Part-Time Specialist, Associate Specialist, Part-Time Associate Specialist, Senior Clerk, Clerk II, Part-Time Clerk II, Aide
+          Ascending:
+        Aide, Part-Time Clerk II, Clerk II, Senior Clerk, Part-Time Associate Specialist, Associate Specialist, Part-Time Specialist, Specialist, Assistant Branch Manager, Branch Manager
+        */
         var eventErrorLog = [];
         this.ui = SpreadsheetApp.getUi();
         wiwData.shifts /*.concat(annotationShifts)*/.forEach(s => {
@@ -936,6 +930,7 @@ class DeskSchedule {
         let stationCount = this.getStationCountAtTime(station.name, time);
         let currentStation = shift.getStationAtTime(time);
         if (currentStation.name == this.defaultStations.undefined
+            && !shift.tags.includes("In training (do not assign to stations)")
             && stationCount < station.numOfStaff
             && (time >= station.limitToStartTime || !station.limitToStartTime)
             && (time < station.limitToEndTime || !station.limitToEndTime)) {
