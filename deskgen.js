@@ -32,6 +32,8 @@ pictimeline won't defrag if no one is available (sundays,half hour where all sta
 
 gcal event hover isn't working on non-scheduled user events in bottom cell (but timeline is?) GEN 11.13.25
 
+for x hours after open, before close... +1, -1
+
 ======== aaron meeting notes ========
 seperate data structure from logic
 consider whether your data format matches the storage medium
@@ -1080,11 +1082,19 @@ class DeskSchedule {
         performanceLog("display timline - event");
     }
     displayStationKey(displayCells) {
-        let stationsFilteredForDisplay = this.stations.filter(s => s.name != 'undefined');
+        let stationsFilteredForDisplay = this.removeDuplicateStations(this.stations.filter(s => s.name != 'undefined'));
         displayCells.getByNameColumn('stationColor', '', stationsFilteredForDisplay.length)
             .setBackgrounds(stationsFilteredForDisplay.map(s => [s.color]));
         displayCells.getByNameColumn('stationName', '', stationsFilteredForDisplay.length)
             .setValues(stationsFilteredForDisplay.map(s => [s.name]));
+    }
+    removeDuplicateStations(stations) {
+        let filteredArr = [];
+        stations.forEach(station => {
+            if (!filteredArr.some(newStation => newStation.name == station.name))
+                filteredArr.push(station);
+        });
+        return filteredArr;
     }
     displayDuties(displayCells) {
         //OPENING
