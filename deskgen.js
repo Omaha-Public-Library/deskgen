@@ -86,13 +86,14 @@ function performanceLog(description) {
 }
 function onOpen() {
     SpreadsheetApp.getUi().createMenu('Generator')
-        .addItem('Redo schedule for current date', 'deskgen.buildDeskSchedule')
-        .addItem('New schedule for following date', 'deskgen.buildDeskScheduleTomorrow')
-        .addItem('Open archive', 'deskgen.openArchive')
+        .addItem('Redo schedule for current date', 'buildDeskScheduleRedo')
+        .addItem('New schedule for following date', 'buildDeskScheduleTomorrow')
+        .addItem('New schedule for other date...', 'buildDeskScheduleInputDate')
+        .addItem('Open archive', 'openArchive')
         .addToUi();
     // if(Session.getActiveUser().getEmail() === "candroski@omahalibrary.org")
     //   SpreadsheetApp.getUi().createMenu('Generator Admin')
-    //     .addItem('archive past schedules', 'deskgen.archivePastSchedules')
+    //     .addItem('archive past schedules', 'archivePastSchedules')
     //     .addToUi()
 }
 function openArchive() {
@@ -149,10 +150,73 @@ function archivePastSchedules(count = 7) {
         }
     }
 }
-function buildDeskScheduleTomorrow() {
-    buildDeskSchedule(true);
+function buildDeskScheduleRedo() {
+    var dateCell = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getRange('A1').getValue();
+    if (isNaN(Date.parse(dateCell))) {
+        SpreadsheetApp.getUi().alert("No date found in top-left of sheet, please enter date in mm/dd/yyyy format", SpreadsheetApp.getUi().ButtonSet.OK);
+        return;
+    }
+    else {
+        buildDeskSchedule(new Date(dateCell.setHours(0, 0, 0, 0)));
+    }
 }
-function buildDeskSchedule(tomorrow = false) {
+function buildDeskScheduleTomorrow() {
+    var dateCell = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getRange('A1').getValue();
+    if (isNaN(Date.parse(dateCell))) {
+        SpreadsheetApp.getUi().alert("No date found in top-left of sheet, please enter date in mm/dd/yyyy format", SpreadsheetApp.getUi().ButtonSet.OK);
+        return;
+    }
+    else {
+        let newDate = new Date(dateCell.setHours(0, 0, 0, 0));
+        newDate.setDate(dateCell.getDate() + 1);
+        buildDeskSchedule(newDate);
+    }
+}
+function buildDeskScheduleInputDate() {
+    var dateCell = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getRange('A1').getValue();
+    if (isNaN(Date.parse(dateCell))) {
+        SpreadsheetApp.getUi().alert("No date found in top-left of sheet, please enter date in mm/dd/yyyy format", SpreadsheetApp.getUi().ButtonSet.OK);
+        return;
+    }
+    else {
+        var dateInputWindow = HtmlService.createHtmlOutput(`
+      <html>
+        <head>
+          <base target="_top">
+          <script>
+          //document.getElementById('input-date').valueAsDate = new Date()
+          function sendDate() {
+                google.script.run.doSomething()
+                google.script.run.buildDeskSchedule(document.getElementById('input-date').value)
+                console.log(document.getElementById('input-date').value)
+                console.log(google.script.run.buildDeskSchedule)
+                google.script.host.close()
+              }
+          </script>
+        </head>
+        <body>
+        <input type="date" id="input-date"/>
+        <br>
+        <input type="button" class="button" value="generate schedule" onclick="google.script.run.buildDeskScheduleFromDateString(document.getElementById('input-date').value); google.script.host.close()">
+        </body>
+      </html>
+      `);
+        SpreadsheetApp.getUi().showModelessDialog(dateInputWindow, "Input date for new schedule");
+    }
+}
+function buildDeskScheduleFromDateString(dateString) {
+    let date;
+    if (typeof dateString == "string")
+        date = new Date(dateString.replaceAll('-', '/'));
+    else
+        date = dateString;
+    buildDeskSchedule(date);
+}
+function buildDeskSchedule(deskSchedDate) {
+    console.log(deskSchedDate, typeof deskSchedDate, typeof deskSchedDate == "string");
+    if (typeof deskSchedDate == "string")
+        deskSchedDate = new Date(deskSchedDate.replaceAll('-', '/'));
+    console.log(deskSchedDate, deskSchedDate instanceof Date);
     performanceLog("start");
     var settings;
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -161,23 +225,6 @@ function buildDeskSchedule(tomorrow = false) {
     const templateSheet = ss.getSheetByName('TEMPLATE');
     var token = null;
     deskSheet = ss.getActiveSheet();
-    var deskSchedDate;
-    //Make sure not running on template
-    // if(deskSheet.getSheetName()=='TEMPLATE'){
-    //   ui.alert(`The generator can't be run from the template. Choose another sheet, or make a blank sheet with a date in cell A1.`)
-    //   return
-    // }
-    //Make sure date is present in sheet
-    var dateCell = deskSheet.getRange('A1').getValue();
-    if (isNaN(Date.parse(dateCell))) {
-        ui.alert("No date found in top-left of sheet, please enter date in mm/dd/yyyy format", ui.ButtonSet.OK);
-        return;
-    }
-    else
-        deskSchedDate = new Date(dateCell.setHours(0, 0, 0, 0));
-    //If making schedule for tomorrow, check if tomorrow sheet exists, if not, make it
-    if (tomorrow)
-        deskSchedDate = new Date(deskSchedDate.setDate(deskSchedDate.getDate() + 1));
     //Load settings
     settings = loadSettings(deskSchedDate);
     performanceLog("load settings");

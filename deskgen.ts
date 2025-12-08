@@ -88,13 +88,14 @@ function performanceLog(description:string){
 
 function onOpen(){
   SpreadsheetApp.getUi().createMenu('Generator')
-  .addItem('Redo schedule for current date', 'deskgen.buildDeskSchedule')
-  .addItem('New schedule for following date', 'deskgen.buildDeskScheduleTomorrow')
-  .addItem('Open archive', 'deskgen.openArchive')
+  .addItem('Redo schedule for current date', 'buildDeskScheduleRedo')
+  .addItem('New schedule for following date', 'buildDeskScheduleTomorrow')
+  .addItem('New schedule for other date...', 'buildDeskScheduleInputDate')
+  .addItem('Open archive', 'openArchive')
   .addToUi()
   // if(Session.getActiveUser().getEmail() === "candroski@omahalibrary.org")
   //   SpreadsheetApp.getUi().createMenu('Generator Admin')
-  //     .addItem('archive past schedules', 'deskgen.archivePastSchedules')
+  //     .addItem('archive past schedules', 'archivePastSchedules')
   //     .addToUi()
 }
 
@@ -159,13 +160,73 @@ function archivePastSchedules(count:number = 7){
   }
 }
 
-function buildDeskScheduleTomorrow(){
-  buildDeskSchedule(true)
+function buildDeskScheduleRedo(){
+  var dateCell = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getRange('A1').getValue()
+  if(isNaN(Date.parse(dateCell))){
+    SpreadsheetApp.getUi().alert("No date found in top-left of sheet, please enter date in mm/dd/yyyy format",SpreadsheetApp.getUi().ButtonSet.OK)
+    return
+  }else{
+    buildDeskSchedule(new Date(dateCell.setHours(0,0,0,0)))
+  }
 }
 
-function buildDeskSchedule(tomorrow: Boolean=false){
-  performanceLog("start")
+function buildDeskScheduleTomorrow(){
+  var dateCell = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getRange('A1').getValue()
+  if(isNaN(Date.parse(dateCell))){
+    SpreadsheetApp.getUi().alert("No date found in top-left of sheet, please enter date in mm/dd/yyyy format",SpreadsheetApp.getUi().ButtonSet.OK)
+    return
+  }else{
+    let newDate = new Date(dateCell.setHours(0,0,0,0))
+    newDate.setDate(dateCell.getDate() + 1)
+    buildDeskSchedule(newDate)
+  }
+}
 
+function buildDeskScheduleInputDate(){
+  var dateCell = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getRange('A1').getValue()
+  if(isNaN(Date.parse(dateCell))){
+    SpreadsheetApp.getUi().alert("No date found in top-left of sheet, please enter date in mm/dd/yyyy format",SpreadsheetApp.getUi().ButtonSet.OK)
+    return
+  }else{
+    var dateInputWindow = HtmlService.createHtmlOutput(`
+      <html>
+        <head>
+          <base target="_top">
+          <script>
+          //document.getElementById('input-date').valueAsDate = new Date()
+          function sendDate() {
+                google.script.run.doSomething()
+                google.script.run.buildDeskSchedule(document.getElementById('input-date').value)
+                console.log(document.getElementById('input-date').value)
+                console.log(google.script.run.buildDeskSchedule)
+                google.script.host.close()
+              }
+          </script>
+        </head>
+        <body>
+        <input type="date" id="input-date"/>
+        <br>
+        <input type="button" class="button" value="generate schedule" onclick="google.script.run.buildDeskScheduleFromDateString(document.getElementById('input-date').value); google.script.host.close()">
+        </body>
+      </html>
+      `)
+    SpreadsheetApp.getUi().showModelessDialog(dateInputWindow, "Input date for new schedule")
+  }
+}
+
+function buildDeskScheduleFromDateString(dateString){
+  let date: Date
+  if (typeof dateString == "string") date = new Date(dateString.replaceAll('-', '/'))
+  else date = dateString as Date
+  buildDeskSchedule(date)
+}
+
+function buildDeskSchedule(deskSchedDate){
+  console.log(deskSchedDate, typeof deskSchedDate, typeof deskSchedDate == "string")
+  if (typeof deskSchedDate == "string") deskSchedDate = new Date(deskSchedDate.replaceAll('-', '/'))
+  console.log(deskSchedDate, deskSchedDate instanceof Date)
+  performanceLog("start")
+  
   var settings: Settings
   var ss = SpreadsheetApp.getActiveSpreadsheet() 
   var deskSheet = ss.getActiveSheet()
@@ -174,56 +235,40 @@ function buildDeskSchedule(tomorrow: Boolean=false){
   var token: string = null
   
   deskSheet = ss.getActiveSheet()
-  var deskSchedDate: Date
+ 
+  //Load settings
+  settings = loadSettings(deskSchedDate)
+  performanceLog("load settings")
   
-  //Make sure not running on template
-  // if(deskSheet.getSheetName()=='TEMPLATE'){
-  //   ui.alert(`The generator can't be run from the template. Choose another sheet, or make a blank sheet with a date in cell A1.`)
-  //   return
-  // }
-  //Make sure date is present in sheet
-  var dateCell = deskSheet.getRange('A1').getValue()
-  if(isNaN(Date.parse(dateCell))){
-    ui.alert("No date found in top-left of sheet, please enter date in mm/dd/yyyy format",ui.ButtonSet.OK)
+  var newSheetName = sheetNameFromDate(deskSchedDate)
+  log(`setting up sheet:${deskSchedDate}, ${newSheetName}, ${/*ss.getSheetByName(newSheetName)*/'removed lookup for perf'}`)
+  
+  let existingSheet = ss.getSheetByName(newSheetName)
+  
+  //if sheet exists but is not the active sheet, open it
+  if(existingSheet!==null && ss.getActiveSheet().getName() !== newSheetName) {
+    let result = ui.alert("A sheet for "+newSheetName+" already exists.","Open this sheet?",ui.ButtonSet.YES_NO)
+    if (result == ui.Button.YES){
+      existingSheet.activate()
+    }
     return
-  }else deskSchedDate = new Date(dateCell.setHours(0,0,0,0))
-
-  //If making schedule for tomorrow, check if tomorrow sheet exists, if not, make it
-  if(tomorrow) deskSchedDate = new Date(deskSchedDate.setDate(deskSchedDate.getDate() + 1))
+  }
     
-    //Load settings
-    settings = loadSettings(deskSchedDate)
-    performanceLog("load settings")
-    
-    var newSheetName = sheetNameFromDate(deskSchedDate)
-    log(`setting up sheet:${deskSchedDate}, ${newSheetName}, ${/*ss.getSheetByName(newSheetName)*/'removed lookup for perf'}`)
-    
-    let existingSheet = ss.getSheetByName(newSheetName)
-    
-    //if sheet exists but is not the active sheet, open it
-    if(existingSheet!==null && ss.getActiveSheet().getName() !== newSheetName) {
-      let result = ui.alert("A sheet for "+newSheetName+" already exists.","Open this sheet?",ui.ButtonSet.YES_NO)
-      if (result == ui.Button.YES){
-        existingSheet.activate()
-      }
-      return
-    }
-    
-    else{
-      //if sheet already exists and is open, save index...
-      let sheetIndex = undefined
-      if(existingSheet!==null && ss.getActiveSheet().getName() == newSheetName){
-      sheetIndex = ss.getActiveSheet().getIndex()
-    }
-    //...if previous loading sheet exists, use that, otherwise make a new one from template
-    let existingLoadingSheet = ss.getSheetByName("loading...")
-    deskSheet = existingLoadingSheet!==null ? existingLoadingSheet : ss.insertSheet("loading...", {template: templateSheet})
-    deskSheet.activate()
-    //move to previous spot, if saved
-    if (sheetIndex !== undefined) ss.moveActiveSheet(sheetIndex)
-      //...and delete old sheet if it exists
-    if (existingSheet!==null) ss.deleteSheet(existingSheet)
-      deskSheet.setName(newSheetName)
+  else{
+    //if sheet already exists and is open, save index...
+    let sheetIndex = undefined
+    if(existingSheet!==null && ss.getActiveSheet().getName() == newSheetName){
+    sheetIndex = ss.getActiveSheet().getIndex()
+  }
+  //...if previous loading sheet exists, use that, otherwise make a new one from template
+  let existingLoadingSheet = ss.getSheetByName("loading...")
+  deskSheet = existingLoadingSheet!==null ? existingLoadingSheet : ss.insertSheet("loading...", {template: templateSheet})
+  deskSheet.activate()
+  //move to previous spot, if saved
+  if (sheetIndex !== undefined) ss.moveActiveSheet(sheetIndex)
+    //...and delete old sheet if it exists
+  if (existingSheet!==null) ss.deleteSheet(existingSheet)
+    deskSheet.setName(newSheetName)
   }
   
   let displayCells: DisplayCells = new DisplayCells(deskSheet)
