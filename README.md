@@ -7,9 +7,9 @@ Deskgen is still being developed with your input. Over the next few months, it w
 ### Making a schedule
 When a branch gets started with Deskgen, they'll be provided with a new Google Sheet that will replace their old desk schedule.
 
-To make a schedule, look for the "Generator" dropdown menu at the top right of the page. In that menu you'll have the option to remake the schedule that you have open, or make a new schedule for the following day. Click one of these options, and wait a few seconds for the app to run.
+To make a schedule, look for the "Generator" dropdown menu at the top right of the page. In that menu you'll have the option to remake the schedule that you have open, make a new schedule for the following day, or make a new schedule for any other day. For your first schedule, click **New schedule for other day**, select a date and hit "generate schedule", and wait a few seconds for the app to run.
 
-Once your new schedule is generated, check it over to make sure everything looks good. The new schedule will be a normal sheet that you can edit like your old one, but try to keep edits to a minimum - one of the big advantages of this system is that you can quickly regenerate schedules to reflect last minute staff changes, new meetings, etc, and if you regenerate a schedule it won't include those sheet edits you made before.
+Every time a new schedule is generated, check it over to make sure everything looks good. The new schedule will be a normal sheet that you can edit like your old one, but try to keep edits to a minimum - one of the big advantages of this system is that you can quickly regenerate schedules to reflect last minute staff changes, new meetings, etc, and if you regenerate a schedule it won't include those sheet edits you made before.
 
 Instead, a better way to change the schedule is through the settings which control how it generates. For example, if you notice staff are being assigned to be on the front desk for longer than you'd like, don't manually change the timeline - just change the relevant setting and regenerate the schedule. See the [Settings section](#settings) for more info, and [reach out to Corson](mailto:candroski@omahalibrary.org) with questions not answered there.
 
