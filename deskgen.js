@@ -101,7 +101,7 @@ function buildDeskScheduleInputDate() {
           //document.getElementById('input-date').valueAsDate = new Date()
           function sendDate() {
             google.script.run.buildDeskScheduleFromDateString(document.getElementById('input-date').value)
-            setTimeout(google.script.host.close, 3000)
+            setTimeout(google.script.host.close, 5000)
             document.getElementById('button').value="Loading..."
             document.getElementById('button').disable="true"
           }
