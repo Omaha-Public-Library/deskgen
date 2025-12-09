@@ -43,6 +43,9 @@ Stations are the tasks that staff are assigned throughout their shifts. These ar
 
 The order in which stations are listed indicates their priority. If you only have three staff scheduled at a given time, and there are five stations in the list which they're eligible for, staff will be assigned only to the first three.
 
+ ## Archiving
+Past desk schedules are automatically moved to a separate archive spreadsheet linked in SETTINGS. Yesterday's desk schedule can be found in the main desk schedule under hidden sheets (bottom left ≡ icon). Desk Schedules older than yesterday can be found in the archive.
+
 ## What's Next?
 
 ### Rollout
@@ -50,35 +53,46 @@ The order in which stations are listed indicates their priority. If you only hav
 - [x] Downtown
 - [x] AV Sorensen
 - [ ] Swanson
+- [ ] Millard
 - [ ] ...TBD
 
 # Developer Documentation
+## How To
 ### Making a new desk schedule generator
 
  1. Make a copy of an existing desk schedule spreadsheet.
- 2. Make sure the apps script attached to that sheet copied over:
-  ```
-	var  deskgen = deskgendeploymentcontroller.deskgen
-	function  onOpen() {
-		deskgen.onOpen()
-	}
-	function  archivePastSchedules(){
-		deskgen.archivePastSchedules()
-	}
-```
- 3. Rename script to "deskgen [branch abbreviation]," eg "deskgen dt"
- 4. Make sure the **deskgendeploymentcontrol** library is attached to the script.
- 5. Add a trigger to the desk schedule spreadsheet's apps script that runs **archivePastSchedules** every day between 1am to 2am.
- 6. Remove all sheets except for TEMPLATE and SETTINGS.
+ 2. Open its script in the web editor by going to the Extensions menu > Apps Script, and rename the script to "deskgen [branch abbreviation]," eg "deskgen dt"
+ 3. In the web editor, add a trigger to the desk schedule spreadsheet's apps script that runs **archivePastSchedules** every day between 1am to 2am.
+ 4. In the web editor, go to Project Settings>Script Properties and add the properties **wiwAuthEmail** and **wiwAuthPassword**. Copy the values for these properties from another schedule's script project settings.
+ 5. In the web editor, copy the script's Script ID  (Project Settings > IDs) and use it to add the new schedule to the [deployment project file](#deployment), **.mult-clasp.json**.
+ 6. In the spreadsheet, remove all sheets except for TEMPLATE and SETTINGS.
  7. In the TEMPLATE sheet, change the header to the new branch name.
  8. In the SETTINGS sheet, update these settings:
 		 - **locationID** - change to branch [WhenIWork locationID.](https://apidocs.wheniwork.com/external/index.html#tag/Schedules-%28Locations%29) Can be accessed by deleting the locationID field in SETTINGS, then generating a new schedule - when blank, popup will list locationIDs.
 		 - **googleCalendarID** - change to ID of branch calendar which includes all meetings, programs, and events which affect scheduled staff (found in branch calendar > settings and sharing > integrate calendar)
 		 - **archiveSheetURL** - Make a new blank spreadsheet (separate document) for the archive, copy it's entire URL into this field (including ".../edit")
 		 - Set up schedule and station settings.
- 9. Generate your first schedule by making a new blank sheet and adding a date in the top left column in mm/dd/yyyy format. Click the Generator menu, then Redo Schedule for current date.
- 10. After that schedule is done generating, delete the old blank sheet if it still exists.
+ 9. Generate your first schedule by clicking the Generator menu, then **New schedule for other date...**
  
  The desk schedule is ready to use.
- ### Archiving
- ...
+
+## Project Structure
+Deskgen is a Typescript app organized as a [CLASP](https://github.com/google/clasp) project. All code is written in deskgen.ts, and is compiled to deskgen.js using:
+
+    tsc --watch
+For testing, it is deployed to a [testing spreadsheet](https://docs.google.com/spreadsheets/d/1_hE3PscRmMRqE3mx5LQkkPIyA6LM7SLam7JzDGa9geE/) with CLASP, using the **.clasp.dev.json** project file:
+
+    clasp push --project .clasp.dev.json --watch
+<a name="deployment"></a>To deploy an update to all branches, [multi-clasp2](https://www.npmjs.com/package/multi-clasp2) is used to deploy to each branch, listed in the **.mult-clasp.json** project file:
+
+    multi-clasp push --force
+
+> Why Typescript? Deskgen pulls and transforms lots of different data from a few different APIs, and Typescript allowed me to type response data so that it could be linted, making it much, much easier to work with. The data structures the app uses are also a lot more manageable when explicitly typed.
+
+> Why CLASP? It lets me automatically compile and deploy Typescript for testing, and use Git for version control.
+
+>Why multi-clasp2? I needed some kind of deployment system to manage a testing environment and ~15 separate scripts attached to desk schedules.
+>
+>I first tried building the app as an Apps Script library added to each schedule's individual scripts, but when new versions of a library are deployed using Apps Script internal tools, individual scripts don't update to the latest version automatically. This can be worked around by adding a version control library between the two - individual scripts add version library, which adds main library, and when main library is updated, only the version library needs to manually update which version of the main library is being used.
+>
+>This worked, but performance was poor - in the Apps Script environment, libraries perform worse than code directly added to a script. So I decided to manage deployment outside of the apps script environment, and use a batch operation to deploy the same script directly to each schedule. This could be done with CLASP alone and a bash file, by making a bunch of differently named .clasp.json files for each branch and using a bash file to run one *clasp push* command targetting each with its own *--project* option. But multi-clasp2 also came up as an option. It lets you consolidate all of those .clasp.json files into one .multi-clasp.json file, and let me continue to automatically deploy to my test environment using clasp separately, so that's what I'm using.

@@ -1,89 +1,3 @@
-/*
-======== to do ========
-don't display before/after times (like late night events that don't need to be on sched)
-downside - can't see scheduled staff in GCAL when making events... unless, could you use "meet with" to see staff? would they have to import wiw cal?
-more testing for parseDate (12pm noon)
-
-Station gen - want to revisit this later and try less agressive sorting with more neutral 0 outcomes, to prevent last sorts from having outsized impact, OR switch to using a value sorting system where lots of different factors contribute to a single sorting value
-
-should settings be saved in deskschedule? or in history? or properties service?
-
-warning about events scheduled outside shifts?
-
-split shifts merging
-
-openHours - implement half-hour times
-
-replace WIW annotation closures with gcal for all branch announcements? maybe...but is it useful for managers to have closures in WIW?
-
-megaphone user shown when only events are all day - check and hide user
-
-auto hide settings+template
-
-nuetral positionpriority sorting option - when none specified, sort staff by name then offset by date for even rotation?
-
-instead of counting hours to evenly assign stations to all eligible staff, why not just prioritize eligible staff who haven't been on this shift at all? less counting, simpler, still get people doing varied things throughout day, might be enough to roughly even out distribution
-
-right now, if someone isn't on todays schedule, but is assigned to location, and have an event on gcal, AND showing all staff... event will display on event timeline, not the staff's timeline
-
-maybe have prepass consider available and meal as equal, so that it doesn't avoid half hour time off fragments next to meal
-
-pictimeline won't defrag if no one is available (sundays,half hour where all staff are on lunch, DT 11.16)
-
-gcal event hover isn't working on non-scheduled user events in bottom cell (but timeline is?) GEN 11.13.25
-
-for x hours after open, before close... +1, -1
-
-======== aaron meeting notes ========
-seperate data structure from logic
-consider whether your data format matches the storage medium
-check if appscript ui has good sorting/query stuff  you're not making use of
-state seperate from logic in desksched - move generation functions elsewhere
-even station assignment stuff should be unit testable - needs definite inputs and outputs
-consider framework for ui settings - yup for form validation, grid something for station input
-
-======== wiw bugs? ========
-there are tags on users that don't exist in https://worktags.api.wheniwork-production.com/tags... could they have been assigned, then the tag deleted? see Julie's tag 4fec1268-8989-44a1-87d3-830de8d21462
-maybe I should just never assume that any data referenced in old shifts matches current data in WIW... users, tags, positions, etc
-
-
-======== bethany matt meeting ========
-one calender includes
-events
-programs being delivered in the branch
-meetings
-volunteers
-
-ft pic of any position on opening, closing
-
-doc for all of scheduling - wiw deskgen gcal
-
-======== stacy schedule sharing questions ========
-we need to test if a manager can assign their staff to an openshift on another schedule that they don't have permission to edit
-if not, assigning staff could be tricky when there's lots of sharing going on
-we need to think more about - when staff are being shared, what's the procedure? receiving schedule creates open schedule, then managers assign staff?
-is there a better way to have managers
-we're not using locations at all right now...
-
-======== candidate list sorting algorithm notes ========
-candidate list based
-problem now is that, while going through stations in priority order for a given half hour, we don't conisder later priority stations with limited assignment options
-eg- only one PIC available, and they're required for station third in priority list, but they get assigned to first station, and then no one is available  for #3
-this also affects fragmentation - staffA was previously on stationB for half hour, but in next half hour they're assigned to stationA before they can be prioritized for stationB
-
-what if - before assigning, create a candidate list for each position (or two? preferred, then possible?) of staff who are eligible for a station. Then, instead of going through stations in priority order, sort them by number of preferred candidates available, so the trickier stations are handled first. As stations are assigned, remove staff from other candidate lists.
-
-Could this handle better distribution of time off desk too?
-====================================================
-
-*/
-var prevClock = new Date();
-var performanceLogOutput = "";
-function performanceLog(description) {
-    let newTime = new Date();
-    performanceLogOutput += ((newTime.getTime() - prevClock.getTime()) / 1000).toFixed(3) + " sec" + description.padStart(40, '.') + '\n';
-    prevClock = newTime;
-}
 function onOpen() {
     SpreadsheetApp.getUi().createMenu('Generator')
         .addItem('Redo schedule for current date', 'buildDeskScheduleRedo')
@@ -157,7 +71,7 @@ function buildDeskScheduleRedo() {
         return;
     }
     else {
-        buildDeskSchedule(new Date(dateCell.setHours(0, 0, 0, 0)));
+        buildDeskSchedule(new Date(dateCell.getFullYear(), dateCell.getMonth(), dateCell.getDate(), 0, 0, 0, 0));
     }
 }
 function buildDeskScheduleTomorrow() {
@@ -167,7 +81,7 @@ function buildDeskScheduleTomorrow() {
         return;
     }
     else {
-        let newDate = new Date(dateCell.setHours(0, 0, 0, 0));
+        let newDate = new Date(dateCell);
         newDate.setDate(dateCell.getDate() + 1);
         buildDeskSchedule(newDate);
     }
@@ -186,21 +100,22 @@ function buildDeskScheduleInputDate() {
           <script>
           //document.getElementById('input-date').valueAsDate = new Date()
           function sendDate() {
-                google.script.run.doSomething()
-                google.script.run.buildDeskSchedule(document.getElementById('input-date').value)
-                console.log(document.getElementById('input-date').value)
-                console.log(google.script.run.buildDeskSchedule)
-                google.script.host.close()
-              }
+            google.script.run.buildDeskScheduleFromDateString(document.getElementById('input-date').value)
+            setTimeout(google.script.host.close, 3000)
+            document.getElementById('button').value="Loading..."
+            document.getElementById('button').disable="true"
+          }
           </script>
         </head>
-        <body>
-        <input type="date" id="input-date"/>
+        <body style="text-align: center">
         <br>
-        <input type="button" class="button" value="generate schedule" onclick="google.script.run.buildDeskScheduleFromDateString(document.getElementById('input-date').value); google.script.host.close()">
+        <input type="date" id="input-date" style="font-size: 1.2em; padding: 5px; text-align: center"/>
+        <br>
+        <input type="button" id="button" class="button" value="generate schedule" style="font-size: 1em; padding: 4px; margin: 12px 0px;"
+        onclick="sendDate()">
         </body>
       </html>
-      `);
+      `).setWidth(320).setHeight(128);
         SpreadsheetApp.getUi().showModelessDialog(dateInputWindow, "Input date for new schedule");
     }
 }
@@ -213,10 +128,6 @@ function buildDeskScheduleFromDateString(dateString) {
     buildDeskSchedule(date);
 }
 function buildDeskSchedule(deskSchedDate) {
-    console.log(deskSchedDate, typeof deskSchedDate, typeof deskSchedDate == "string");
-    if (typeof deskSchedDate == "string")
-        deskSchedDate = new Date(deskSchedDate.replaceAll('-', '/'));
-    console.log(deskSchedDate, deskSchedDate instanceof Date);
     performanceLog("start");
     var settings;
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1825,4 +1736,12 @@ function concatRichText(richTextValueArray) {
         start = start + end; //+seperator.length 
     });
     return richText;
+}
+//performance log - when func is called, outputs amount of time since it was last called
+var prevClock = new Date();
+var performanceLogOutput = "";
+function performanceLog(description) {
+    let newTime = new Date();
+    performanceLogOutput += ((newTime.getTime() - prevClock.getTime()) / 1000).toFixed(3) + " sec" + description.padStart(40, '.') + '\n';
+    prevClock = newTime;
 }
