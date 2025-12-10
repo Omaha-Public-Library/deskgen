@@ -9,7 +9,7 @@ should settings be saved in deskschedule? or in history? or properties service?
 
 warning about events scheduled outside shifts?
 
-split shifts merging
+split shifts merging (reuse function for repeat position merging)
 
 openHours - implement half-hour times
 
@@ -34,6 +34,10 @@ gcal event hover isn't working on non-scheduled user events in bottom cell (but 
 for x hours after open, before close... +1, -1
 
 when events are scheduled before open, timeline breaks - Swanson 12/8
+
+delete archived sheets at certain age?
+
+set up dev wiw account for authentication and api requests
 
 ======== aaron meeting notes ========
 seperate data structure from logic

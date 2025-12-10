@@ -35,33 +35,79 @@ function archivePastSchedules(count = 7) {
     let sourceSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     let archiveSpreadsheet = SpreadsheetApp.openByUrl(settings.archiveSheetURL);
     let sourceSheetList = sourceSpreadsheet.getSheets();
-    let archiveSheetsList = archiveSpreadsheet.getSheets();
+    let archivedSheetList = archiveSpreadsheet.getSheets();
     let todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     for (let i = 0; i < count; i++) {
-        if (!sourceSheetList[i].getRange('A1').getValue())
-            console.error("no value in A1 of " + sourceSheetList[i].getName());
-        console.log("today time: ", todayStart.getTime(), "delete candidate " + sourceSheetList[i].getName() + " time: ", sourceSheetList[i].getRange('A1').getValue().getTime(), sourceSheetList[i].getRange('A1').getValue().getTime() >= todayStart.getTime());
-        if (sourceSheetList.length < 7 || sourceSheetList[i].getRange('A1').getValue().getTime() >= todayStart.getTime()) {
+        // if(!sourceSheetList[i].getRange('A1').getValue()) console.error("no value in A1 of " + sourceSheetList[i].getName())
+        // console.log("today time: ", todayStart.getTime(), "delete candidate "+ sourceSheetList[i].getName() +" time: ", sourceSheetList[i].getRange('A1').getValue().getTime(), sourceSheetList[i].getRange('A1').getValue().getTime() >= todayStart.getTime())
+        if (sourceSheetList.length < 7 || getScheduleSheetDate(sourceSheetList[i]).getTime() >= todayStart.getTime()) {
             console.log("up to the present, no sheets left to archive (or less than seven sheets in spreadsheet)");
             return;
         }
-        let archivedSheetsMatchingName = archiveSheetsList.filter(s => s.getName() == sourceSheetList[i].getName());
-        console.log('name matches:\n' + archivedSheetsMatchingName.map(s => s.getName()).join('\n'));
-        let archivedSheetsMatchingNameAndDate = archivedSheetsMatchingName.filter(s => {
-            console.log(s.getRange('A1').getValue(), s.getRange('A1').getValue().toDateString(), sourceSheetList[i].getRange('A1').getValue(), sourceSheetList[i].getRange('A1').getValue().toDateString(), s.getRange('A1').getValue().toDateString() == sourceSheetList[i].getRange('A1').getValue().toDateString());
-            return s.getRange('A1').getValue().toDateString() == sourceSheetList[i].getRange('A1').getValue().toDateString();
-        });
-        console.log('date matches:\n' + archivedSheetsMatchingNameAndDate.map(s => s.getName() + ', ' + s.getRange('A1').getValue().toDateString()).join('\n'));
-        if (archivedSheetsMatchingNameAndDate.length > 0) {
-            console.log(archivedSheetsMatchingNameAndDate.length + " sheet in archive matches name and date of " + sourceSheetList[i].getName() + ", deleting");
+        // let archivedSheetsMatchingName = archivedSheetList.filter(s=>s.getName()==sourceSheetList[i].getName())
+        // console.log('name matches:\n'+archivedSheetsMatchingName.map(s=>s.getName()).join('\n'))
+        let archivedSheetMatchingDate = archiveSpreadsheet.getSheetByName(sheetNameFromDate(getScheduleSheetDate(sourceSheetList[i]), true)); /* || archiveSpreadsheet.getSheetByName(sheetNameFromDate(getScheduleSheetDate(sourceSheetList[i]))) */
+        // let archivedSheetsMatchingDate = archivedSheetList.filter(archivedSheet=>{
+        //  if getschedulesheetdate returns undefined for either, return false
+        //   console.log(
+        // archivedSheet.getRange('A1').getValue(),
+        // archivedSheet.getRange('A1').getValue().toDateString(),
+        // getScheduleSheetDate(archivedSheet).toDateString(),
+        // sourceSheetList[i].getRange('A1').getValue(),
+        // sourceSheetList[i].getRange('A1').getValue().toDateString(),
+        // getScheduleSheetDate(sourceSheetList[i]).toDateString(),
+        // archivedSheet.getRange('A1').getValue().toDateString()==sourceSheetList[i].getRange('A1').getValue().toDateString(),
+        // getScheduleSheetDate(archivedSheet).toDateString() == getScheduleSheetDate(sourceSheetList[i]).toDateString()
+        //   )
+        //   return getScheduleSheetDate(archivedSheet, true).toDateString() == getScheduleSheetDate(sourceSheetList[i]).toDateString()
+        // })
+        // console.log('date matches:\n'+archivedSheetsMatchingDate.map(archivedSheet=>archivedSheet.getName()+', '+getScheduleSheetDate(archivedSheet).toDateString()).join('\n'))
+        // if (archivedSheetsMatchingDate.length>0) {
+        //   console.log(archivedSheetsMatchingDate.length + " sheet in archive matches name and date of "+ sourceSheetList[i].getName() +", deleting")
+        //   sourceSpreadsheet.deleteSheet(sourceSheetList[i])
+        // }
+        // else {
+        //   sourceSheetList[i].copyTo(archiveSpreadsheet).setName(sourceSheetList[i].getName()).hideSheet();
+        //   sourceSheetList[i].hideSheet()
+        //   console.log("no name+date match for sheet "+ sourceSheetList[i].getName() +" in archive, copying sheet to archive. Will delete next interval.")
+        // }
+        // console.log('date matches:\n'+archivedSheetMatchingDate.getName()+', '+getScheduleSheetDate(archivedSheet).toDateString()).join('\n'))
+        if (archivedSheetMatchingDate) {
+            console.log(archivedSheetMatchingDate.getName() + " sheet in archive matches date of " + sourceSheetList[i].getName() + ", deleting");
             sourceSpreadsheet.deleteSheet(sourceSheetList[i]);
         }
         else {
-            sourceSheetList[i].copyTo(archiveSpreadsheet).setName(sourceSheetList[i].getName()).hideSheet();
+            sourceSheetList[i].copyTo(archiveSpreadsheet).setName(sheetNameFromDate(getScheduleSheetDate(sourceSheetList[i]), true)).hideSheet();
             sourceSheetList[i].hideSheet();
-            console.log("no name+date match for sheet " + sourceSheetList[i].getName() + " in archive, copying sheet to archive. Will delete next interval.");
+            console.log("no name+date match for past sheet " + sourceSheetList[i].getName() + " in archive, copying sheet to archive. Will delete next interval.");
         }
+    }
+}
+function getScheduleSheetDate(schedSheet, addMissingYear = false) {
+    let name = schedSheet.getName();
+    let dateNumberArr = name.split('.').map(substr => substr.replace(/\D/g, ''));
+    let monthStr = dateNumberArr[0];
+    let dayStr = dateNumberArr[1];
+    let yearStr = dateNumberArr[2];
+    if (isNumeric(monthStr) && isNumeric(dayStr)) {
+        let month = parseInt(monthStr);
+        let day = parseInt(dayStr);
+        let year;
+        if (!isNumeric(yearStr)) { //if year is missing from sheet name, get from cell
+            let a1Date = schedSheet.getRange('A1').getValue();
+            year = a1Date.getFullYear();
+        }
+        else
+            year = parseInt(yearStr);
+        let date = new Date(year, month - 1, day, 0, 0, 0, 0);
+        if (addMissingYear)
+            schedSheet.setName(sheetNameFromDate(date, true));
+        return date;
+    }
+    else {
+        console.log("can't read date from sheet name...", schedSheet.getName());
+        return undefined;
     }
 }
 function buildDeskScheduleRedo() {
@@ -98,16 +144,18 @@ function buildDeskScheduleInputDate() {
         <head>
           <base target="_top">
           <script>
-          //document.getElementById('input-date').valueAsDate = new Date()
           function sendDate() {
             google.script.run.buildDeskScheduleFromDateString(document.getElementById('input-date').value)
             setTimeout(google.script.host.close, 5000)
             document.getElementById('button').value="Loading..."
             document.getElementById('button').disable="true"
-          }
+            }
+            function initValue(){
+              document.getElementById('input-date').valueAsDate = new Date()
+            }
           </script>
         </head>
-        <body style="text-align: center">
+        <body style="text-align: center" onload="initValue()">
         <br>
         <input type="date" id="input-date" style="font-size: 1.2em; padding: 5px; text-align: center"/>
         <br>
@@ -1530,8 +1578,8 @@ function loadSettings(deskSchedDate) {
         console.log("settings loaded from sheet:\n" + JSON.stringify(settings));
     return settings;
 }
-function sheetNameFromDate(date) {
-    return `${['SUN', 'MON', 'TUES', 'WED', 'THUR', 'FRI', 'SAT'][date.getDay()]} ${date.getMonth() + 1}.${date.getDate()}`;
+function sheetNameFromDate(date, includeYear = false) {
+    return `${['SUN', 'MON', 'TUES', 'WED', 'THUR', 'FRI', 'SAT'][date.getDay()]} ${date.getMonth() + 1}.${date.getDate() + (includeYear ? '.' + date.getFullYear() : '')}`;
 }
 function getScriptProperty(key) {
     let property = PropertiesService.getScriptProperties().getProperty(key);
@@ -1736,6 +1784,12 @@ function concatRichText(richTextValueArray) {
         start = start + end; //+seperator.length 
     });
     return richText;
+}
+function isNumeric(str) {
+    if (typeof str != "string")
+        return false; // we only process strings!  
+    return !isNaN(Number(str)) && // use type coercion to parse the _entirety_ of the string (`parseFloat` alone does not do this)...
+        !isNaN(parseFloat(str)); // ...and ensure strings of whitespace fail
 }
 //performance log - when func is called, outputs amount of time since it was last called
 var prevClock = new Date();
