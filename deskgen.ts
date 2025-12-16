@@ -27,7 +27,8 @@ function showAnchor(name,url) {
   SpreadsheetApp.getUi().showModelessDialog(ui,"Link to archive");
 }
 
-function archivePastSchedules(count:number = 7){
+function archivePastSchedules(){
+  let count = 7
   //get first sheet by index. check date, if today/future stop. otherwise, check if it exists in archive, if so stop and warn. if not, copy to archive spreadsheet. then check if it exists in archive spreadsheet, if so delete. repeat x nums of times or until reaching today/future date.
   let settings = loadSettings(new Date())
   console.log("settings.archiveSheetURL :", settings.archiveSheetURL)
@@ -42,8 +43,8 @@ function archivePastSchedules(count:number = 7){
   todayStart.setHours(0,0,0,0)
   for(let i = 0; i < count; i++){
     if(!sourceSheetList[i].getRange('A1').getValue()) console.error("no value in A1 of " + sourceSheetList[i].getName())
-    if (sourceSheetList.length<7 || getScheduleSheetDate(sourceSheetList[i]).getTime() >= todayStart.getTime()) {
-      console.log("up to the present, no sheets left to archive (or less than seven sheets in spreadsheet)")
+    if (sourceSheetList.length<3 || getScheduleSheetDate(sourceSheetList[i]).getTime() >= todayStart.getTime()) {
+      console.log("up to the present, no sheets left to archive (or less than three sheets in spreadsheet)")
       return
     }
     let archivedSheetMatchingDate = archiveSpreadsheet.getSheetByName(sheetNameFromDate(getScheduleSheetDate(sourceSheetList[i]),true))
