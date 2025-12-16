@@ -38,44 +38,15 @@ function archivePastSchedules(count:number = 7){
   let sourceSpreadsheet = SpreadsheetApp.getActiveSpreadsheet()
   let archiveSpreadsheet = SpreadsheetApp.openByUrl(settings.archiveSheetURL)
   let sourceSheetList = sourceSpreadsheet.getSheets()
-  let archivedSheetList = archiveSpreadsheet.getSheets()
   let todayStart = new Date()
   todayStart.setHours(0,0,0,0)
   for(let i = 0; i < count; i++){
-    // if(!sourceSheetList[i].getRange('A1').getValue()) console.error("no value in A1 of " + sourceSheetList[i].getName())
-    // console.log("today time: ", todayStart.getTime(), "delete candidate "+ sourceSheetList[i].getName() +" time: ", sourceSheetList[i].getRange('A1').getValue().getTime(), sourceSheetList[i].getRange('A1').getValue().getTime() >= todayStart.getTime())
+    if(!sourceSheetList[i].getRange('A1').getValue()) console.error("no value in A1 of " + sourceSheetList[i].getName())
     if (sourceSheetList.length<7 || getScheduleSheetDate(sourceSheetList[i]).getTime() >= todayStart.getTime()) {
       console.log("up to the present, no sheets left to archive (or less than seven sheets in spreadsheet)")
       return
     }
-    // let archivedSheetsMatchingName = archivedSheetList.filter(s=>s.getName()==sourceSheetList[i].getName())
-    // console.log('name matches:\n'+archivedSheetsMatchingName.map(s=>s.getName()).join('\n'))
-    let archivedSheetMatchingDate = archiveSpreadsheet.getSheetByName(sheetNameFromDate(getScheduleSheetDate(sourceSheetList[i]),true)) /* || archiveSpreadsheet.getSheetByName(sheetNameFromDate(getScheduleSheetDate(sourceSheetList[i]))) */
-    // let archivedSheetsMatchingDate = archivedSheetList.filter(archivedSheet=>{
-    //  if getschedulesheetdate returns undefined for either, return false
-    //   console.log(
-        // archivedSheet.getRange('A1').getValue(),
-        // archivedSheet.getRange('A1').getValue().toDateString(),
-        // getScheduleSheetDate(archivedSheet).toDateString(),
-        // sourceSheetList[i].getRange('A1').getValue(),
-        // sourceSheetList[i].getRange('A1').getValue().toDateString(),
-        // getScheduleSheetDate(sourceSheetList[i]).toDateString(),
-        // archivedSheet.getRange('A1').getValue().toDateString()==sourceSheetList[i].getRange('A1').getValue().toDateString(),
-        // getScheduleSheetDate(archivedSheet).toDateString() == getScheduleSheetDate(sourceSheetList[i]).toDateString()
-    //   )
-    //   return getScheduleSheetDate(archivedSheet, true).toDateString() == getScheduleSheetDate(sourceSheetList[i]).toDateString()
-    // })
-    // console.log('date matches:\n'+archivedSheetsMatchingDate.map(archivedSheet=>archivedSheet.getName()+', '+getScheduleSheetDate(archivedSheet).toDateString()).join('\n'))
-    // if (archivedSheetsMatchingDate.length>0) {
-    //   console.log(archivedSheetsMatchingDate.length + " sheet in archive matches name and date of "+ sourceSheetList[i].getName() +", deleting")
-    //   sourceSpreadsheet.deleteSheet(sourceSheetList[i])
-    // }
-    // else {
-    //   sourceSheetList[i].copyTo(archiveSpreadsheet).setName(sourceSheetList[i].getName()).hideSheet();
-    //   sourceSheetList[i].hideSheet()
-    //   console.log("no name+date match for sheet "+ sourceSheetList[i].getName() +" in archive, copying sheet to archive. Will delete next interval.")
-    // }
-    // console.log('date matches:\n'+archivedSheetMatchingDate.getName()+', '+getScheduleSheetDate(archivedSheet).toDateString()).join('\n'))
+    let archivedSheetMatchingDate = archiveSpreadsheet.getSheetByName(sheetNameFromDate(getScheduleSheetDate(sourceSheetList[i]),true))
     if (archivedSheetMatchingDate) {
       console.log(archivedSheetMatchingDate.getName() + " sheet in archive matches date of "+ sourceSheetList[i].getName() +", deleting")
       sourceSpreadsheet.deleteSheet(sourceSheetList[i])
@@ -135,38 +106,32 @@ function buildDeskScheduleTomorrow(){
 }
 
 function buildDeskScheduleInputDate(){
-  var dateCell = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet().getRange('A1').getValue()
-  if(isNaN(Date.parse(dateCell))){
-    SpreadsheetApp.getUi().alert("No date found in top-left of sheet, please enter date in mm/dd/yyyy format",SpreadsheetApp.getUi().ButtonSet.OK)
-    return
-  }else{
-    var dateInputWindow = HtmlService.createHtmlOutput(`
-      <html>
-        <head>
-          <base target="_top">
-          <script>
-          function sendDate() {
-            google.script.run.buildDeskScheduleFromDateString(document.getElementById('input-date').value)
-            setTimeout(google.script.host.close, 5000)
-            document.getElementById('button').value="Loading..."
-            document.getElementById('button').disable="true"
-            }
-            function initValue(){
-              document.getElementById('input-date').valueAsDate = new Date()
-            }
-          </script>
-        </head>
-        <body style="text-align: center" onload="initValue()">
-        <br>
-        <input type="date" id="input-date" style="font-size: 1.2em; padding: 5px; text-align: center"/>
-        <br>
-        <input type="button" id="button" class="button" value="generate schedule" style="font-size: 1em; padding: 4px; margin: 12px 0px;"
-        onclick="sendDate()">
-        </body>
-      </html>
-      `).setWidth(320).setHeight(128)
-    SpreadsheetApp.getUi().showModelessDialog(dateInputWindow, "Input date for new schedule")
-  }
+  var dateInputWindow = HtmlService.createHtmlOutput(`
+    <html>
+      <head>
+        <base target="_top">
+        <script>
+        function sendDate() {
+          google.script.run.buildDeskScheduleFromDateString(document.getElementById('input-date').value)
+          setTimeout(google.script.host.close, 5000)
+          document.getElementById('button').value="Loading..."
+          document.getElementById('button').disable="true"
+          }
+          function initValue(){
+            document.getElementById('input-date').valueAsDate = new Date()
+          }
+        </script>
+      </head>
+      <body style="text-align: center" onload="initValue()">
+      <br>
+      <input type="date" id="input-date" style="font-size: 1.2em; padding: 5px; text-align: center"/>
+      <br>
+      <input type="button" id="button" class="button" value="generate schedule" style="font-size: 1em; padding: 4px; margin: 12px 0px;"
+      onclick="sendDate()">
+      </body>
+    </html>
+    `).setWidth(320).setHeight(128)
+  SpreadsheetApp.getUi().showModelessDialog(dateInputWindow, "Input date for new schedule")
 }
 
 function buildDeskScheduleFromDateString(dateString){
@@ -284,6 +249,7 @@ class DeskSchedule{
   logDeskDataRecord = []
   defaultStations = {undefined: "undefined", off:"Off", available:"Available", programMeeting:"Program/Meeting", mealBreak:"Meal/Break"}
   durationTypes = {alwaysWhileOpen: "Always while open", xHoursPerDay: "For X hours per day total", xHoursPerStaff: "For X hours per day for each staff"}
+  limitTypes = {specificTime: "Specific Time", xyHoursAfterOpen: "X to Y hours after open", xyHoursBeforeClose: "X to Y hours before close"}
   positionHierarchy: {id:number,name:string, group?:string,picDurationMax?:number}[]
   openingDuties: Duty[] = []
   closingDuties: Duty[] = []
@@ -307,17 +273,17 @@ class DeskSchedule{
     this.closingDuties = settings.closingDuties?.map(d=>new Duty(d.title, undefined, d.requirePic))
     
     settings.stations.forEach(s => {
-      let limitToStartTime: Date
-      if (!Number.isNaN(s.limitToStartTime)){
-        limitToStartTime = new Date(date)
-        limitToStartTime.setHours(s.limitToStartTime, s.limitToStartTime%1*60)
-      }
-      let limitToEndTime: Date
-      if (!Number.isNaN(s.limitToEndTime)){
-        limitToEndTime = new Date(date)
-        limitToEndTime.setHours(s.limitToEndTime, s.limitToEndTime%1*60)
-      }
-      this.stations.push(new Station(s.name,s.color,s.numOfStaff, s.positionPriority.split(', ').filter(str=>/\S/.test(str)),s.durationType,Number.isNaN(s.duration)?settings.assignmentLength:s.duration,limitToStartTime,limitToEndTime,s.group))
+      this.stations.push(new Station(
+        s.name,
+        s.color,
+        s.numOfStaff,
+        s.positionPriority.split(', ').filter(str=>/\S/.test(str)),
+        Number.isNaN(s.duration)?settings.assignmentLength:s.duration,
+        s.durationType || this.durationTypes.alwaysWhileOpen,
+        s.limitToStartTime,
+        s.limitToEndTime,
+        s.limitType || this.limitTypes.specificTime,
+        s.group))
     });
     [ //add required stations if they don't already exist
       new Station(this.defaultStations.undefined, `#cccccc`),
@@ -587,12 +553,9 @@ class DeskSchedule{
             if(e.startTime<this.dayStartTime) this.dayStartTime = e.startTime
             if(e.endTime>this.dayEndTime)     this.dayEndTime = e.endTime
           }
-          // else{
-          //   e.startTime = s.startTime
-          //   e.endTime = s.endTime
-          // }
         })
-    } 
+      }
+    if(settings.earliestDisplayTime > this.dayStartTime) this.dayStartTime = settings.earliestDisplayTime
   })
 
   if(this.shifts.length<1) this.ui.alert('No shifts found for today, and no closure marked in WIW. If the branch is closed today, that day should have a closure annotation in WIW.')
@@ -1048,30 +1011,76 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
     }
   }
   
+  HhFloatToTime(number: number){ //converst float number 0-24 to date
+    let date = new Date(this.date.getTime())
+    if (!Number.isNaN(number)){
+      date.setHours(number, number%1*60)
+    } else console.error(number, 'is not a number and cant be converted into time')
+    return date
+  }
+
   assignmentEligibilityCheck(shift: Shift, station: Station, time: Date){
+
+    //add one second to make inRange checks exclusive at hight end
+    let timePlusOneSec = new Date(time)
+    timePlusOneSec.setSeconds(1)
+
     let stationCount = this.getStationCountAtTime(station.name, time)
     let currentStation = shift.getStationAtTime(time)
-    if (
+
+    if (  //check if unassigned, not in training, and under station count
       currentStation.name == this.defaultStations.undefined
       && !shift.tags.includes("In training (do not assign to stations)")
       && stationCount<station.numOfStaff
-      && (time >= station.limitToStartTime || !station.limitToStartTime)
-      && (time < station.limitToEndTime || !station.limitToEndTime)
-      ){
+    ){/*continue*/} else return false
 
-      if (station.durationType == this.durationTypes.alwaysWhileOpen)
-      return true
-    
-      else if (
-        station.durationType == this.durationTypes.xHoursPerDay
-        && this.getTotalStationCountAllStaff(station.name, time) < station.duration
-      )return true
+    let withinLimit = false
 
-      else if (
-        station.durationType == this.durationTypes.xHoursPerStaff
-        && this.getTotalStationCount(shift, station.name, time) < station.duration
-      )return true
-    }
+  //check if within limit
+    if (
+      station.limitType == this.limitTypes.specificTime
+      && (time >= this.HhFloatToTime(station.limitToStartTime) || !station.limitToStartTime)
+      && (time < this.HhFloatToTime(station.limitToEndTime) || !station.limitToEndTime)
+    ) withinLimit = true
+
+    let startTimeFromOpen = new Date(this.settings.openHours.open)
+    let endTimeFromOpen = new Date(this.settings.openHours.open)
+    startTimeFromOpen.addTime(0, station.limitToStartTime*60)
+    endTimeFromOpen.addTime(0, station.limitToEndTime*60)
+
+    if (
+      (station.limitType == this.limitTypes.xyHoursAfterOpen || station.limitType == undefined)
+      && (time >= startTimeFromOpen || !station.limitToStartTime)
+      && (time < endTimeFromOpen || !station.limitToEndTime)
+    ) withinLimit = true
+
+    let startTimeFromClose = new Date(this.settings.openHours.close)
+    let endTimeFromClose = new Date(this.settings.openHours.close)
+    startTimeFromClose.addTime(0, -Math.abs(station.limitToStartTime*60))
+    endTimeFromClose.addTime(0, -Math.abs(station.limitToEndTime*60))
+
+    if (
+      (station.limitType == this.limitTypes.xyHoursBeforeClose || station.limitType == undefined)
+      && (time >= startTimeFromClose || !station.limitToStartTime)
+      && (time < endTimeFromClose || !station.limitToEndTime)
+    ) withinLimit = true
+
+    if(withinLimit){/*continue*/} else return false
+
+  //check if within duration
+    if (station.durationType == this.durationTypes.alwaysWhileOpen)
+    return true
+  
+    else if (
+      station.durationType == this.durationTypes.xHoursPerDay
+      && this.getTotalStationCountAllStaff(station.name, time) < station.duration
+    )return true
+
+    else if (
+      station.durationType == this.durationTypes.xHoursPerStaff
+      && this.getTotalStationCount(shift, station.name, time) < station.duration
+    )return true
+
     return false
   }
 
@@ -1377,10 +1386,11 @@ class Station{
   color: ColorHex
   numOfStaff: number
   positionPriority: string[]
-  durationType: string
   duration: number
-  limitToStartTime: Date
-  limitToEndTime: Date
+  durationType: string
+  limitToStartTime: number
+  limitToEndTime: number
+  limitType: string
   group: string
   
   constructor(
@@ -1388,10 +1398,11 @@ class Station{
     color: ColorHex = `#ffffff`,
     numOfStaff = 1,
     positionPriority: string[] = [], //position[] when implemented
-    durationType: string = "Always",
     duration: number = 0,
-    limitToStartTime: Date = undefined,
-    limitToEndTime: Date = undefined,
+    durationType: string = undefined,
+    limitToStartTime: number = undefined,
+    limitToEndTime: number = undefined,
+    limitType: string = undefined,
     group: string = ""
   ){
     this.name = name
@@ -1402,6 +1413,7 @@ class Station{
     this.duration = duration
     this.limitToStartTime = limitToStartTime
     this.limitToEndTime = limitToEndTime
+    this.limitType = limitType
     this.group = group
   }
 }
@@ -1753,7 +1765,17 @@ function log(arg?:any){
 }
 
 class Settings{
-  stations: {color:ColorHex,name:string,group:string,positionPriority:string,durationType:string,limitToStartTime:number, limitToEndTime:number, duration:number, numOfStaff:number}[]
+  stations: {
+    color:ColorHex,
+    name:string,
+    group:string,
+    positionPriority:string,
+    duration:number,
+    durationType:string,
+    limitToStartTime:number,
+    limitToEndTime:number,
+    limitType:string,
+    numOfStaff:number}[]
   locationID: number
   googleCalendarID: string
   alwaysShowAssistantBranchManager: boolean
@@ -1770,6 +1792,7 @@ class Settings{
   mealBreakLength: number
   idealMealTimePlusMinusHours: number
   openHours: {open:Date,close:Date}
+  earliestDisplayTime: Date
   onlyGenerateAvailabilityAndEvents: boolean
   generatePicAssignments: boolean
   addNamesToEvents: boolean
@@ -1801,7 +1824,8 @@ function loadSettings(deskSchedDate: Date): Settings {
     "durationType":line[5],
     "limitToStartTime":parseFloat(line[6]),
     "limitToEndTime":parseFloat(line[7]),
-    "numOfStaff":parseInt(line[8])
+    "limitType":line[8],
+    "numOfStaff":parseInt(line[9])
   }))
   let startRow = 0
   for (let j=0; j<settingsSheetAllData.length; j++){
@@ -1846,6 +1870,12 @@ function loadSettings(deskSchedDate: Date): Settings {
   settings.openHours = {open:new Date(deskSchedDate), close:new Date(deskSchedDate)}
   settings.openHours.open.setHours(openString, Math.round((openString-Math.floor(openString))*60))
   settings.openHours.close.setHours(closeString, Math.round((closeString-Math.floor(closeString))*60))
+
+  if(!isNaN(parseFloat(settings.earliestDisplayTime))){ //if setting is a number, convert to datetime
+    let float = settings.earliestDisplayTime
+    settings.earliestDisplayTime = new Date(deskSchedDate)
+    settings.earliestDisplayTime.setHours(float, float%1*60)
+  }
   
   if (settings.verboseLog) console.log("settings loaded from sheet:\n"+JSON.stringify(settings))
 
@@ -2098,6 +2128,10 @@ function isNumeric(str: string) { //https://stackoverflow.com/questions/175739/h
   if (typeof str != "string") return false // we only process strings!  
   return !isNaN(Number(str)) && // use type coercion to parse the _entirety_ of the string (`parseFloat` alone does not do this)...
          !isNaN(parseFloat(str)) // ...and ensure strings of whitespace fail
+}
+
+function inRange(x, rangeStart, rangeEnd) { //check if input is between two numbers, regardless of which number is greater than the other
+    return ((x-rangeStart)*(x-rangeEnd) <= 0);
 }
 
 //performance log - when func is called, outputs amount of time since it was last called
