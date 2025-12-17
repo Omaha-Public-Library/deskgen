@@ -46,6 +46,27 @@ Stations are the tasks that staff are assigned throughout their shifts. These ar
 
 The order in which stations are listed indicates their priority. If you only have three staff scheduled at a given time, and there are five stations in the list which they're eligible for, staff will be assigned only to the first three.
 
+### Station advanced rule examples
+
+To create more specific rules about station assignment, you can create **multiple lines for the same station with different rules**.
+For example, if you want to assign a duty at the start AND end of every day, you can create one line for that duty limited to the first hour of the day, and another for the same duty limited to the last hour:
+   
+| Station Name | ... | Start | End | Limit Type                |
+|--------------|-----|-------|-----|---------------------------|
+| Pull List    |     | 0     | 1   | X to Y hours after open   |
+| Pull List    |     | 1     | 0   | X to Y hours before close |
+
+Or, if you wanted to assign a second person to a station only after all other stations were covered, you could create one line for the station at the top of the priority list, and another at the bottom of the list after those other stations:
+
+| Station Name    | ... | # of Staff |
+|-----------------|-----|------------|
+| Front Desk      |     | 1          |
+| Children's Desk |     | 1          |
+| Phones          |     | 1          |
+| Front Desk      |     | 1          |
+
+Here, the Front Desk will only have on staff assigned to it, unless there are enough staff available to cover the Children's Desk and Phones, then a second staff will be assigned to the Front Desk.
+
  ## Archiving
 Past desk schedules are automatically moved to a separate archive spreadsheet linked in SETTINGS. Yesterday's desk schedule can be found in the main desk schedule under hidden sheets (bottom left ≡ icon). Desk Schedules older than yesterday can be found in the archive.
 

@@ -31,8 +31,6 @@ pictimeline won't defrag if no one is available (sundays,half hour where all sta
 
 gcal event hover isn't working on non-scheduled user events in bottom cell (but timeline is?) GEN 11.13.25
 
-for x hours after open, before close... +1, -1
-
 when events are scheduled before open, timeline breaks - Swanson 12/8
 
 delete archived sheets at certain age?

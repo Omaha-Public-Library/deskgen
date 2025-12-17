@@ -490,6 +490,14 @@ class DeskSchedule{
           idealMealTime = new Date(this.date)
           idealMealTime.setHours(hour, Math.round((hour-Math.floor(hour))*60))
         }
+
+        let tags = wiwTags.map(tagObj=>tagObj.name)
+
+        let positionGroup
+        if(settings.groupPicsAtTop && tags.includes('PIC')){
+          positionGroup = 'PIC'
+        }
+        else positionGroup = this.positionHierarchy.filter(obj=>obj.id == wiwUserObj.positions[0])[0].group || 'unknown position group'
         
         this.shifts.push(new Shift(
           this,
@@ -502,8 +510,8 @@ class DeskSchedule{
           idealMealTime,
           false,
           this.getHighestPosition(wiwUserObj.positions).id,
-          this.positionHierarchy.filter(obj=>obj.id == wiwUserObj.positions[0])[0].group || 'unknown position group',
-          wiwTags.map(tagObj=>tagObj.name),
+          positionGroup,
+          tags,
         ))
       }
     })
@@ -710,6 +718,12 @@ sortShiftsByNameAlphabetically() {
 sortShiftsForDisplay(){
   this.sortShiftsByNameAlphabetically()
   this.sortShiftsByPositionHiearchyAsc()
+  if (this.settings.groupPicsAtTop) this.sortShiftsByPicStatus()
+}
+sortShiftsByPicStatus(){
+  this.shifts.sort((shiftA:Shift,shiftB:Shift)=>
+    (shiftA.isPIC === shiftB.isPIC) ? 0 : shiftA.isPIC? -1 : 1
+  )
 }
 sortShiftsByUserPositionPriority(positionPriority: string[]) {
   if (positionPriority.length<2) {
@@ -976,16 +990,16 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
         // log("sort by amount of time total at station, as ratio of shift length")
         // this.shifts.sort((shiftA, shiftB)=>{
         //   let aTotalStationTime = shiftA.countTotalTimeAtStation(station.name, prevTime)
-        //   let aRatioOfShiftAtStation = aTotalStationTime/shiftA.getLength()
+          // let aRatioOfShiftAtStation = aTotalStationTime/shiftA.durationInHours
           
         //   let bTotalStationTime = shiftB.countTotalTimeAtStation(station.name, prevTime)
-        //   let bRatioOfShiftAtStation = bTotalStationTime/shiftB.getLength()
+        //   let bRatioOfShiftAtStation = bTotalStationTime/shiftB.durationInHours
           
         //   // console.log(`at ${time.getTimeStringHHMM24()}, ${shiftA.name} has been ${station.name} for ${aTotalStationTime} hours and ${aRatioOfShiftAtStation} of shift.`)
           
         //   return aRatioOfShiftAtStation - bRatioOfShiftAtStation
         // })
-        // console.log(time.getTimeStringHHMM24()+' '+station.name+'\n', this.shifts.map(shift=>shift.name.substring(0,3)+': '+shift.countTotalTimeAtStation(station.name, prevTime)+', '+Math.round(shift.countTotalTimeAtStation(station.name, prevTime)/shift.getLength()*100)+'%').join('\n'))
+        // console.log(time.getTimeStringHHMM24()+' '+station.name+'\n', this.shifts.map(shift=>shift.name.substring(0,3)+': '+shift.countTotalTimeAtStation(station.name, prevTime)+', '+Math.round(shift.countTotalTimeAtStation(station.name, prevTime)/shift.durationInHours*100)+'%').join('\n'))
       
         // this.sortShiftsByWhetherAssignmentLengthReached(station.name, time)
         
@@ -1157,7 +1171,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
       //Assign top result to PIC
       for(const shift of this.shifts){
         if(shift.getStationAtTime(time).name!=this.defaultStations.off
-      && shift.tags.includes('PIC')){
+      && shift.isPIC){
           shift.setPicStatusAtTime(true, time)
           break
         }
@@ -1260,7 +1274,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
         let duty = this.openingDuties[i]
         if(duty.requirePic){
           openingStaffShifts.every(shift=>{
-            if (shift.tags.includes('PIC')){
+            if (shift.isPIC){
               //move first PIC shift in array to front of assignment queue
               openingStaffShifts.sort((shiftA, shiftB)=>shiftA.user_id==shift.user_id ? -1 : shiftB.user_id==shift.user_id ? 1 : 0)
               return false //exit every loop
@@ -1268,7 +1282,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
           })
         }
         //assign staff at front of assignment queue
-        duty.staffName = openingStaffShifts[0]==undefined ? "" : openingStaffShifts[0].name + (openingStaffShifts[0].tags.includes('PIC')?'*':'')
+        duty.staffName = openingStaffShifts[0]==undefined ? "" : openingStaffShifts[0].name + (openingStaffShifts[0].isPIC?'*':'')
         //move staff to end of assignment queue
         openingStaffShifts.sort((shiftA, shiftB)=>{
           return shiftA.user_id==openingStaffShifts[0].user_id ? 1 : shiftB.user_id==openingStaffShifts[0].user_id ? -1 : 0
@@ -1296,7 +1310,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
         let duty = this.closingDuties[i]
         if(duty.requirePic){
           closingStaffShifts.every(shift=>{
-            if (shift.tags.includes('PIC')){
+            if (shift.isPIC){
               //move first PIC shift in array to front of assignment queue
               closingStaffShifts.sort((shiftA, shiftB)=>shiftA.user_id==shift.user_id ? -1 : shiftB.user_id==shift.user_id ? 1 : 0)
               return false //exit every loop
@@ -1304,7 +1318,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
           })
         }
         //assign staff at front of assignment queue
-        duty.staffName = closingStaffShifts[0]==undefined ? "" : closingStaffShifts[0].name + (closingStaffShifts[0].tags.includes('PIC')?'*':'')
+        duty.staffName = closingStaffShifts[0]==undefined ? "" : closingStaffShifts[0].name + (closingStaffShifts[0].isPIC?'*':'')
         //move staff to end of assignment queue
         closingStaffShifts.sort((shiftA, shiftB)=>{
           return shiftA.user_id==closingStaffShifts[0].user_id ? 1 : shiftB.user_id==closingStaffShifts[0].user_id ? -1 : 0
@@ -1490,8 +1504,12 @@ class Shift{
     this.stationTimeline = stationTimeline
     this.picTimeline = picTimeline
   }
+
+  get isPIC():boolean{
+    return this.tags.includes('PIC')
+  }
   
-  getLength():number{
+  get durationInHours():number{
     return (this.endTime.getTime() - this.startTime.getTime()) / (1000 * 60 * 60)
   }
   
@@ -1766,6 +1784,30 @@ function log(arg?:any){
 }
 
 class Settings{
+  onlyGenerateAvailabilityAndEvents: boolean
+  defragPrePass: boolean
+  changeOnTheHour: boolean
+  generatePicAssignments: boolean
+  groupPicsAtTop: boolean
+  assignmentLength: number
+  mealBreakLength: number
+  idealEarlyMealHour: number
+  idealLateMealHour: number
+  idealMealTimePlusMinusHours: number
+  addNamesToEvents: boolean
+  alwaysShowBranchManager: boolean
+  alwaysShowAssistantBranchManager: boolean
+  alwaysShowAllStaff: boolean
+  openHours: {open:Date,close:Date}
+  earliestDisplayTime: Date
+  locationID: number
+  googleCalendarID: string
+  archiveSheetURL: string
+  verboseLog: boolean
+
+  openingDuties: any
+  closingDuties: any
+
   stations: {
     color:ColorHex,
     name:string,
@@ -1777,27 +1819,6 @@ class Settings{
     limitToEndTime:number,
     limitType:string,
     numOfStaff:number}[]
-  locationID: number
-  googleCalendarID: string
-  alwaysShowAssistantBranchManager: boolean
-  alwaysShowBranchManager: boolean
-  alwaysShowAllStaff: boolean
-  changeOnTheHour: boolean
-  defragPrePass: boolean
-  assignmentLength: number
-  openingDuties: any
-  closingDuties: any
-  verboseLog: boolean
-  idealEarlyMealHour: number
-  idealLateMealHour: number
-  mealBreakLength: number
-  idealMealTimePlusMinusHours: number
-  openHours: {open:Date,close:Date}
-  earliestDisplayTime: Date
-  onlyGenerateAvailabilityAndEvents: boolean
-  generatePicAssignments: boolean
-  addNamesToEvents: boolean
-  archiveSheetURL: string
 }
 
 function loadSettings(deskSchedDate: Date): Settings {
