@@ -1,6 +1,529 @@
-<form>
-    <fieldset>
-        <legend>Settings</legend>
-        <input type="checkbox" name="">
-    </fieldset>
-</form>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>deskgen settings</title>
+  <style>
+    div {
+      margin: 16px
+    }
+
+    ul {
+      list-style-type: none;
+    }
+
+    #dutyLists>ul {
+      padding: 0;
+    }
+
+    table {
+      text-align: left;
+      border-collapse: collapse;
+    }
+
+    table, th{
+      border: 1px solid black;
+    }
+    td {
+      border-left: 1px solid black;
+      border-right: 1px solid black;
+    }
+
+    #stations tr>td:first-of-type,
+    #stations tr>th:first-of-type {
+      background-color: white;
+      border: 1px solid white;
+      border-right: 1px solid black;
+    }
+
+    #stations tr>td:last-of-type,
+    #stations tr>th:last-of-type {
+      background-color: white;
+      border: 1px solid white;
+      border-left: 1px solid black;
+    }
+
+    tbody tr:nth-child(even) {
+      background-color: #e4e4e4;
+    }
+
+    td,
+    th {
+      width: 1px;
+      white-space: nowrap;
+      padding: 4px;
+    }
+
+    td>input {
+      width: calc(100% - 8px);
+    }
+
+    .handle {
+      cursor: grab;
+      font-style: normal;
+    }
+
+    /* .handle:before {
+            content: "\f0b2";
+        } */
+    .template {
+      display: none;
+    }
+
+    .hidden-list {
+      display: none;
+      padding: 0;
+      cursor: grab;
+    }
+
+    .hideList {
+      display: none;
+    }
+
+    .buttonRemove:hover {
+      background-color: #da321c;
+      color: white;
+    }
+
+    #kvSettings {
+      text-align: left;
+    }
+  </style>
+  <script src="https://rawgit.com/rubaxa/Sortable/master/Sortable.js"></script>
+  <!-- <script type="module" src="./sortablejs/modular/sortable.complete.esm.js">import Sortable from './sortablejs/modular/sortable.complete.esm.js'</script> -->
+</head>
+
+<body>
+  <!-- <form action=""> -->
+  <div id="settings">
+    <h3>Settings</h3>
+    <table id="kvSettings">
+      <tr class="template"><td>template</td><td><input type="text" id="template"></td></tr>
+      <!-- <tr><td>assignstations</td><td><input type="checkbox" id="assignStations"></td></tr>
+      <tr><td>defragprepass</td><td><input type="checkbox" id="defragPrePass"></td></tr>
+      <tr><td>changeOnTheHour</td><td><input type="checkbox" id="changeOnTheHour"></td></tr>
+      <tr><td>generatePicAssignments</td><td><input type="checkbox" id="generatePicAssignments"></td></tr>
+      <tr><td>groupPicsAtTop</td><td><input type="checkbox" id="groupPicsAtTop"></td></tr>
+      <tr><td>assignmentLength</td><td><input type="number" id="assignmentLength"></td></tr>
+      <tr><td>mealBreakLength</td><td><input type="number" id="mealBreakLength"></td></tr>
+      <tr><td>idealEarlyMealHour</td><td><input type="time" value="12:00" id="idealEarlyMealHour"></td></tr>
+      <tr><td>idealLateMealHour</td><td><input type="time" value="17:00" id="idealLateMealHour"></td></tr>
+      <tr><td>idealMealTimePlusMinusHours</td><td><input type="number" id="idealMealTimePlusMinusHours"></td></tr>
+      <tr><td>addNamesToEvents</td><td><input type="checkbox" id="addNamesToEvents"></td></tr>
+      <tr><td>alwaysShowBranchManager</td><td><input type="checkbox" id="alwaysShowBranchManager"></td></tr>
+      <tr><td>alwaysShowAssistantBranchManager</td><td><input type="checkbox" id="alwaysShowAssistantBranchManager"></td></tr>
+      <tr><td>alwaysShowAllStaff</td><td><input type="checkbox" id="alwaysShowAllStaff"></td></tr>
+      <tr><td>earliestDisplayTime</td><td><input type="time" value="08:30" id="earliestDisplayTime"></td></tr>
+      <tr><td>locationID</td><td><input type="text" id="locationID"></td></tr>
+      <tr><td>googleCalendarID</td><td><input type="text" id="googleCalendarID"></td></tr>
+      <tr><td>verboseLog</td><td><input type="checkbox" id="verboseLog"></td></tr>
+      <tr><td>archiveSheetURL</td><td><input type="text" id="archiveSheetURL"></td></tr> -->
+    </table>
+
+    <h3>Open Hours</h3>
+    <table id="openHours">
+      <tr>
+        <th></th>
+        <th>Open</th>
+        <th>Close</th>
+      </tr>
+      <tr><td>Sunday</td><td><input type="time" value="12:00"></td><td><input type="time" value="12:00"></td></tr>
+      <tr><td>Monday</td><td><input type="time" value="12:00"></td><td><input type="time" value="12:00"></td></tr>
+      <tr><td>Tuesday</td><td><input type="time" value="12:00"></td><td><input type="time" value="12:00"></td></tr>
+      <tr><td>Wednesday</td><td><input type="time" value="12:00"></td><td><input type="time" value="12:00"></td></tr>
+      <tr><td>Thursday</td><td><input type="time" value="12:00"></td><td><input type="time" value="12:00"></td></tr>
+      <tr><td>Friday</td><td><input type="time" value="12:00"></td><td><input type="time" value="12:00"></td></tr>
+      <tr><td>Saturday</td><td><input type="time" value="12:00"></td><td><input type="time" value="12:00"></td></tr>
+    </table>
+
+    <div id="dutyLists">
+      <h3>Duty Lists</h3>
+      <ul>
+        <li class="template">
+          <i class="handle">✥</i>
+          <input type="text" class="title" value="Duties"><button class="buttonRemove">-</button>
+          <ul>
+            <li class="template"><i class="handle">✥</i><input type="text" value=""><button
+                class="buttonRemove">-</button></li>
+            <li><i class="handle">✥</i><input type="text" value=""><button class="buttonRemove">-</button>
+            </li>
+          </ul>
+          <button class="buttonAdd" style="margin-left: 40px;">add duty</button>
+        </li>
+        <li>
+          <i class="handle">✥</i>
+          <input type="text" class="title" value="Opening Duties"><button class="buttonRemove">-</button>
+          <ul>
+            <li class="template"><i class="handle">✥</i><input type="text" value=""><button
+                class="buttonRemove">-</button></li>
+            <li><i class="handle">✥</i><input type="text" value="Book drop"><button class="buttonRemove">-</button></li>
+            <li><i class="handle">✥</i><input type="text" value="Computers"><button class="buttonRemove">-</button></li>
+            <li><i class="handle">✥</i><input type="text" value="Holds"><button class="buttonRemove">-</button></li>
+          </ul>
+          <button class="buttonAdd" style="margin-left: 40px;">add duty</button>
+        </li>
+        <li>
+          <i class="handle">✥</i>
+          <input type="text" class="title" value="Closing Duties"><button class="buttonRemove">-</button>
+          <ul>
+            <li class="template"><i class="handle">✥</i><input type="text" value=""><button
+                class="buttonRemove">-</button></li>
+            <li><i class="handle">✥</i><input type="text" value="Curbsclasse"><button class="buttonRemove">-</button>
+            </li>
+            <li><i class="handle">✥</i><input type="text" value="Print Desk Schedule"><button
+                class="buttonRemove">-</button></li>
+            <li><i class="handle">✥</i><input type="text" value="Toy Cleaning"><button class="buttonRemove">-</button>
+            </li>
+          </ul>
+          <button class="buttonAdd" style="margin-left: 40px;">add duty</button>
+        </li>
+      </ul>
+      <button class="buttonAdd">add list</button>
+    </div>
+
+    <div id="stations">
+      <h3>Stations</h3>
+      <table>
+        <thead>
+          <tr class="header">
+            <th></th>
+            <th>Color</th>
+            <th>Station Name</th>
+            <th>Group</th>
+            <th>Position Priority</th>
+            <th>Duration Type</th>
+            <th>Duration</th>
+            <th>Limit Type</th>
+            <th>X Hours</th>
+            <th>Y Hours</th>
+            <th>Start Time</th>
+            <th>End Time</th>
+            <th># of Staff</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+
+          <tr class="template">
+            <td><i class="handle">✥</i></td>
+            <td id="color"><input type="color" value="#6aa84f"></td>
+            <td id="name"><input type="text" value="Front Desk"></td>
+            <td id="group"><input type="text" value=""></td>
+            <td id="positionPriority">
+              <button class="hideList">save</button>
+              <button class="expandList">edit...</button>
+              <ul class="hidden-list">
+                <li class="template"><i class="handle">✥</i><input type="checkbox" checked><span>template</span></li>
+                <li><i class="handle">✥</i><input type="checkbox" checked><span>Aide</span></li>
+                <li><i class="handle">✥</i><input type="checkbox" checked><span>Part-Time Clerk II</span></li>
+                <li><i class="handle">✥</i><input type="checkbox" checked><span>Clerk II</span></li>
+                <li><i class="handle">✥</i><input type="checkbox" checked><span>Senior Clerk</span></li>
+                <li><i class="handle">✥</i><input type="checkbox" checked><span>Part-Time Associate Specialist</span></li>
+                <li><i class="handle">✥</i><input type="checkbox" checked><span>Associate Specialist</span></li>
+                <li><i class="handle">✥</i><input type="checkbox" checked><span>Part-Time Specialist</span></li>
+                <li><i class="handle">✥</i><input type="checkbox" checked><span>Specialist</span></li>
+                <li><i class="handle">✥</i><input type="checkbox" checked><span>Assistant Branch Manager</span></li>
+                <li><i class="handle">✥</i><input type="checkbox" checked><span>Branch Manager</span></li>
+              </ul>
+            </td>
+            <td id="durationType">
+              <select>
+                <option>Always while open</option>
+                <option>For X hours per day total</option>
+                <option>For X hours per day for each staff</option>
+              </select>
+            </td>
+            <td id="duration"><input type="number" value="1.5"></td>
+            <td id="limitType">
+              <select>
+                <option>Specific Time</option>
+                <option>X to Y hours after open</option>
+                <option>X to Y hours before close</option>
+              </select>
+            </td>
+            <td id="limitXHours"><input type="number" value=""></td>
+            <td id="limitYHours"><input type="number" value=""></td>
+            <td id="limitToStartTime"><input type="time"></td>
+            <td id="limitToEndTime"><input type="time"></td>
+            <td id="numOfStaff"><input type="number" value=""></td>
+            <td><button class="buttonCopy">copy</button><button class="buttonRemove">-</button></td>
+          </tr>
+
+        </tbody>
+      </table>
+      <button class="buttonAdd">add</button>
+    </div>
+  </div>
+
+  <button onclick="exportSettings()">Save settings</button>
+
+  <script>
+
+    document.getElementById("dutyLists").onclick = function (event) {
+      console.log(event.target.classList)
+
+      if (event.target.classList.contains("buttonAdd")) {
+        let dutysContainer = event.target.parentNode
+        console.log(dutysContainer)
+        let list = dutysContainer.querySelector("ul")
+        console.log(list)
+        list.appendChild(dutysContainer.querySelector(".template").cloneNode(true)).classList.remove("template")
+      }
+      if (event.target.classList.contains("buttonRemove")) {
+        event.target.parentNode.remove()
+      }
+    }
+
+    document.getElementById("stations").onclick = function (event) {
+      if (event.target.classList.contains("expandList")) {
+        event.target.parentNode.querySelector("ul").style.display = "block"
+        event.target.parentNode.querySelector(".hideList").style.display = "block"
+        event.target.parentNode.querySelector(".expandList").style.display = "none"
+      }
+      if (event.target.classList.contains("hideList")) {
+        event.target.parentNode.querySelector("ul").style.display = "none"
+        event.target.parentNode.querySelector(".hideList").style.display = "none"
+        event.target.parentNode.querySelector(".expandList").style.display = "block"
+      }
+      if (event.target.classList.contains("buttonAdd")) {
+        let stationsContainer = event.target.parentNode
+        console.log(stationsContainer)
+        let list = stationsContainer.querySelector("table tbody")
+        console.log(list)
+        let newStation =stationsContainer.querySelector(".template").cloneNode(true)
+        list.appendChild(newStation)
+        Sortable.create(newStation.querySelector("ul"), {
+          //handle: '.handle', // handle's class
+          animation: 150,
+        })
+        newStation.classList.remove("template")
+      }
+      if (event.target.classList.contains("buttonRemove")) {
+        event.target.parentNode.parentNode.remove()
+      }
+      if (event.target.classList.contains("buttonCopy")) {
+        let station = event.target.parentNode.parentNode
+        let stationsContainer = station.parentNode
+        station.insertAdjacentElement("beforebegin", station.cloneNode(true))
+      }
+    }
+
+    let dutyLists = document.querySelector("#dutyLists ul")
+    Sortable.create(dutyLists, {
+      handle: '.handle', // handle's class
+      animation: 150
+    })
+    Array.from(dutyLists.children).forEach(dutyList => {
+      Sortable.create(dutyList.querySelector("ul"), {
+        handle: '.handle', // handle's class
+        animation: 150,
+        group: 1
+      })
+    })
+    let stationList = document.querySelector("#stations table tbody")
+    Sortable.create(stationList, {
+      handle: '.handle', // handle's class
+      animation: 150
+    })
+    Array.from(stationList.children).forEach(station => {
+      Sortable.create(stationList.querySelector("ul"), {
+        //handle: '.handle', // handle's class
+        animation: 150,
+      })
+    })
+
+    function exportSettings(){
+      let settings = {}
+      let kvSettings = document.getElementById("kvSettings")
+      let openHoursSettings = document.getElementById("openHours")
+      let dutyContainer = document.querySelector("#dutyLists")
+      let stationsSettings = document.getElementById("stations")
+      
+      let kvInputArr = Array.from(kvSettings.querySelectorAll("input"))
+      kvInputArr.forEach(input=>{
+        settings[input.id] = parseInputTypes(input)
+      })
+
+      openHoursObj = Array.from(openHoursSettings.querySelectorAll("tr")).map(tr=>{
+        return {
+          day: tr.querySelector("td")?.innerText,
+          open: parseInputTypes(tr.querySelector("td>input")),
+          close: parseInputTypes(tr.querySelectorAll("td>input")[1])
+        }
+        })
+      openHoursObj.shift()
+      settings.openHours = openHoursObj
+
+      let dutyListsArr = Array.from(document.querySelectorAll("#dutyLists>ul>li"))
+      dutyListsArr.shift()
+      dutyListsArr = dutyListsArr.map(list=>{
+        let dutyList = Array.from(list.querySelectorAll("ul>li"))
+        dutyList.shift()
+        return {
+          title: list.querySelector("input").value,
+          duties: dutyList.map(listItem=>listItem.querySelector("input").value)
+        }
+      })
+      settings.dutyLists = dutyListsArr
+
+      stationsTrArr = Array.from(stationsSettings.querySelectorAll("tr")).filter(tr=>!tr.classList.contains("header") && !tr.classList.contains("template"))
+      let stationsArr = stationsTrArr.map(tr=>{
+        return Array.from(tr.querySelectorAll("td")).filter(td=>td.id != undefined).map(td=>{
+          if(td.id=="positionPriority"){
+            let key = td.id
+            let value = Array.from(td.querySelectorAll("ul>li")).filter(li=>!li.classList.contains("template")).map(li=>{
+              let title = li.querySelector("span").innerText
+              let enabled = li.querySelector("input")?.checked ? true : false
+              return {title:title, enabled:enabled}
+            })
+            return [key, value]
+          }
+
+          let key = td.id
+          let value = parseInputTypes(td.querySelector("input, select"))
+          return [key, value]
+        })
+      })
+      settings.stations = stationsArr.map(station=>Object.fromEntries(station))
+
+      console.log(settings)
+
+      function parseInputTypes(input){
+        if (input == undefined) return undefined
+        let val = undefined
+        if(input.type == "checkbox") val = input.checked
+        else if(input.type == "number") val = isNaN(input.valueAsNumber) ? undefined : input.valueAsNumber
+        else if(input.type == "text" || input.value==="") val = input.value
+        else if(input.type == "time" && input.value.includes(':')) val = new Date(2000, 0, 1, input.value.split(':')[0], input.value.split(':')[1], 0, 0)
+        else val = input.value
+        if (val === "") val = undefined
+        return val
+      }
+    }
+
+    function loadSettings(settings){
+    //keyvalue settings
+      let kvSettingsTable = document.getElementById("kvSettings")
+      Array.from(kvSettingsTable.querySelectorAll("tr")).forEach(tr=>{
+        if (!tr.classList.contains("template")) tr.remove()
+      })
+      kvSettings = Object.entries(settings).filter(setting => 
+      setting[0] != "openHours"
+      && setting[0] != "stations"
+      && setting[0] != "dutyLists"
+      )
+      kvSettings.forEach(kv=>{
+        let key = kv[0]
+        let val = kv[1]
+        let tr = kvSettingsTable.querySelector(".template").cloneNode(true)
+        tr.classList.remove("template")
+        tr.querySelector("td").innerText = key
+        initInput(tr.querySelector("td input"), key, val)
+        kvSettingsTable.querySelector("tbody").appendChild(tr)
+      })
+
+    //openHours
+      let openHoursArr = Array.from(document.getElementById("openHours").querySelectorAll("tr"))
+      openHoursArr.shift()
+      openHoursArr.forEach((tr, i)=>{
+        tr.querySelector("input").value = inputValParse(settings.openHours[i].open)
+        tr.querySelectorAll("input")[1].value = inputValParse(settings.openHours[i].close)
+      })
+
+    //dutyLists
+      let dutyListsEl = document.querySelectorAll("#dutyLists>ul>li")
+      Array.from(dutyListsEl).forEach(el=>{
+        if (!el.classList.contains("template")) el.remove()
+      })
+      let dutyListTempalte = document.querySelector("#dutyLists>ul>.template")
+      settings.dutyLists.forEach(dutyList=>{
+        let newList = dutyListTempalte.cloneNode(true)
+        Array.from(newList.querySelectorAll("li")).forEach(el=>{
+        if (!el.classList.contains("template")) el.remove()
+        })
+        newList.classList.remove("template")
+        let liTemplate = newList.querySelector(".template")
+        newList.querySelector("input").value = dutyList.title
+        dutyList.duties.forEach(duty=>{
+          let newLi = liTemplate.cloneNode(true)
+          newLi.classList.remove("template")
+          newLi.querySelector("input").value = duty
+          newList.querySelector("ul").appendChild(newLi)
+        })
+        document.querySelector("#dutyLists>ul").appendChild(newList)
+      })
+
+    //stations
+      let stationsContainer = document.getElementById("stations")
+      let stationsElements = stationsContainer.querySelectorAll("table>tbody>tr")
+      Array.from(stationsElements).forEach(el=>{
+        if (!el.classList.contains("template")) el.remove()
+      })
+      let stationTemplate = stationsContainer.querySelector("table>tbody>.template")
+      settings.stations.forEach(station=>{
+        let newStation = stationTemplate.cloneNode(true)
+        newStation.classList.remove("template")
+        Object.entries(station).forEach(property=>{
+          let key = property[0]
+          let value = property[1]
+          let propertyEl = newStation.querySelector(`#${key}`)
+          console.log(key, propertyEl, value)
+          if(key == "positionPriority"){
+            let positionEls = propertyEl.querySelectorAll("ul>li")
+            Sortable.create(propertyEl.querySelector("ul"), {
+              //handle: '.handle', // handle's class
+              animation: 150,
+            })
+            Array.from(positionEls).forEach(el => {
+              if (!el.classList.contains("template")) el.remove()
+            })
+            let positionTemplate = propertyEl.querySelector("ul>.template")
+            value.forEach(position=>{
+              let newPositionEl = positionTemplate.cloneNode(true)
+              newPositionEl.classList.remove("template")
+              newPositionEl.querySelector("span").innerText = position.title
+              console.log(newPositionEl.querySelector("input"), position.enabled)
+              newPositionEl.querySelector("input").checked = position.enabled
+              console.log(newPositionEl.querySelector("input").value)
+              propertyEl.querySelector("ul").appendChild(newPositionEl)
+            })
+          }
+          else{
+            initInput(propertyEl.querySelector("input, select"), key, value)
+          }
+        })
+        stationsContainer.querySelector("table>tbody").appendChild(newStation)
+      })
+
+      function initInput(input, key, val){
+        if(input.nodeName=="select"){
+          input.value = val
+        }
+        else{
+          input.type = inputTypeFromVal(val)
+          if (input.type == "checkbox") input.checked = val
+          else input.value = inputValParse(val)
+        }
+        input.id = key
+      }
+      function inputTypeFromVal(val){
+        if (typeof val == 'boolean') return "checkbox"
+        if (typeof val == 'number') return "number"
+        if (typeof val.getMonth === 'function' || val.includes(".000Z")) return "time"
+        if (typeof val == 'string' && val[0]=='#') return "color"
+        return "text"
+      }
+      function inputValParse(val){
+        if (typeof val == 'boolean') return val ? "on" : "off"
+        if (typeof val == 'number') return val
+        if (typeof val.getMonth === 'function') return val.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12:false})
+        if (val.includes(".000Z")) return new Date(val).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12:false})
+        return val
+      }
+    }
+  </script>
+</body>
+
+</html>

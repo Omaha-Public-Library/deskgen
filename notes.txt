@@ -1,19 +1,12 @@
 ======== to do ========
-don't display before/after times (like late night events that don't need to be on sched)
-downside - can't see scheduled staff in GCAL when making events... unless, could you use "meet with" to see staff? would they have to import wiw cal?
-more testing for parseDate (12pm noon)
 
 Station gen - want to revisit this later and try less agressive sorting with more neutral 0 outcomes, to prevent last sorts from having outsized impact, OR switch to using a value sorting system where lots of different factors contribute to a single sorting value
 
 should settings be saved in deskschedule? or in history? or properties service?
 
-warning about events scheduled outside shifts?
-
 split shifts merging (reuse function for repeat position merging)
 
 openHours - implement half-hour times
-
-replace WIW annotation closures with gcal for all branch announcements? maybe...but is it useful for managers to have closures in WIW?
 
 megaphone user shown when only events are all day - check and hide user
 
@@ -31,11 +24,19 @@ pictimeline won't defrag if no one is available (sundays,half hour where all sta
 
 gcal event hover isn't working on non-scheduled user events in bottom cell (but timeline is?) GEN 11.13.25
 
-when events are scheduled before open, timeline breaks - Swanson 12/8
-
 delete archived sheets at certain age?
 
 set up dev wiw account for authentication and api requests
+
+warning when not subscribed to gcal
+
+wiw location notes - dt parking
+
+handle overlapping events not assigned to specific staff - stagger across multiple rows
+
+option for any number of lists - probably need to save this for if/when I do...
+
+settings UI - mock up settings ui first
 
 ======== aaron meeting notes ========
 seperate data structure from logic
@@ -78,3 +79,7 @@ what if - before assigning, create a candidate list for each position (or two? p
 
 Could this handle better distribution of time off desk too?
 ====================================================
+
+questions for managers -
+tasks vs stations - should tasks like shelving/delivery be stations or tasks? should it just depend on branch?
+closures - do people want this to be in WIW, gcal, both, neither?
