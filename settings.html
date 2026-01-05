@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -100,17 +99,17 @@
   <div id="settings">
     <h3>Settings</h3>
     <table id="kvSettings">
-      <tr class="template"><td>template</td><td><input type="text" id="template"></td></tr>
-      <!-- <tr><td>assignstations</td><td><input type="checkbox" id="assignStations"></td></tr>
-      <tr><td>defragprepass</td><td><input type="checkbox" id="defragPrePass"></td></tr>
-      <tr><td>changeOnTheHour</td><td><input type="checkbox" id="changeOnTheHour"></td></tr>
-      <tr><td>generatePicAssignments</td><td><input type="checkbox" id="generatePicAssignments"></td></tr>
-      <tr><td>groupPicsAtTop</td><td><input type="checkbox" id="groupPicsAtTop"></td></tr>
-      <tr><td>assignmentLength</td><td><input type="number" id="assignmentLength"></td></tr>
-      <tr><td>mealBreakLength</td><td><input type="number" id="mealBreakLength"></td></tr>
+      <tr class="template"><td>template</td><td><input type="text" class="template"></td></tr>
+      <tr><td>assignStations</td><td><input type="checkbox" id="assignStations" checked></td></tr>
+      <tr><td>defragPrePass</td><td><input type="checkbox" id="defragPrePass" checked></td></tr>
+      <tr><td>changeOnTheHour</td><td><input type="checkbox" id="changeOnTheHour" checked></td></tr>
+      <tr><td>generatePicAssignments</td><td><input type="checkbox" id="generatePicAssignments" checked></td></tr>
+      <tr><td>groupPicsAtTop</td><td><input type="checkbox" id="groupPicsAtTop" checked></td></tr>
+      <tr><td>assignmentLength</td><td><input type="number" id="assignmentLength" value="2"></td></tr>
+      <tr><td>mealBreakLength</td><td><input type="number" id="mealBreakLength" value="0.5"></td></tr>
       <tr><td>idealEarlyMealHour</td><td><input type="time" value="12:00" id="idealEarlyMealHour"></td></tr>
       <tr><td>idealLateMealHour</td><td><input type="time" value="17:00" id="idealLateMealHour"></td></tr>
-      <tr><td>idealMealTimePlusMinusHours</td><td><input type="number" id="idealMealTimePlusMinusHours"></td></tr>
+      <tr><td>idealMealTimePlusMinusHours</td><td><input type="number" id="idealMealTimePlusMinusHours" value="1"></td></tr>
       <tr><td>addNamesToEvents</td><td><input type="checkbox" id="addNamesToEvents"></td></tr>
       <tr><td>alwaysShowBranchManager</td><td><input type="checkbox" id="alwaysShowBranchManager"></td></tr>
       <tr><td>alwaysShowAssistantBranchManager</td><td><input type="checkbox" id="alwaysShowAssistantBranchManager"></td></tr>
@@ -118,8 +117,8 @@
       <tr><td>earliestDisplayTime</td><td><input type="time" value="08:30" id="earliestDisplayTime"></td></tr>
       <tr><td>locationID</td><td><input type="text" id="locationID"></td></tr>
       <tr><td>googleCalendarID</td><td><input type="text" id="googleCalendarID"></td></tr>
+      <tr><td>archiveSheetURL</td><td><input type="text" id="archiveSheetURL"></td></tr>
       <tr><td>verboseLog</td><td><input type="checkbox" id="verboseLog"></td></tr>
-      <tr><td>archiveSheetURL</td><td><input type="text" id="archiveSheetURL"></td></tr> -->
     </table>
 
     <h3>Open Hours</h3>
@@ -129,13 +128,13 @@
         <th>Open</th>
         <th>Close</th>
       </tr>
-      <tr><td>Sunday</td><td><input type="time" value="12:00"></td><td><input type="time" value="12:00"></td></tr>
-      <tr><td>Monday</td><td><input type="time" value="12:00"></td><td><input type="time" value="12:00"></td></tr>
-      <tr><td>Tuesday</td><td><input type="time" value="12:00"></td><td><input type="time" value="12:00"></td></tr>
-      <tr><td>Wednesday</td><td><input type="time" value="12:00"></td><td><input type="time" value="12:00"></td></tr>
-      <tr><td>Thursday</td><td><input type="time" value="12:00"></td><td><input type="time" value="12:00"></td></tr>
-      <tr><td>Friday</td><td><input type="time" value="12:00"></td><td><input type="time" value="12:00"></td></tr>
-      <tr><td>Saturday</td><td><input type="time" value="12:00"></td><td><input type="time" value="12:00"></td></tr>
+      <tr><td>Sunday</td><td><input type="time" value="13:00"></td><td><input type="time" value="17:00"></td></tr>
+      <tr><td>Monday</td><td><input type="time" value="09:00"></td><td><input type="time" value="20:00"></td></tr>
+      <tr><td>Tuesday</td><td><input type="time" value="09:00"></td><td><input type="time" value="20:00"></td></tr>
+      <tr><td>Wednesday</td><td><input type="time" value="09:00"></td><td><input type="time" value="20:00"></td></tr>
+      <tr><td>Thursday</td><td><input type="time" value="09:00"></td><td><input type="time" value="20:00"></td></tr>
+      <tr><td>Friday</td><td><input type="time" value="09:00"></td><td><input type="time" value="17:00"></td></tr>
+      <tr><td>Saturday</td><td><input type="time" value="09:00"></td><td><input type="time" value="17:00"></td></tr>
     </table>
 
     <div id="dutyLists">
@@ -235,7 +234,7 @@
                 <option>For X hours per day for each staff</option>
               </select>
             </td>
-            <td id="duration"><input type="number" value="1.5"></td>
+            <td id="duration"><input type="number"></td>
             <td id="limitType">
               <select>
                 <option>Specific Time</option>
@@ -257,9 +256,19 @@
     </div>
   </div>
 
-  <button onclick="exportSettings()">Save settings</button>
+  <button id="submit" onclick="sendSettings()">Save settings</button>
 
   <script>
+    var settings = JSON.parse(<?= settings ?>)
+    loadSettings(settings)
+
+    function sendSettings() {
+      document.getElementById('submit').value="Saving..."
+      document.getElementById('submit').disable="true"
+      exportSettings()
+      google.script.run.saveSettings(JSON.stringify(settings))
+      setTimeout(google.script.host.close, 5000)
+    }
 
     document.getElementById("dutyLists").onclick = function (event) {
       console.log(event.target.classList)
@@ -335,13 +344,14 @@
     })
 
     function exportSettings(){
-      let settings = {}
+      settings = {}
       let kvSettings = document.getElementById("kvSettings")
       let openHoursSettings = document.getElementById("openHours")
       let dutyContainer = document.querySelector("#dutyLists")
       let stationsSettings = document.getElementById("stations")
       
-      let kvInputArr = Array.from(kvSettings.querySelectorAll("input"))
+      let kvInputArr = Array.from(kvSettings.querySelectorAll("input")).filter(input=>!input.classList.contains("template"))
+      console.log(kvInputArr)
       kvInputArr.forEach(input=>{
         settings[input.id] = parseInputTypes(input)
       })
@@ -419,6 +429,7 @@
         let val = kv[1]
         let tr = kvSettingsTable.querySelector(".template").cloneNode(true)
         tr.classList.remove("template")
+        tr.querySelector("input").classList.remove("template")
         tr.querySelector("td").innerText = key
         initInput(tr.querySelector("td input"), key, val)
         kvSettingsTable.querySelector("tbody").appendChild(tr)
@@ -469,7 +480,6 @@
           let key = property[0]
           let value = property[1]
           let propertyEl = newStation.querySelector(`#${key}`)
-          console.log(key, propertyEl, value)
           if(key == "positionPriority"){
             let positionEls = propertyEl.querySelectorAll("ul>li")
             Sortable.create(propertyEl.querySelector("ul"), {
@@ -484,9 +494,7 @@
               let newPositionEl = positionTemplate.cloneNode(true)
               newPositionEl.classList.remove("template")
               newPositionEl.querySelector("span").innerText = position.title
-              console.log(newPositionEl.querySelector("input"), position.enabled)
               newPositionEl.querySelector("input").checked = position.enabled
-              console.log(newPositionEl.querySelector("input").value)
               propertyEl.querySelector("ul").appendChild(newPositionEl)
             })
           }

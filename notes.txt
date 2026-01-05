@@ -80,6 +80,15 @@ what if - before assigning, create a candidate list for each position (or two? p
 Could this handle better distribution of time off desk too?
 ====================================================
 
+================ Amy notes ================
+abms approve shift changes? time off requests?
+position eligibility multiple positions, eligible based on tags?
+wheniwork feature request, supervisor see other schedules
+supervisors can edit anyone's availabilty?
+storytime rotation based on storytime training in WIW?
+programming/storytime tags for eligibility, standardized, multiple types of storytime!
+===========================================
+
 questions for managers -
 tasks vs stations - should tasks like shelving/delivery be stations or tasks? should it just depend on branch?
 closures - do people want this to be in WIW, gcal, both, neither?

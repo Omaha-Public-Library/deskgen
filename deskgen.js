@@ -3,6 +3,7 @@ function onOpen() {
         .addItem('Redo schedule for current date', 'buildDeskScheduleRedo')
         .addItem('New schedule for following date', 'buildDeskScheduleTomorrow')
         .addItem('New schedule for other date...', 'buildDeskScheduleInputDate')
+        .addItem('Settings', 'popupSettings')
         .addItem('Open archive', 'openArchive')
         .addToUi();
     // if(Session.getActiveUser().getEmail() === "candroski@omahalibrary.org")
@@ -104,6 +105,17 @@ function buildDeskScheduleTomorrow() {
         newDate.setDate(dateCell.getDate() + 1);
         buildDeskSchedule(newDate);
     }
+}
+function popupSettings() {
+    let settings = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS").getRange('A1').getValue();
+    // SpreadsheetApp.getUi().alert(settings)
+    var htmlTemplate = HtmlService.createTemplateFromFile("settings.html");
+    htmlTemplate.settings = settings;
+    var htmlOutput = htmlTemplate.evaluate().setWidth(2000).setHeight(1000);
+    SpreadsheetApp.getUi().showModelessDialog(htmlOutput, "Settings");
+}
+function saveSettings(settings) {
+    SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS").getRange('A1').setValue(settings);
 }
 function buildDeskScheduleInputDate() {
     var dateInputWindow = HtmlService.createHtmlOutput(`
@@ -280,8 +292,8 @@ class DeskSchedule {
         let nonScheduledStaffEvents = [];
         //add gcal events that don't include scheduled users
         gCalEvents.forEach(gCalEvent => {
-            let guestEmailList = gCalEvent.getGuestList().map(guest => guest.getEmail());
-            let guestIdList = wiwData.users.filter(u => guestEmailList.includes(u.email)).map(u => u.id);
+            let guestEmailList = gCalEvent.getGuestList().map(guest => guest.getEmail().toLowerCase());
+            let guestIdList = wiwData.users.filter(u => guestEmailList.includes(u.email.toLowerCase())).map(u => u.id);
             //if event guest list doesn't include any scheduled users
             if (!wiwData.shifts.some(shift => guestIdList.includes(shift.user_id))) {
                 let startTime = new Date(gCalEvent.getStartTime().getTime());
@@ -388,8 +400,8 @@ class DeskSchedule {
             { "id": 11534159, "name": "Assistant Branch Manager", "group": "Reference", "picDurationMax": 3 },
             { "id": 11534161, "name": "Specialist", "group": "Reference", "picDurationMax": 2 },
             { "id": 11566533, "name": "Part-Time Specialist", "group": "Reference", "picDurationMax": 2 },
-            { "id": 11534164, "name": "Associate Specialist", "group": "Reference", "picDurationMax": 0 },
-            { "id": 11656177, "name": "Part-Time Associate Specialist", "group": "Reference", "picDurationMax": 0 },
+            { "id": 11534164, "name": "Associate Specialist", "group": "Reference", "picDurationMax": 2 },
+            { "id": 11656177, "name": "Part-Time Associate Specialist", "group": "Reference", "picDurationMax": 2 },
             { "id": 11534162, "name": "Senior Clerk", "group": "Clerk", "picDurationMax": 0 },
             { "id": 11534163, "name": "Clerk II", "group": "Clerk", "picDurationMax": 0 },
             { "id": 11762122, "name": "Part-Time Clerk II", "group": "Clerk", "picDurationMax": 0 },
@@ -422,8 +434,8 @@ class DeskSchedule {
             if (wiwUserObj != undefined) {
                 //get events from gcal
                 gCalEvents.forEach(gCalEvent => {
-                    let guestEmailList = gCalEvent.getGuestList().map(guest => guest.getEmail());
-                    if (guestEmailList.includes(wiwUserObj.email)) {
+                    let guestEmailList = gCalEvent.getGuestList().map(guest => guest.getEmail().toLowerCase());
+                    if (guestEmailList.includes(wiwUserObj.email.toLowerCase())) {
                         //if event last all day (gcal without start/end) clamp event start/end to shift start/end
                         let startTime = new Date(gCalEvent.getStartTime().getTime());
                         let endTime = new Date(gCalEvent.getEndTime().getTime());
