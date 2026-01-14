@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>deskgen settings</title>
   <style>
+    body{
+      font-family: Arial, Helvetica, sans-serif;
+    }
     div {
       margin: 16px
     }
@@ -20,28 +23,29 @@
     table {
       text-align: left;
       border-collapse: collapse;
+      border-style: hidden;
     }
 
     table, th{
-      border: 1px solid black;
+      /* border: 1px solid black; */
     }
     td {
-      border-left: 1px solid black;
-      border-right: 1px solid black;
+      /* border-left: 1px solid black; */
+      /* border-right: 1px solid black; */
     }
 
     #stations tr>td:first-of-type,
     #stations tr>th:first-of-type {
       background-color: white;
       border: 1px solid white;
-      border-right: 1px solid black;
+      /* border-right: 1px solid black; */
     }
 
     #stations tr>td:last-of-type,
     #stations tr>th:last-of-type {
       background-color: white;
       border: 1px solid white;
-      border-left: 1px solid black;
+      /* border-left: 1px solid black; */
     }
 
     tbody tr:nth-child(even) {
@@ -52,7 +56,9 @@
     th {
       width: 1px;
       white-space: nowrap;
-      padding: 4px;
+      padding: 0px 8px;
+      height: 32px;
+      font-size: 0.9em;
     }
 
     td>input {
@@ -64,9 +70,6 @@
       font-style: normal;
     }
 
-    /* .handle:before {
-            content: "\f0b2";
-        } */
     .template {
       display: none;
     }
@@ -89,15 +92,100 @@
     #kvSettings {
       text-align: left;
     }
+
+    #durationType{
+      width: 132px;
+    }
+
+    #limitType {
+      width: 102px;
+    }
+
+    .buttonAdd{
+      margin: 12px 16px;
+    }
+
+    .tab {
+      overflow: hidden;
+      border: 1px solid #ccc;
+      background-color: #f1f1f1;
+      margin: 0px;
+      display: inline-block;
+      font-style: bold;
+      font-size: 1em;
+    }
+    .tab button {
+      background-color: inherit;
+      float: left;
+      border: none;
+      outline: none;
+      cursor: pointer;
+      padding: 14px 16px;
+      margin: 0px;
+      transition: 0.3s;
+    }
+    .tab button:hover {
+      background-color: #ddd;
+    }
+    .tab button.active {
+      background-color: #0078d4;
+      color: white;
+    }
+    .tabcontent {
+      display: none;
+      padding: 0px;
+      margin: 0px;
+    }
+
+    #dutyLists{
+      margin: 0px;
+      display: flex;
+      flex-wrap: wrap;
+    }
+
+    #dutyLists>ul:first-of-type{
+      display: flex;
+      flex-wrap: wrap;
+      margin: 8px 0px;
+    }
+
+    #dutyLists>ul>li{
+      margin-right: 16px;
+      margin-bottom: 16px;
+      padding: 16px 16px;
+      border: 1px solid #aaa;
+      border-radius: 4px;
+    }
+
+    #dutyLists>ul>li>ul>li{
+      margin-left: 16px;
+      margin-right: 20px;
+    }
+    #dutyLists>ul>li>ul>li:nth-child(even){
+      background-color: #ccc;
+    }
+    #dutyLists>ul>li>ul>li:nth-child(odd){
+      background-color: #e7e7e7;
+    }
+
+    #dutyLists li>ul{
+      padding: 4px 0px;
+    }
+
   </style>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
   <!-- <script type="module" src="./sortablejs/modular/sortable.complete.esm.js">import Sortable from './sortablejs/modular/sortable.complete.esm.js'</script> -->
 </head>
 
 <body>
-  <!-- <form action=""> -->
-  <div id="settings">
-    <h3>Settings</h3>
+  <div class="tab">
+    <button class="tablinks" onclick="openTab(event, 'settingsTab')">Settings</button>
+    <button class="tablinks" onclick="openTab(event, 'stationsTab')">Stations</button>
+    <button class="tablinks" onclick="openTab(event, 'dutiesTab')">Duties</button>
+    <button class="tablinks" onclick="openTab(event, 'openHoursTab')">Open Hours</button>
+  </div>
+
+  <div id="settingsTab" class="tabcontent">
     <table id="kvSettings">
       <tr class="template"><td>template</td><td><input type="text" class="template"></td></tr>
       <tr><td>assignStations</td><td><input type="checkbox" id="assignStations" checked></td></tr>
@@ -120,8 +208,9 @@
       <tr><td>archiveSheetURL</td><td><input type="text" id="archiveSheetURL"></td></tr>
       <tr><td>verboseLog</td><td><input type="checkbox" id="verboseLog"></td></tr>
     </table>
+  </div>
 
-    <h3>Open Hours</h3>
+  <div id="openHoursTab" class="tabcontent">
     <table id="openHours">
       <tr>
         <th></th>
@@ -136,14 +225,15 @@
       <tr><td>Friday</td><td><input type="time" value="09:00"></td><td><input type="time" value="17:00"></td></tr>
       <tr><td>Saturday</td><td><input type="time" value="09:00"></td><td><input type="time" value="17:00"></td></tr>
     </table>
+  </div>
 
+  <div id="dutiesTab" class="tabcontent">
     <div id="dutyLists">
-      <h3>Duty Lists</h3>
       <ul>
         <li class="template">
           <i class="handle">✥</i>
-          <input type="text" class="title" value="Duties" style="width: 284px;"><button class="buttonRemove">-</button>
-          <span style="display: block; padding-left: 20px;">Assign <input type="number" class="limitXHours" value="0" style="width: 34px"> to <input type="number" class="limitYHours" value="0" style="width: 34px"> hours <select class="limitType"><option>before open</option><option>after open</option><option>before close</option></select></span>
+          <input type="text" class="title" value="Duties" style="width: 244px;"><button class="buttonRemove">-</button>
+          <span style="display: block; padding-left: 20px;"><input type="number" class="limitXHours" value="0" style="width: 34px"> to <input type="number" class="limitYHours" value="0" style="width: 34px"> hours <select class="limitType"><option>before open</option><option>after open</option><option>before close</option></select></span>
           <ul>
             <li class="template"><i class="handle">✥</i><input type="text" value=""><button
                 class="buttonRemove">-</button></li>
@@ -155,9 +245,10 @@
       </ul>
       <button class="buttonAdd">add list</button>
     </div>
+  </div>
 
-    <div id="stations">
-      <h3>Stations</h3>
+  <div id="stationsTab" class="tabcontent">
+    <div id="stations" style="margin: 16px 0px;">
       <table>
         <thead>
           <tr class="header">
@@ -165,7 +256,7 @@
             <th>Color</th>
             <th>Station Name</th>
             <th>Group</th>
-            <th>Position Priority</th>
+            <th>Positions</th>
             <th>Duration Type</th>
             <th>Duration</th>
             <th>Limit Type</th>
@@ -231,16 +322,32 @@
     </div>
   </div>
 
-  <button id="submit" onclick="sendSettings()">Save settings</button>
+  <button id="submit" onclick="sendSettings()" style="margin: 32px 0px; width: 120px; height: 40px;">💾 Save all</button>
 
   <script>
+    function openTab(evt, tabName) {//https://www.w3schools.com/howto/howto_js_tabs.asp
+      var i, tabcontent, tablinks;
+      tabcontent = document.getElementsByClassName("tabcontent");
+      for (i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
+      }
+      tablinks = document.getElementsByClassName("tablinks");
+      for (i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+      }
+      document.getElementById(tabName).style.display = "block";
+      evt.currentTarget.className += " active";
+    }
+    document.querySelector(".tablinks").click()
+
     var settings = JSON.parse(<?= settings ?>, (k,v)=>v = v===null?undefined:v)
-    // var settings = JSON.parse(`{"assignStations":true,"defragPrePass":true,"changeOnTheHour":true,"generatePicAssignments":true,"groupPicsAtTop":true,"assignmentLength":2,"mealBreakLength":0.5,"idealEarlyMealHour":"2000-01-01T18:00:00.000Z","idealLateMealHour":"2000-01-01T22:30:00.000Z","idealMealTimePlusMinusHours":1,"addNamesToEvents":false,"alwaysShowBranchManager":false,"alwaysShowAssistantBranchManager":false,"alwaysShowAllStaff":false,"earliestDisplayTime":"2000-01-01T14:30:00.000Z","locationID":"5752528","googleCalendarID":"c_77d97c35e882d6efcfe0dd786078e9ed05bf3b977361ef63f16c3be21e593d4e@group.calendar.google.com","verboseLog":true,"archiveSheetURL":"https://docs.google.com/spreadsheets/d/1Y6DdCyH9yoIeOzf2dOWP10ZckNvmqAX04cC12f82FKA/edit","openHours":[{"day":"Sunday","open":"2000-01-01T19:00:00.000Z","close":"2000-01-01T23:00:00.000Z"},{"day":"Monday","open":"2000-01-01T15:00:00.000Z","close":"2000-01-02T02:00:00.000Z"},{"day":"Tuesday","open":"2000-01-01T15:00:00.000Z","close":"2000-01-02T02:00:00.000Z"},{"day":"Wednesday","open":"2000-01-01T15:00:00.000Z","close":"2000-01-02T02:00:00.000Z"},{"day":"Thursday","open":"2000-01-01T15:00:00.000Z","close":"2000-01-02T02:00:00.000Z"},{"day":"Friday","open":"2000-01-01T15:00:00.000Z","close":"2000-01-01T23:00:00.000Z"},{"day":"Saturday","open":"2000-01-01T15:00:00.000Z","close":"2000-01-01T23:00:00.000Z"}],"dutyLists": [        {            "title": "Opening Duties",            "duties": [                "Book drop & newspapers",                "Computers, AWEs, light tables",                "Expired holds & print pick list",                "Money",                "Pack delivery",                "Check printers"            ],            "limitXHours": "1.5",            "limitYHours": "2",            "limitType": "before close"        },        {            "title": "Closing Duties",            "duties": [                "Book drop & newspapers",                "Computers, AWEs, light tables",                "Expired holds & print pick list",                "Money",                "Pack delivery",                "Check printers"            ],            "limitXHours": "1.5",            "limitYHours": "2",            "limitType": "before close"        }    ],"stations":[{"":null,"color":"#8e7cc3","name":"Phones","group":null,"positionPriority":[{"title":"Assistant Branch Manager","enabled":true},{"title":"Part-Time Specialist","enabled":true},{"title":"Specialist","enabled":true},{"title":"Associate Specialist","enabled":true},{"title":"Part-Time Associate Specialist","enabled":true},{"title":"Branch Manager","enabled":true},{"title":"Senior Clerk","enabled":false},{"title":"Clerk II","enabled":false},{"title":"Part-Time Clerk II","enabled":false},{"title":"Aide","enabled":false}],"durationType":"Always while open","duration":null,"limitType":"Specific Time","limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1},{"":null,"color":"#3c78d8","name":"2nd floor","group":null,"positionPriority":[{"title":"Aide","enabled":false},{"title":"Part-Time Associate Specialist","enabled":true},{"title":"Associate Specialist","enabled":true},{"title":"Part-Time Specialist","enabled":true},{"title":"Specialist","enabled":true},{"title":"Part-Time Clerk II","enabled":true},{"title":"Clerk II","enabled":true},{"title":"Senior Clerk","enabled":true},{"title":"Assistant Branch Manager","enabled":true},{"title":"Branch Manager","enabled":true}],"durationType":"Always while open","duration":null,"limitType":"Specific Time","limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1},{"":null,"color":"#38761d","name":"1st roving","group":null,"positionPriority":[{"title":"Aide","enabled":false},{"title":"Part-Time Clerk II","enabled":true},{"title":"Clerk II","enabled":true},{"title":"Senior Clerk","enabled":true},{"title":"Part-Time Associate Specialist","enabled":true},{"title":"Associate Specialist","enabled":true},{"title":"Part-Time Specialist","enabled":true},{"title":"Specialist","enabled":true},{"title":"Assistant Branch Manager","enabled":true},{"title":"Branch Manager","enabled":true}],"durationType":"Always while open","duration":1,"limitType":"Specific Time","limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1},{"":null,"color":"#6aa84f","name":"1st front desk","group":null,"positionPriority":[{"title":"Aide","enabled":false},{"title":"Part-Time Clerk II","enabled":true},{"title":"Clerk II","enabled":true},{"title":"Senior Clerk","enabled":true},{"title":"Part-Time Associate Specialist","enabled":true},{"title":"Associate Specialist","enabled":true},{"title":"Part-Time Specialist","enabled":true},{"title":"Specialist","enabled":true},{"title":"Assistant Branch Manager","enabled":true},{"title":"Branch Manager","enabled":true}],"durationType":"Always while open","duration":1,"limitType":"Specific Time","limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1},{"":null,"color":"#b6d7a8","name":"1st childrens'","group":null,"positionPriority":[{"title":"Aide","enabled":false},{"title":"Part-Time Clerk II","enabled":true},{"title":"Clerk II","enabled":true},{"title":"Senior Clerk","enabled":true},{"title":"Part-Time Associate Specialist","enabled":true},{"title":"Associate Specialist","enabled":true},{"title":"Part-Time Specialist","enabled":true},{"title":"Specialist","enabled":true},{"title":"Assistant Branch Manager","enabled":true},{"title":"Branch Manager","enabled":true}],"durationType":"Always while open","duration":1,"limitType":"Specific Time","limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1},{"":null,"color":"#76a5af","name":"Sorting Room","group":null,"positionPriority":[{"title":"Aide","enabled":true},{"title":"Part-Time Clerk II","enabled":true},{"title":"Clerk II","enabled":true},{"title":"Senior Clerk","enabled":true},{"title":"Part-Time Associate Specialist","enabled":true},{"title":"Associate Specialist","enabled":true},{"title":"Part-Time Specialist","enabled":true},{"title":"Specialist","enabled":true},{"title":"Assistant Branch Manager","enabled":true},{"title":"Branch Manager","enabled":false}],"durationType":"For X hours per day for each staff","duration":1,"limitType":"Specific Time","limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1},{"":null,"color":"#ffffff","name":"Available","group":null,"positionPriority":[{"title":"Branch Manager","enabled":true},{"title":"Assistant Branch Manager","enabled":true},{"title":"Specialist","enabled":true},{"title":"Part-Time Specialist","enabled":true},{"title":"Associate Specialist","enabled":true},{"title":"Part-Time Associate Specialist","enabled":true},{"title":"Senior Clerk","enabled":true},{"title":"Clerk II","enabled":true},{"title":"Part-Time Clerk II","enabled":true},{"title":"Aide","enabled":true}],"durationType":"Always while open","duration":1,"limitType":"Specific Time","limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":10}]}`, (k,v)=>v = v===null?undefined:v)
+
     loadSettings(settings)
 
     function sendSettings() {
-      document.getElementById('submit').value="Saving..."
+      document.getElementById('submit').innerText="Saving..."
       document.getElementById('submit').disable="true"
+      // document.querySelectorAll('.active').style.display = "none"
       exportSettings()
       google.script.run.saveSettings(JSON.stringify(settings, (k,v) => v === undefined ? null : v))
       setTimeout(google.script.host.close, 5000)
