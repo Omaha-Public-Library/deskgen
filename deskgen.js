@@ -1,3 +1,4 @@
+var verboseLog = false;
 function onOpen() {
     SpreadsheetApp.getUi().createMenu('Generator')
         .addItem('Redo schedule for current date', 'buildDeskScheduleRedo')
@@ -12,7 +13,7 @@ function onOpen() {
     //     .addToUi()
 }
 function openArchive() {
-    let settings = loadSettings(new Date());
+    let settings = new Settings(new Date());
     if (!settings.archiveSheetURL) {
         console.log(`No archive set!\n\nGo to the SETTINGS sheet and change "archiveSheetURL" to the URL of a spreadsheet you'd like old schedules to be archived in.`);
     }
@@ -28,8 +29,7 @@ function showAnchor(name, url) {
 function archivePastSchedules() {
     let count = 7;
     //get first sheet by index. check date, if today/future stop. otherwise, check if it exists in archive, if so stop and warn. if not, copy to archive spreadsheet. then check if it exists in archive spreadsheet, if so delete. repeat x nums of times or until reaching today/future date.
-    let settings = loadSettings(new Date());
-    console.log("settings.archiveSheetURL :", settings.archiveSheetURL);
+    let settings = new Settings(new Date());
     if (!settings.archiveSheetURL) {
         console.error("no archive sheet defined in settings, skipping archiving");
         return;
@@ -155,16 +155,14 @@ function buildDeskScheduleFromDateString(dateString) {
 }
 function buildDeskSchedule(deskSchedDate) {
     performanceLog("start");
-    var settings;
+    var settings = new Settings(deskSchedDate);
+    performanceLog("load settings");
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var deskSheet = ss.getActiveSheet();
     const ui = SpreadsheetApp.getUi();
     const templateSheet = ss.getSheetByName('TEMPLATE');
     var token = null;
     deskSheet = ss.getActiveSheet();
-    //Load settings
-    settings = loadSettings(deskSchedDate);
-    performanceLog("load settings");
     var newSheetName = sheetNameFromDate(deskSchedDate);
     log(`setting up sheet:${deskSchedDate}, ${newSheetName}, ${ /*ss.getSheetByName(newSheetName)*/'removed lookup for perf'}`);
     let existingSheet = ss.getSheetByName(newSheetName);
@@ -247,10 +245,8 @@ class DeskSchedule {
         this.annotationUser = [];
         this.logDeskDataRecord = [];
         this.defaultStations = { undefined: "undefined", off: "Off", available: "Available", programMeeting: "Program/Meeting", mealBreak: "Meal/Break" };
-        this.durationTypes = { alwaysWhileOpen: "Always while open", xHoursPerDay: "For X hours per day total", xHoursPerStaff: "For X hours per day for each staff" };
-        this.limitTypes = { specificTime: "Specific Time", xyHoursAfterOpen: "X to Y hours after open", xyHoursBeforeClose: "X to Y hours before close" };
-        this.openingDuties = [];
-        this.closingDuties = [];
+        this.durationTypes = DurationType.Alwayswhileopen;
+        this.limitTypes = LimitType.SpecificTime;
         this.settings = settings;
         this.deskSheet = deskSheet;
         this.displayCells = displayCells;
@@ -262,18 +258,17 @@ class DeskSchedule {
         this.shifts = [];
         this.eventsErrorLog = [];
         this.logDeskDataRecord = [];
-        this.stations = [];
-        this.openingDuties = settings.openingDuties.map(d => new Duty(d.title, undefined, d.requirePic));
-        this.closingDuties = settings.closingDuties?.map(d => new Duty(d.title, undefined, d.requirePic));
-        settings.stations.forEach(s => {
-            this.stations.push(new Station(s.name, s.color, s.numOfStaff, s.positionPriority.split(', ').filter(str => /\S/.test(str)), Number.isNaN(s.duration) ? settings.assignmentLength : s.duration, s.durationType || this.durationTypes.alwaysWhileOpen, s.limitToStartTime, s.limitToEndTime, s.limitType || this.limitTypes.specificTime, s.group));
+        this.stations = settings.stations;
+        this.settings.stations.forEach(s => {
+            s.duration = !s.duration || Number.isNaN(s.duration) ? settings.assignmentLength : s.duration;
         });
-        [
-            new Station(this.defaultStations.undefined, `#cccccc`),
-            new Station(this.defaultStations.programMeeting, `#ffd966`),
-            new Station(this.defaultStations.available, `#ffffff`, 99),
-            new Station(this.defaultStations.mealBreak, `#aaaaaa`),
-            new Station(this.defaultStations.off, `#666666`),
+        //add required stations if they don't already exist
+        let tempStations = [
+            new Station(`#cccccc`, this.defaultStations.undefined),
+            new Station(`#ffd966`, this.defaultStations.programMeeting),
+            new Station(`#ffffff`, this.defaultStations.available, 99),
+            new Station(`#e69138`, this.defaultStations.mealBreak),
+            new Station(`#666666`, this.defaultStations.off)
         ].forEach(requiredStation => {
             let existingStation = this.stations.find(station => station.name == requiredStation.name);
             if (!existingStation)
@@ -450,11 +445,11 @@ class DeskSchedule {
                 let idealMealTime = undefined;
                 // //if working 8+ hours, assign whichever mealtime is closest to midpoint of shift
                 if (endTime.getHours() - startTime.getHours() >= 8) {
-                    let timeToEarlyMeal = Math.abs((endTime.getHours() + startTime.getHours()) / 2 - settings.idealEarlyMealHour);
-                    let timeToLateMeal = Math.abs((endTime.getHours() + startTime.getHours()) / 2 - settings.idealLateMealHour);
-                    let hour = timeToEarlyMeal < timeToLateMeal ? settings.idealEarlyMealHour : settings.idealLateMealHour;
-                    idealMealTime = new Date(this.date);
-                    idealMealTime.setHours(hour, Math.round((hour - Math.floor(hour)) * 60));
+                    let timeToEarlyMeal = Math.abs((endTime.getTime() + startTime.getTime()) / 2 - settings.idealEarlyMealHour.getTime());
+                    let timeToLateMeal = Math.abs((endTime.getTime() + startTime.getTime()) / 2 - settings.idealLateMealHour.getTime());
+                    // let hour = timeToEarlyMeal < timeToLateMeal ? settings.idealEarlyMealHour.getTime() / (1000 * 60 * 60) : settings.idealLateMealHour.getTime() / (1000 * 60 * 60)
+                    idealMealTime = new Date(timeToEarlyMeal < timeToLateMeal ? settings.idealEarlyMealHour : settings.idealLateMealHour);
+                    // idealMealTime.setHours(hour, Math.round((hour-Math.floor(hour))*60))
                 }
                 let tags = wiwTags.map(tagObj => tagObj.name);
                 let positionGroup;
@@ -650,8 +645,8 @@ class DeskSchedule {
             return;
         }
         this.shifts.sort((shiftA, shiftB) => {
-            let iA = positionPriority.map(p => this.getPositionByName(p).id).indexOf(shiftA.position);
-            let iB = positionPriority.map(p => this.getPositionByName(p).id).indexOf(shiftB.position);
+            let iA = positionPriority.map(p => this.getPositionByName(p.title).id).indexOf(shiftA.position);
+            let iB = positionPriority.map(p => this.getPositionByName(p.title).id).indexOf(shiftB.position);
             return iA - iB;
         });
     }
@@ -676,7 +671,7 @@ class DeskSchedule {
     timelineAddAvailabilityAndEvents() {
         //fill in availability and events
         this.forEachShiftBlock(this.dayStartTime, this.dayEndTime, (shift, time) => {
-            if ((time < this.settings.openHours.open || time >= this.settings.openHours.close) && (time >= shift.startTime && time < shift.endTime))
+            if ((time < this.settings.openTime(this.date) || time >= this.settings.closeTime(this.date)) && (time >= shift.startTime && time < shift.endTime))
                 shift.setStationAtTime(this.defaultStations.available, time);
             else if (time >= shift.startTime && time < shift.endTime)
                 shift.setStationAtTime(this.defaultStations.undefined, time);
@@ -694,7 +689,7 @@ class DeskSchedule {
         this.logDeskData('after initializing availability and events');
     }
     timelineAddMeals() {
-        if (this.settings.onlyGenerateAvailabilityAndEvents || this.shifts.length < 1)
+        if (!this.settings.assignStations || this.shifts.length < 1)
             return;
         //sort shifts by longest time worked before meal
         this.shifts.sort((a, b) => (b.idealMealTime?.getTime() - b.startTime?.getTime()) - (a.idealMealTime?.getTime() - a.startTime?.getTime()));
@@ -715,7 +710,7 @@ class DeskSchedule {
                     if (!(shift.getStationAtTime(time).name == this.defaultStations.undefined
                         || shift.getStationAtTime(time).name == this.defaultStations.available))
                         availabilityTotal -= 1000;
-                    if (time >= this.settings.openHours.open && time < this.settings.openHours.close)
+                    if (time >= this.settings.openTime(this.date) && time < this.settings.closeTime(this.date))
                         duringOpenHours = true;
                 }
                 if (!duringOpenHours)
@@ -738,8 +733,9 @@ class DeskSchedule {
         this.logDeskData('after adding meal breaks');
     }
     timelineAddStations() {
-        if (this.settings.onlyGenerateAvailabilityAndEvents || this.shifts.length < 1)
+        if (!this.settings.assignStations || this.shifts.length < 1)
             return;
+        log("running timelineAddStations");
         //  things to weigh:
         //position hierarchy
         //percentage of shift spent at position
@@ -750,6 +746,7 @@ class DeskSchedule {
         for (let time = new Date(startTime); time < endTime; time.addTime(0, 30)) {
             let prevTime = new Date(time).addTime(0, -30).clamp(startTime, new Date(endTime).addTime(0, -30));
             let nextTime = new Date(time).addTime(0, 30).clamp(startTime, new Date(endTime).addTime(0, -30));
+            // console.log("prevTime, time, nextTime", prevTime, time, nextTime)
             //prepass
             if (this.settings.defragPrePass) {
                 let undefinedCount = this.getStationCountAtTime(this.defaultStations.undefined, time);
@@ -759,7 +756,7 @@ class DeskSchedule {
                         return;
                     //assign
                     this.shifts.forEach(shift => {
-                        if (station.positionPriority.length < 1 || station.positionPriority.includes(this.getPositionById(shift.position)?.name)) { //if staff is assigned to this station
+                        if (station.positionPriority.length < 1 || station.positionPriority.some(pos => pos.enabled && pos.title == this.getPositionById(shift.position)?.name)) { //if staff is assigned to this station in positionpriority
                             let currentStation = shift.getStationAtTime(time);
                             let nextStation = shift.getStationAtTime(nextTime);
                             let prevStation = shift.getStationAtTime(prevTime);
@@ -773,7 +770,7 @@ class DeskSchedule {
                                 && stationIndex < undefinedCount //if there's enough availability to assign this and all higher priority stations
                             ) {
                                 shift.setStationAtTime(station.name, time);
-                                currentStation = shift.getStationAtTime(time);
+                                // currentStation = shift.getStationAtTime(time)
                                 // let timeOnCurrStation = shift.countHowLongAtStation(currentStation.name, time)
                                 // console.log(`After assigning to ${currentStation} at ${time.getTimeStringHHMM24()}, ${shift.name} has been ${currentStation} for ${timeOnCurrStation}hours.`)
                             }
@@ -789,6 +786,7 @@ class DeskSchedule {
                     return;
                 // log(`${time.getTimeStringHHMM12()}, ${station.name}: sort shifts into priority order for assignment, if none given in settings defulats to sortShiftsByPositionHiearchyDesc:\n${this.shifts.map(s=>s.name).join('\n')}`)
                 this.sortShiftsByUserPositionPriority(station.positionPriority);
+                // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`sort by stationpriority:\n${time.getTimeStringHHMM12()}, ${station.name}: ${this.shifts.map(s=>s.name+", "+station.positionPriority.map(p=>this.getPositionByName(p.title).id).indexOf(s.position)).join('\n')}`)
                 //if on this station, move to front
                 this.shifts.sort((shiftA, shiftB) => {
                     let aVal = shiftA.getStationAtTime(prevTime).name == station.name ? 0 : 1;
@@ -796,6 +794,7 @@ class DeskSchedule {
                     // console.log(`${time.getTimeStringHHMM12()} - ${station.name}\n${shiftA.name.substring(0,9)} is on ${shiftA.getStationAtTime(prevTime)}, ${aVal}\n${shiftB.name.substring(0,9)} is on ${shiftB.getStationAtTime(prevTime)}, ${bVal}\n${aVal-bVal}`)
                     return aVal - bVal;
                 });
+                // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if on station move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${this.shifts.map(s=>s.name).join('\n')}`)
                 //if not on this station and over max, move to front
                 this.shifts.sort((shiftA, shiftB) => {
                     let aStationPrev = shiftA.getStationAtTime(prevTime);
@@ -808,6 +807,7 @@ class DeskSchedule {
                         ? 0 : 1;
                     return aVal - bVal;
                 });
+                // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if not on station and over max move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${this.shifts.map(s=>s.name).join('\n')}`)
                 //if available for this time and following half hour, move to top
                 this.shifts.sort((shiftA, shiftB) => {
                     let aStation = shiftA.getStationAtTime(time);
@@ -820,6 +820,7 @@ class DeskSchedule {
                         ? 0 : 1;
                     return aVal - bVal;
                 });
+                // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if available for this time and following half hour, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${this.shifts.map(s=>`${s.name}, now:${s.getStationAtTime(time).name}, next:${s.getStationAtTime(nextTime).name}, ${s.getStationAtTime(time).name==this.defaultStations.undefined}, ${s.getStationAtTime(nextTime).name==this.defaultStations.undefined}`).join('\n')}`)
                 //if on this station and over max, move to end
                 this.shifts.sort((shiftA, shiftB) => {
                     let aStationPrev = shiftA.getStationAtTime(prevTime);
@@ -858,6 +859,7 @@ class DeskSchedule {
                     // )
                     return aVal - bVal;
                 });
+                // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if on this station and over max, move to end:\n${time.getTimeStringHHMM12()}, ${station.name}: ${this.shifts.map(s=>s.name).join('\n')}`)
                 //if on this station and not over max, move to front
                 this.shifts.sort((shiftA, shiftB) => {
                     let aStationPrev = shiftA.getStationAtTime(prevTime);
@@ -870,6 +872,7 @@ class DeskSchedule {
                         ? 0 : 1;
                     return aVal - bVal;
                 });
+                // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if on this station and not over max, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${this.shifts.map(s=>s.name).join('\n')}`)
                 //if changeOnTheHour AND on this station AND not more than half an hour over, move to front
                 if (this.settings.changeOnTheHour && time.getMinutes() != 0) {
                     this.shifts.sort((shiftA, shiftB) => {
@@ -881,7 +884,7 @@ class DeskSchedule {
                         return aVal - bVal;
                     });
                 }
-                // console.log(`${time.getTimeStringHHMM12()}, ${station.name}: ${this.shifts.map(s=>s.name).join('\n')}`)
+                // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if changeonthehour and on this station and not more than half an hour over, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${this.shifts.map(s=>s.name).join('\n')}`)
                 // log("sort by amount of time total at station, as ratio of shift length")
                 // this.shifts.sort((shiftA, shiftB)=>{
                 //   let aTotalStationTime = shiftA.countTotalTimeAtStation(station.name, prevTime)
@@ -895,12 +898,11 @@ class DeskSchedule {
                 // this.sortShiftsByWhetherAssignmentLengthReached(station.name, time)
                 //assign
                 this.shifts.forEach(shift => {
-                    if (station.positionPriority.length < 1 || station.positionPriority.includes(this.getPositionById(shift.position)?.name)) { //if staff is assigned to this station
+                    if (station.positionPriority.length < 1 || station.positionPriority.some(pos => pos.enabled && pos.title == this.getPositionById(shift.position).name)) { //if staff is assigned to this station
                         let currentStation = shift.getStationAtTime(time);
                         // let prevStation = shift.getStationAtTime(prevTime)
                         // let timeOnPrevStation = shift.countHowLongAtStation(prevStation.name, new Date(time).addTime(0,-30))
                         // console.log(`at ${time.getTimeStringHHMM24()}, ${shift.name} has been ${prevStation} for ${timeOnPrevStation}hours.`, currentStation, currentStation == this.defaultStations.undefined, stationCount<station.numOfStaff)
-                        // console.log(station.name, station.limitToEndTime, station.limitToStartTime)
                         if (this.assignmentEligibilityCheck(shift, station, time)) {
                             shift.setStationAtTime(station.name, time);
                             currentStation = shift.getStationAtTime(time);
@@ -936,36 +938,36 @@ class DeskSchedule {
             return false;
         let withinLimit = false;
         //check if within limit
-        if (station.limitType == this.limitTypes.specificTime
-            && (time >= this.HhFloatToTime(station.limitToStartTime) || !station.limitToStartTime)
-            && (time < this.HhFloatToTime(station.limitToEndTime) || !station.limitToEndTime))
+        if (station.limitType == LimitType.SpecificTime
+            && (time >= station.limitToStartTime || !station.limitToStartTime)
+            && (time < station.limitToEndTime || !station.limitToEndTime))
             withinLimit = true;
-        let startTimeFromOpen = new Date(this.settings.openHours.open);
-        let endTimeFromOpen = new Date(this.settings.openHours.open);
-        startTimeFromOpen.addTime(0, station.limitToStartTime * 60);
-        endTimeFromOpen.addTime(0, station.limitToEndTime * 60);
-        if ((station.limitType == this.limitTypes.xyHoursAfterOpen || station.limitType == undefined)
-            && (time >= startTimeFromOpen || !station.limitToStartTime)
-            && (time < endTimeFromOpen || !station.limitToEndTime))
+        let startTimeFromOpen = new Date(this.settings.openTime(this.date));
+        let endTimeFromOpen = new Date(this.settings.openTime(this.date));
+        startTimeFromOpen.addTime(0, station.limitXHours * 60);
+        endTimeFromOpen.addTime(0, station.limitYHours * 60);
+        if ((station.limitType == LimitType.XtoYhoursafteropen || station.limitType == undefined)
+            && (time >= startTimeFromOpen || !station.limitXHours)
+            && (time < endTimeFromOpen || !station.limitYHours))
             withinLimit = true;
-        let startTimeFromClose = new Date(this.settings.openHours.close);
-        let endTimeFromClose = new Date(this.settings.openHours.close);
-        startTimeFromClose.addTime(0, -Math.abs(station.limitToStartTime * 60));
-        endTimeFromClose.addTime(0, -Math.abs(station.limitToEndTime * 60));
-        if ((station.limitType == this.limitTypes.xyHoursBeforeClose || station.limitType == undefined)
-            && (time >= startTimeFromClose || !station.limitToStartTime)
-            && (time < endTimeFromClose || !station.limitToEndTime))
+        let startTimeFromClose = new Date(this.settings.closeTime(this.date));
+        let endTimeFromClose = new Date(this.settings.closeTime(this.date));
+        startTimeFromClose.addTime(0, -Math.abs(station.limitXHours * 60));
+        endTimeFromClose.addTime(0, -Math.abs(station.limitYHours * 60));
+        if ((station.limitType == LimitType.XtoYhoursbeforeclose || station.limitType == undefined)
+            && (time >= startTimeFromClose || !station.limitXHours)
+            && (time < endTimeFromClose || !station.limitYHours))
             withinLimit = true;
         if (withinLimit) { /*continue*/ }
         else
             return false;
         //check if within duration
-        if (station.durationType == this.durationTypes.alwaysWhileOpen)
+        if (station.durationType == DurationType.Alwayswhileopen)
             return true;
-        else if (station.durationType == this.durationTypes.xHoursPerDay
+        if (station.durationType == DurationType.ForXhoursperdaytotal
             && this.getTotalStationCountAllStaff(station.name, time) < station.duration)
             return true;
-        else if (station.durationType == this.durationTypes.xHoursPerStaff
+        if (station.durationType == DurationType.ForXhoursperdayforeachstaff
             && this.getTotalStationCount(shift, station.name, time) < station.duration)
             return true;
         return false;
@@ -1121,71 +1123,132 @@ class DeskSchedule {
     }
     displayDuties(displayCells) {
         //OPENING
-        if (this.openingDuties.length > 0) {
-            shuffle(this.shifts);
-            let openingDutiesStart = new Date(this.settings.openHours.open).addTime(0, -30);
-            let openingStaffShifts = this.shifts.filter(shift => {
-                let stationAtOpen = shift.getStationAtTime(openingDutiesStart);
-                return (stationAtOpen.name == this.defaultStations.available) || (stationAtOpen.name == this.defaultStations.undefined);
-            });
-            for (let i = 0; i < this.openingDuties.length; i++) {
-                let duty = this.openingDuties[i];
-                if (duty.requirePic) {
-                    openingStaffShifts.every(shift => {
-                        if (shift.isPIC) {
-                            //move first PIC shift in array to front of assignment queue
-                            openingStaffShifts.sort((shiftA, shiftB) => shiftA.user_id == shift.user_id ? -1 : shiftB.user_id == shift.user_id ? 1 : 0);
-                            return false; //exit every loop
+        if (this.settings.dutyLists.length > 0) { //redundant now that theres that min check below?
+            //group fairsorting into function? reused for PIC assignment
+            this.sortShiftsByNameAlphabetically();
+            if (this.date.getDayOfYear() % 2 == 0)
+                this.shifts.reverse();
+            offset(this.shifts, this.date.getDayOfYear());
+            this.settings.dutyLists.forEach(dutyList => {
+                // let dutiesStart = new Date(this.settings.openTime(this.date)).addTime(0,-30)
+                // let dutiesStaffShifts = this.shifts.filter(shift=>{
+                //   let stationAtOpen = shift.getStationAtTime(dutiesStart)
+                //   return (stationAtOpen.name == this.defaultStations.available) || (stationAtOpen.name == this.defaultStations.undefined)
+                // })
+                dutyList.startTime = this.dayStartTime;
+                dutyList.endTime = this.dayEndTime;
+                if (dutyList.limitType == DutyListLimitType.XtoYhoursbeforeopen) {
+                    let xy = [
+                        new Date(this.settings.openTime(this.date)).addTime(0, -dutyList.limitXHours * 60),
+                        new Date(this.settings.openTime(this.date)).addTime(0, -dutyList.limitYHours * 60)
+                    ];
+                    dutyList.startTime = getEarliest(xy);
+                    dutyList.endTime = getLatest(xy);
+                }
+                else if (dutyList.limitType == DutyListLimitType.XtoYhoursafteropen) {
+                    let xy = [
+                        new Date(this.settings.openTime(this.date)).addTime(0, dutyList.limitXHours * 60),
+                        new Date(this.settings.openTime(this.date)).addTime(0, dutyList.limitYHours * 60)
+                    ];
+                    dutyList.startTime = getEarliest(xy);
+                    dutyList.endTime = getLatest(xy);
+                }
+                else if (dutyList.limitType == DutyListLimitType.XtoYhoursbeforeclose) {
+                    let xy = [
+                        new Date(this.settings.closeTime(this.date)).addTime(0, -dutyList.limitXHours * 60),
+                        new Date(this.settings.closeTime(this.date)).addTime(0, -dutyList.limitYHours * 60)
+                    ];
+                    dutyList.startTime = getEarliest(xy);
+                    dutyList.endTime = getLatest(xy);
+                }
+                let shiftsWithinTimeLimit = [];
+                for (let time = new Date(dutyList.startTime); time < dutyList.endTime; time.addTime(0, 30)) {
+                    this.shifts.forEach(shift => {
+                        if (![undefined, this.defaultStations.undefined, this.defaultStations.mealBreak, this.defaultStations.off, this.defaultStations.programMeeting].includes(shift.getStationAtTime(time)?.name)) {
+                            shiftsWithinTimeLimit.push(shift);
                         }
                     });
                 }
-                //assign staff at front of assignment queue
-                duty.staffName = openingStaffShifts[0] == undefined ? "" : openingStaffShifts[0].name + (openingStaffShifts[0].isPIC ? '*' : '');
-                //move staff to end of assignment queue
-                openingStaffShifts.sort((shiftA, shiftB) => {
-                    return shiftA.user_id == openingStaffShifts[0].user_id ? 1 : shiftB.user_id == openingStaffShifts[0].user_id ? -1 : 0;
+                // if(duty.requirePic){
+                //   dutiesStaffShifts.every(shift=>{
+                //     if (shift.isPIC){
+                //       //move first PIC shift in array to front of assignment queue
+                //       dutiesStaffShifts.sort((shiftA, shiftB)=>shiftA.user_id==shift.user_id ? -1 : shiftB.user_id==shift.user_id ? 1 : 0)
+                //       return false //exit every loop
+                //     }
+                //   })
+                // }
+                dutyList.duties.forEach((duty, i) => {
+                    let firstEligibleShift = this.shifts.find(shift => shiftsWithinTimeLimit.some(s => s?.name == shift?.name));
+                    if (firstEligibleShift != undefined) {
+                        //assign first eligible staff
+                        dutyList.staff.push(firstEligibleShift == undefined ? "" : firstEligibleShift?.name); //+ (dutiesStaffShifts[0].isPIC?'*':'')
+                        //move staff to end of assignment queue
+                        this.shifts.sort((shiftA, shiftB) => {
+                            return shiftA.user_id == firstEligibleShift.user_id ? 1 : shiftB.user_id == firstEligibleShift.user_id ? -1 : 0;
+                        });
+                    }
+                    else
+                        dutyList.staff.push("");
                 });
+            });
+            let listTitleCells = displayCells.getAllByName('dutyListTitle', '').getRanges();
+            let listDutiesCells = displayCells.getAllByName('dutyTitle').getRanges();
+            let listStaffCells = displayCells.getAllByName('dutyStaff').getRanges();
+            let listCheckCells = displayCells.getAllByName('dutyCheck').getRanges();
+            let numOfCompleteGroups = Math.min(this.settings.dutyLists.length, listTitleCells.length, listDutiesCells.length, listStaffCells.length, listCheckCells.length);
+            for (let i = 0; i < numOfCompleteGroups; i++) {
+                let dutyList = this.settings.dutyLists[i];
+                let titleCell = listTitleCells[i];
+                let dutyRange = this.deskSheet.getRange(listDutiesCells[i].getRow(), listDutiesCells[i].getColumn(), dutyList.duties.length, 1);
+                let staffRange = this.deskSheet.getRange(listStaffCells[i].getRow(), listStaffCells[i].getColumn(), dutyList.staff.length, 1);
+                let checkRange = this.deskSheet.getRange(listCheckCells[i].getRow(), listCheckCells[i].getColumn(), dutyList.duties.length, 1);
+                titleCell.setValue(`${dutyList.title} ${dutyList.startTime.toLocaleTimeString('en', { hour: 'numeric', minute: 'numeric' }).replace(" AM", "").replace(" PM", "")} - ${dutyList.endTime.toLocaleTimeString('en', { hour: 'numeric', minute: 'numeric' })}`);
+                dutyRange.setValues(dutyList.duties.map(e => [e]));
+                staffRange.setValues(dutyList.staff.map(staff => [this.shortenFullName(staff) + (staff.includes('*') ? '*' : '')]));
+                dutyRange.setValues(dutyList.duties.map(e => [e]));
+                checkRange.insertCheckboxes();
             }
-            displayCells.getByNameColumn('openingDutyTitle', '', this.openingDuties.length)
-                .setValues(this.openingDuties.map(d => [d.title + ((d.requirePic ? '*' : ''))]));
-            displayCells.getByNameColumn('openingDutyName', '', this.openingDuties.length)
-                .setValues(this.openingDuties.map(d => [this.shortenFullName(d.staffName) + (d.staffName.includes('*') ? '*' : '')]));
-            displayCells.getByNameColumn('openingDutyCheck', '', this.openingDuties.length)
-                .insertCheckboxes();
+            // displayCells.getByNameColumn('openingDutyTitle', '', this.openingDuties.length)
+            //   .setValues(this.openingDuties.map(d=>[d.title+((d.requirePic?'*':''))]))
+            // displayCells.getByNameColumn('openingDutyName', '', this.openingDuties.length)
+            //   .setValues(this.openingDuties.map(d=>[this.shortenFullName(d.staffName)+(d.staffName.includes('*')?'*':'')]))
+            // displayCells.getByNameColumn('openingDutyCheck', '', this.openingDuties.length)
+            //   .insertCheckboxes()
         }
         //CLOSING
-        if (this.closingDuties?.length > 0) {
-            shuffle(this.shifts);
-            let closingDutiesStart = new Date(this.settings.openHours.close).addTime(0, -30);
-            let closingStaffShifts = this.shifts.filter(shift => {
-                let stationAtClose = shift.getStationAtTime(closingDutiesStart);
-                return (stationAtClose.name !== this.defaultStations.off) && (stationAtClose.name !== this.defaultStations.programMeeting);
-            });
-            for (let i = 0; i < this.closingDuties.length; i++) {
-                let duty = this.closingDuties[i];
-                if (duty.requirePic) {
-                    closingStaffShifts.every(shift => {
-                        if (shift.isPIC) {
-                            //move first PIC shift in array to front of assignment queue
-                            closingStaffShifts.sort((shiftA, shiftB) => shiftA.user_id == shift.user_id ? -1 : shiftB.user_id == shift.user_id ? 1 : 0);
-                            return false; //exit every loop
-                        }
-                    });
-                }
-                //assign staff at front of assignment queue
-                duty.staffName = closingStaffShifts[0] == undefined ? "" : closingStaffShifts[0].name + (closingStaffShifts[0].isPIC ? '*' : '');
-                //move staff to end of assignment queue
-                closingStaffShifts.sort((shiftA, shiftB) => {
-                    return shiftA.user_id == closingStaffShifts[0].user_id ? 1 : shiftB.user_id == closingStaffShifts[0].user_id ? -1 : 0;
-                });
-            }
-            displayCells.getByNameColumn('closingDutyTitle', '', this.closingDuties.length)
-                ?.setValues(this.closingDuties.map(d => [d.title + ((d.requirePic ? '*' : ''))]));
-            displayCells.getByNameColumn('closingDutyName', '', this.closingDuties.length)
-                ?.setValues(this.closingDuties.map(d => [this.shortenFullName(d.staffName) + (d.staffName.includes('*') ? '*' : '')]));
-            displayCells.getByNameColumn('closingDutyCheck', '', this.closingDuties.length)
-                ?.insertCheckboxes();
-        }
+        // if (this.closingDuties?.length>0){
+        //   shuffle(this.shifts)
+        //   let closingDutiesStart = new Date(this.settings.closeTime(this.date)).addTime(0,-30)
+        //   let closingStaffShifts = this.shifts.filter(shift=>{
+        //     let stationAtClose = shift.getStationAtTime(closingDutiesStart)
+        //     return (stationAtClose.name !== this.defaultStations.off) && (stationAtClose.name !== this.defaultStations.programMeeting)
+        //   })
+        //   for(let i=0; i<this.closingDuties.length; i++){
+        //     let duty = this.closingDuties[i]
+        //     if(duty.requirePic){
+        //       closingStaffShifts.every(shift=>{
+        //         if (shift.isPIC){
+        //           //move first PIC shift in array to front of assignment queue
+        //           closingStaffShifts.sort((shiftA, shiftB)=>shiftA.user_id==shift.user_id ? -1 : shiftB.user_id==shift.user_id ? 1 : 0)
+        //           return false //exit every loop
+        //         }
+        //       })
+        //     }
+        //     //assign staff at front of assignment queue
+        //     duty.staffName = closingStaffShifts[0]==undefined ? "" : closingStaffShifts[0].name + (closingStaffShifts[0].isPIC?'*':'')
+        //     //move staff to end of assignment queue
+        //     closingStaffShifts.sort((shiftA, shiftB)=>{
+        //       return shiftA.user_id==closingStaffShifts[0].user_id ? 1 : shiftB.user_id==closingStaffShifts[0].user_id ? -1 : 0
+        //     })
+        //   }
+        //   displayCells.getByNameColumn('closingDutyTitle', '', this.closingDuties.length)
+        //     ?.setValues(this.closingDuties.map(d=>[d.title+((d.requirePic?'*':''))]))
+        //   displayCells.getByNameColumn('closingDutyName', '', this.closingDuties.length)
+        //     ?.setValues(this.closingDuties.map(d=>[this.shortenFullName(d.staffName)+(d.staffName.includes('*')?'*':'')]))
+        //   displayCells.getByNameColumn('closingDutyCheck', '', this.closingDuties.length)
+        //     ?.insertCheckboxes()
+        // }
     }
     logDeskData(description) {
         this.sortShiftsForDisplay();
@@ -1244,20 +1307,41 @@ class DeskSchedule {
         }
     }
 }
+var DurationType;
+(function (DurationType) {
+    DurationType["Alwayswhileopen"] = "Always while open";
+    DurationType["ForXhoursperdaytotal"] = "For X hours per day total";
+    DurationType["ForXhoursperdayforeachstaff"] = "For X hours per day for each staff";
+})(DurationType || (DurationType = {}));
+var LimitType;
+(function (LimitType) {
+    LimitType["SpecificTime"] = "Specific Time";
+    LimitType["XtoYhoursafteropen"] = "X to Y hours after open";
+    LimitType["XtoYhoursbeforeclose"] = "X to Y hours before close";
+})(LimitType || (LimitType = {}));
+var DutyListLimitType;
+(function (DutyListLimitType) {
+    DutyListLimitType["XtoYhoursafteropen"] = "after open";
+    DutyListLimitType["XtoYhoursbeforeopen"] = "before open";
+    DutyListLimitType["XtoYhoursbeforeclose"] = "before close";
+})(DutyListLimitType || (DutyListLimitType = {}));
 class Station {
-    constructor(name, color = `#ffffff`, numOfStaff = 1, positionPriority = [], //position[] when implemented
-    duration = 0, durationType = undefined, limitToStartTime = undefined, limitToEndTime = undefined, limitType = undefined, group = "") {
-        this.name = name;
+    constructor(color = `#ffffff`, name, numOfStaff = 1, group = "", positionPriority = [], durationType = DurationType.Alwayswhileopen, duration = 0, limitType = LimitType.SpecificTime, limitXHours = undefined, limitYHours = undefined, limitToStartTime = undefined, limitToEndTime = undefined) {
         this.color = color;
-        this.numOfStaff = numOfStaff;
+        this.name = name;
+        this.group = group;
         this.positionPriority = positionPriority;
         this.durationType = durationType;
         this.duration = duration;
+        this.limitType = limitType;
+        this.limitXHours = limitXHours;
+        this.limitYHours = limitYHours;
         this.limitToStartTime = limitToStartTime;
         this.limitToEndTime = limitToEndTime;
-        this.limitType = limitType;
-        this.group = group;
+        this.numOfStaff = numOfStaff;
     }
+}
+class PositionPriority {
 }
 class ShiftEvent {
     constructor(title, startTime, endTime, 
@@ -1296,22 +1380,30 @@ class Shift {
         return (this.endTime.getTime() - this.startTime.getTime()) / (1000 * 60 * 60);
     }
     getStationAtTime(time) {
-        let halfHoursSinceDayStartTime = Math.round(Math.abs(time.getTime() - this.deskSchedule.dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
+        let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
+        if (halfHoursSinceDayStartTime < 0)
+            return this.deskSchedule.getStation(this.deskSchedule.defaultStations.off);
         return this.deskSchedule.getStation(this.stationTimeline[halfHoursSinceDayStartTime]);
     }
     getPicStatusAtTime(time) {
-        let halfHoursSinceDayStartTime = Math.round(Math.abs(time.getTime() - this.deskSchedule.dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
+        let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
+        if (halfHoursSinceDayStartTime < 0)
+            return undefined;
         return this.picTimeline[halfHoursSinceDayStartTime];
     }
     setStationAtTime(station, time) {
-        let halfHoursSinceDayStartTime = Math.round(Math.abs(time.getTime() - this.deskSchedule.dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
-        // console.log(startTime, time, halfHoursSinceStartTime)
-        this.stationTimeline[halfHoursSinceDayStartTime] = station;
+        let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
+        if (halfHoursSinceDayStartTime >= 0)
+            this.stationTimeline[halfHoursSinceDayStartTime] = station;
+        else
+            console.error("cannont setStationAtTime", time, "is before dayStartTime", this.deskSchedule.dayStartTime);
     }
     setPicStatusAtTime(status, time) {
-        let halfHoursSinceDayStartTime = Math.round(Math.abs(time.getTime() - this.deskSchedule.dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
-        // console.log(startTime, time, halfHoursSinceStartTime)
-        this.picTimeline[halfHoursSinceDayStartTime] = status;
+        let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
+        if (halfHoursSinceDayStartTime >= 0)
+            this.picTimeline[halfHoursSinceDayStartTime] = status;
+        else
+            console.error("cannont setStationAtTime", time, "is before dayStartTime", this.deskSchedule.dayStartTime);
     }
     countHowLongAtStation(stationName, time) {
         let currentStation = this.getStationAtTime(time).name;
@@ -1451,12 +1543,10 @@ class DisplayCells {
             'happeningToday',
             'stationColor',
             'stationName',
-            'openingDutyTitle',
-            'openingDutyName',
-            'openingDutyCheck',
-            // 'closingDutyTitle',
-            // 'closingDutyName',
-            // 'closingDutyCheck',
+            'dutyListTitle',
+            'dutyTitle',
+            'dutyStaff',
+            'dutyCheck'
         ];
         requiredDisplayCells.forEach(n => {
             if (this.list.filter(dc => n === dc.name).length < 1)
@@ -1481,6 +1571,15 @@ class DisplayCells {
         else
             return this.deskSheet.getRange(matches[0].a1);
     }
+    getAllByName(name, group = '') {
+        let matches = this.list.filter(d => d.name == name);
+        if (matches.length < 1) {
+            console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`);
+            return undefined;
+        }
+        else
+            return this.deskSheet.getRangeList((matches.map(dc => dc.a1)));
+    }
     getByNameColumn(name, group = '', columnLength) {
         if (columnLength < 1)
             return; //avoid error calling getRange on 0 length column
@@ -1493,6 +1592,19 @@ class DisplayCells {
         else
             return this.deskSheet.getRange(matches[0].row, matches[0].col, columnLength, 1);
     }
+    getAllByNameColumn(name, group = '', columnLength) {
+        if (columnLength < 1)
+            return; //avoid error calling getRange on 0 length column
+        let matches = this.list.filter(d => d.name == name);
+        // console.log(matches[0], matches[0].a1)
+        if (matches.length < 1) {
+            console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`);
+            return undefined;
+        }
+        // else return this.deskSheet.getRange(matches[0].row, matches[0].col, columnLength, 1)
+        else
+            return this.deskSheet.getRangeList(matches.map(match => this.deskSheet.getRange(matches[0].row, matches[0].col, columnLength, 1).getA1Notation()));
+    }
     getByName2D(name, group = '', numRows, numColumns) {
         let matches = this.list.filter(d => d.name == name);
         // console.log(matches[0], matches[0].a1)
@@ -1503,15 +1615,6 @@ class DisplayCells {
         else
             return this.deskSheet.getRange(matches[0].row, matches[0].col, numRows, numColumns);
     }
-    getAllByName(name, group = '') {
-        let matches = this.list.filter(d => d.name == name);
-        if (matches.length < 1) {
-            console.error(`no display cells with name '${name}' and group '${group}' in displayCells:\n${JSON.stringify(this.list)}`);
-            return undefined;
-        }
-        else
-            return this.deskSheet.getRangeList((matches.map(dc => dc.a1)));
-    }
 }
 class Duty {
     constructor(title, staffName, requirePic) {
@@ -1521,89 +1624,37 @@ class Duty {
     }
 }
 function log(arg) {
-    if (this.settings?.verboseLog) {
+    if (verboseLog) {
         console.log.apply(console, arguments);
     }
 }
 class Settings {
-}
-function loadSettings(deskSchedDate) {
-    const settingsSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS");
-    var settingsSheetAllData = settingsSheet.getDataRange().getValues();
-    var settingsSheetAllColors = settingsSheet.getDataRange().getBackgrounds();
-    var settingsTrimmed = settingsSheetAllData.map(s => s.filter(s => s !== ''));
-    var settings = Object.fromEntries(getSettingsBlock('Settings Name', settingsTrimmed).map(([k, v]) => [k, v]));
-    var openingDuties = getSettingsBlock('Opening Duties', settingsTrimmed).filter(duty => Object.keys(duty).length !== 0);
-    var closingDuties = getSettingsBlock('Closing Duties', settingsTrimmed).filter(duty => Object.keys(duty).length !== 0);
-    settings.openingDuties = openingDuties.map((line) => ({ "title": line[0], "requirePic": line[1] }));
-    settings.closingDuties = closingDuties.length > 0 ? closingDuties.map((line) => ({ "title": line[0], "requirePic": line[1] })) : undefined;
-    // ui.alert(JSON.stringify(settingsSheetAllData))
-    settings.stations = getSettingsBlock('Color', settingsSheetAllData)
-        .map((line) => ({
-        "color": line[0],
-        "name": line[1],
-        "group": line[2],
-        "positionPriority": line[3],
-        "duration": parseFloat(line[4]),
-        "durationType": line[5],
-        "limitToStartTime": parseFloat(line[6]),
-        "limitToEndTime": parseFloat(line[7]),
-        "limitType": line[8],
-        "numOfStaff": parseInt(line[9])
-    }));
-    let startRow = 0;
-    for (let j = 0; j < settingsSheetAllData.length; j++) {
-        if (settingsSheetAllData[j][0] == 'Color' && j + 1 < settingsSheetAllData.length) {
-            startRow = j + 1;
-            break;
-        }
-    }
-    for (let i = 0; i < settings.stations.length; i++) {
-        settings.stations[i].color = settingsSheet.getRange(startRow + 1 + i, 1).getBackground();
-    }
-    function getSettingsBlock(string, settingsTrimmed) {
-        let start = undefined;
-        let end = undefined;
-        for (let i = 0; i < settingsTrimmed.length; i++) {
-            if (settingsTrimmed[i][0] == string && i + 1 < settingsTrimmed.length) {
-                start = i + 1;
-                break;
+    constructor(date) {
+        let settingsJSON = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS").getRange('A1').getValue();
+        // console.log("settingsJSON", settingsJSON)
+        Object.assign(this, JSON.parse(settingsJSON, dateTimeReviver));
+        function dateTimeReviver(key, value) {
+            var a;
+            if (typeof value === 'string' && value.includes(":00.000Z")) {
+                let revivedDate = new Date(value);
+                revivedDate.setDate(date.getDate());
+                revivedDate.setMonth(date.getMonth());
+                revivedDate.setFullYear(date.getFullYear());
+                return revivedDate;
             }
+            value = value === null ? undefined : value;
+            return value;
         }
-        if (start !== undefined) {
-            for (let i = start; i < settingsTrimmed.length; i++) {
-                if (settingsTrimmed[i].every(e => e == undefined || e == '') || i == settingsTrimmed.length - 1) {
-                    end = i + 1;
-                    break;
-                }
-            }
-        }
-        if (start !== undefined && end !== undefined) {
-            if (string == "Color") {
-                for (let i = start; i < end; i++) {
-                    settingsTrimmed[i][0] = settingsSheetAllColors[i][0];
-                }
-            }
-            return settingsTrimmed.slice(start, end);
-        }
-        else
-            console.error(`can't find start/end point in settings for ${string}. start:${start}, end:${end}`);
+        this.dutyLists.forEach(duty => duty.staff = []);
+        verboseLog = this.verboseLog;
+        // console.log("loaded settings:", this)
     }
-    //horrible. need a better way to input time from settings and validate
-    let openHoursString = settings.openHours.replace(/\s/g, "").split(',')[deskSchedDate.getDay()]; // should return in format "10-6"
-    let openString = openHoursString.split('-')[0];
-    let closeString = openHoursString.split('-')[1];
-    settings.openHours = { open: new Date(deskSchedDate), close: new Date(deskSchedDate) };
-    settings.openHours.open.setHours(openString, Math.round((openString - Math.floor(openString)) * 60));
-    settings.openHours.close.setHours(closeString, Math.round((closeString - Math.floor(closeString)) * 60));
-    if (!isNaN(parseFloat(settings.earliestDisplayTime))) { //if setting is a number, convert to datetime
-        let float = settings.earliestDisplayTime;
-        settings.earliestDisplayTime = new Date(deskSchedDate);
-        settings.earliestDisplayTime.setHours(float, float % 1 * 60);
+    openTime(date) {
+        return this.openHours[date.getDay()].open;
     }
-    if (settings.verboseLog)
-        console.log("settings loaded from sheet:\n" + JSON.stringify(settings));
-    return settings;
+    closeTime(date) {
+        return this.openHours[date.getDay()].close;
+    }
 }
 function sheetNameFromDate(date, includeYear = false) {
     return `${['SUN', 'MON', 'TUES', 'WED', 'THUR', 'FRI', 'SAT'][date.getDay()]} ${date.getMonth() + 1}.${date.getDate() + (includeYear ? '.' + date.getFullYear() : '')}`;
@@ -1732,6 +1783,14 @@ function parseDate(deskScheduleDate, timeString, earliestHour) {
     date.setHours(h, m);
     return date;
 }
+function getEarliest(dates) {
+    dates.sort((a, b) => a.getTime() - b.getTime());
+    return dates[0];
+}
+function getLatest(dates) {
+    dates.sort((a, b) => b.getTime() - a.getTime());
+    return dates[0];
+}
 function offset(arr, offset) { return [...arr.slice(offset % arr.length), ...arr.slice(0, offset % arr.length)]; }
 function shuffle(array) {
     let currentIndex = array.length;
@@ -1777,6 +1836,7 @@ Date.prototype.getTimeStringHH12 = function () {
 function circularReplacer() {
     const seen = new WeakSet(); // object
     return (key, value) => {
+        value = value === undefined ? null : value;
         if (typeof value === "object" && value !== null) {
             if (seen.has(value)) {
                 return;

@@ -90,7 +90,7 @@
       text-align: left;
     }
   </style>
-  <script src="https://rawgit.com/rubaxa/Sortable/master/Sortable.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
   <!-- <script type="module" src="./sortablejs/modular/sortable.complete.esm.js">import Sortable from './sortablejs/modular/sortable.complete.esm.js'</script> -->
 </head>
 
@@ -142,38 +142,12 @@
       <ul>
         <li class="template">
           <i class="handle">✥</i>
-          <input type="text" class="title" value="Duties"><button class="buttonRemove">-</button>
+          <input type="text" class="title" value="Duties" style="width: 284px;"><button class="buttonRemove">-</button>
+          <span style="display: block; padding-left: 20px;">Assign <input type="number" class="limitXHours" value="0" style="width: 34px"> to <input type="number" class="limitYHours" value="0" style="width: 34px"> hours <select class="limitType"><option>before open</option><option>after open</option><option>before close</option></select></span>
           <ul>
             <li class="template"><i class="handle">✥</i><input type="text" value=""><button
                 class="buttonRemove">-</button></li>
             <li><i class="handle">✥</i><input type="text" value=""><button class="buttonRemove">-</button>
-            </li>
-          </ul>
-          <button class="buttonAdd" style="margin-left: 40px;">add duty</button>
-        </li>
-        <li>
-          <i class="handle">✥</i>
-          <input type="text" class="title" value="Opening Duties"><button class="buttonRemove">-</button>
-          <ul>
-            <li class="template"><i class="handle">✥</i><input type="text" value=""><button
-                class="buttonRemove">-</button></li>
-            <li><i class="handle">✥</i><input type="text" value="Book drop"><button class="buttonRemove">-</button></li>
-            <li><i class="handle">✥</i><input type="text" value="Computers"><button class="buttonRemove">-</button></li>
-            <li><i class="handle">✥</i><input type="text" value="Holds"><button class="buttonRemove">-</button></li>
-          </ul>
-          <button class="buttonAdd" style="margin-left: 40px;">add duty</button>
-        </li>
-        <li>
-          <i class="handle">✥</i>
-          <input type="text" class="title" value="Closing Duties"><button class="buttonRemove">-</button>
-          <ul>
-            <li class="template"><i class="handle">✥</i><input type="text" value=""><button
-                class="buttonRemove">-</button></li>
-            <li><i class="handle">✥</i><input type="text" value="Curbsclasse"><button class="buttonRemove">-</button>
-            </li>
-            <li><i class="handle">✥</i><input type="text" value="Print Desk Schedule"><button
-                class="buttonRemove">-</button></li>
-            <li><i class="handle">✥</i><input type="text" value="Toy Cleaning"><button class="buttonRemove">-</button>
             </li>
           </ul>
           <button class="buttonAdd" style="margin-left: 40px;">add duty</button>
@@ -238,6 +212,7 @@
             <td id="limitType">
               <select>
                 <option>Specific Time</option>
+                <!-- <option>X to Y hours before open</option> -->
                 <option>X to Y hours after open</option>
                 <option>X to Y hours before close</option>
               </select>
@@ -259,25 +234,24 @@
   <button id="submit" onclick="sendSettings()">Save settings</button>
 
   <script>
-    var settings = JSON.parse(<?= settings ?>)
+    var settings = JSON.parse(<?= settings ?>, (k,v)=>v = v===null?undefined:v)
+    // var settings = JSON.parse(`{"assignStations":true,"defragPrePass":true,"changeOnTheHour":true,"generatePicAssignments":true,"groupPicsAtTop":true,"assignmentLength":2,"mealBreakLength":0.5,"idealEarlyMealHour":"2000-01-01T18:00:00.000Z","idealLateMealHour":"2000-01-01T22:30:00.000Z","idealMealTimePlusMinusHours":1,"addNamesToEvents":false,"alwaysShowBranchManager":false,"alwaysShowAssistantBranchManager":false,"alwaysShowAllStaff":false,"earliestDisplayTime":"2000-01-01T14:30:00.000Z","locationID":"5752528","googleCalendarID":"c_77d97c35e882d6efcfe0dd786078e9ed05bf3b977361ef63f16c3be21e593d4e@group.calendar.google.com","verboseLog":true,"archiveSheetURL":"https://docs.google.com/spreadsheets/d/1Y6DdCyH9yoIeOzf2dOWP10ZckNvmqAX04cC12f82FKA/edit","openHours":[{"day":"Sunday","open":"2000-01-01T19:00:00.000Z","close":"2000-01-01T23:00:00.000Z"},{"day":"Monday","open":"2000-01-01T15:00:00.000Z","close":"2000-01-02T02:00:00.000Z"},{"day":"Tuesday","open":"2000-01-01T15:00:00.000Z","close":"2000-01-02T02:00:00.000Z"},{"day":"Wednesday","open":"2000-01-01T15:00:00.000Z","close":"2000-01-02T02:00:00.000Z"},{"day":"Thursday","open":"2000-01-01T15:00:00.000Z","close":"2000-01-02T02:00:00.000Z"},{"day":"Friday","open":"2000-01-01T15:00:00.000Z","close":"2000-01-01T23:00:00.000Z"},{"day":"Saturday","open":"2000-01-01T15:00:00.000Z","close":"2000-01-01T23:00:00.000Z"}],"dutyLists": [        {            "title": "Opening Duties",            "duties": [                "Book drop & newspapers",                "Computers, AWEs, light tables",                "Expired holds & print pick list",                "Money",                "Pack delivery",                "Check printers"            ],            "limitXHours": "1.5",            "limitYHours": "2",            "limitType": "before close"        },        {            "title": "Closing Duties",            "duties": [                "Book drop & newspapers",                "Computers, AWEs, light tables",                "Expired holds & print pick list",                "Money",                "Pack delivery",                "Check printers"            ],            "limitXHours": "1.5",            "limitYHours": "2",            "limitType": "before close"        }    ],"stations":[{"":null,"color":"#8e7cc3","name":"Phones","group":null,"positionPriority":[{"title":"Assistant Branch Manager","enabled":true},{"title":"Part-Time Specialist","enabled":true},{"title":"Specialist","enabled":true},{"title":"Associate Specialist","enabled":true},{"title":"Part-Time Associate Specialist","enabled":true},{"title":"Branch Manager","enabled":true},{"title":"Senior Clerk","enabled":false},{"title":"Clerk II","enabled":false},{"title":"Part-Time Clerk II","enabled":false},{"title":"Aide","enabled":false}],"durationType":"Always while open","duration":null,"limitType":"Specific Time","limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1},{"":null,"color":"#3c78d8","name":"2nd floor","group":null,"positionPriority":[{"title":"Aide","enabled":false},{"title":"Part-Time Associate Specialist","enabled":true},{"title":"Associate Specialist","enabled":true},{"title":"Part-Time Specialist","enabled":true},{"title":"Specialist","enabled":true},{"title":"Part-Time Clerk II","enabled":true},{"title":"Clerk II","enabled":true},{"title":"Senior Clerk","enabled":true},{"title":"Assistant Branch Manager","enabled":true},{"title":"Branch Manager","enabled":true}],"durationType":"Always while open","duration":null,"limitType":"Specific Time","limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1},{"":null,"color":"#38761d","name":"1st roving","group":null,"positionPriority":[{"title":"Aide","enabled":false},{"title":"Part-Time Clerk II","enabled":true},{"title":"Clerk II","enabled":true},{"title":"Senior Clerk","enabled":true},{"title":"Part-Time Associate Specialist","enabled":true},{"title":"Associate Specialist","enabled":true},{"title":"Part-Time Specialist","enabled":true},{"title":"Specialist","enabled":true},{"title":"Assistant Branch Manager","enabled":true},{"title":"Branch Manager","enabled":true}],"durationType":"Always while open","duration":1,"limitType":"Specific Time","limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1},{"":null,"color":"#6aa84f","name":"1st front desk","group":null,"positionPriority":[{"title":"Aide","enabled":false},{"title":"Part-Time Clerk II","enabled":true},{"title":"Clerk II","enabled":true},{"title":"Senior Clerk","enabled":true},{"title":"Part-Time Associate Specialist","enabled":true},{"title":"Associate Specialist","enabled":true},{"title":"Part-Time Specialist","enabled":true},{"title":"Specialist","enabled":true},{"title":"Assistant Branch Manager","enabled":true},{"title":"Branch Manager","enabled":true}],"durationType":"Always while open","duration":1,"limitType":"Specific Time","limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1},{"":null,"color":"#b6d7a8","name":"1st childrens'","group":null,"positionPriority":[{"title":"Aide","enabled":false},{"title":"Part-Time Clerk II","enabled":true},{"title":"Clerk II","enabled":true},{"title":"Senior Clerk","enabled":true},{"title":"Part-Time Associate Specialist","enabled":true},{"title":"Associate Specialist","enabled":true},{"title":"Part-Time Specialist","enabled":true},{"title":"Specialist","enabled":true},{"title":"Assistant Branch Manager","enabled":true},{"title":"Branch Manager","enabled":true}],"durationType":"Always while open","duration":1,"limitType":"Specific Time","limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1},{"":null,"color":"#76a5af","name":"Sorting Room","group":null,"positionPriority":[{"title":"Aide","enabled":true},{"title":"Part-Time Clerk II","enabled":true},{"title":"Clerk II","enabled":true},{"title":"Senior Clerk","enabled":true},{"title":"Part-Time Associate Specialist","enabled":true},{"title":"Associate Specialist","enabled":true},{"title":"Part-Time Specialist","enabled":true},{"title":"Specialist","enabled":true},{"title":"Assistant Branch Manager","enabled":true},{"title":"Branch Manager","enabled":false}],"durationType":"For X hours per day for each staff","duration":1,"limitType":"Specific Time","limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1},{"":null,"color":"#ffffff","name":"Available","group":null,"positionPriority":[{"title":"Branch Manager","enabled":true},{"title":"Assistant Branch Manager","enabled":true},{"title":"Specialist","enabled":true},{"title":"Part-Time Specialist","enabled":true},{"title":"Associate Specialist","enabled":true},{"title":"Part-Time Associate Specialist","enabled":true},{"title":"Senior Clerk","enabled":true},{"title":"Clerk II","enabled":true},{"title":"Part-Time Clerk II","enabled":true},{"title":"Aide","enabled":true}],"durationType":"Always while open","duration":1,"limitType":"Specific Time","limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":10}]}`, (k,v)=>v = v===null?undefined:v)
     loadSettings(settings)
 
     function sendSettings() {
       document.getElementById('submit').value="Saving..."
       document.getElementById('submit').disable="true"
       exportSettings()
-      google.script.run.saveSettings(JSON.stringify(settings))
+      google.script.run.saveSettings(JSON.stringify(settings, (k,v) => v === undefined ? null : v))
       setTimeout(google.script.host.close, 5000)
     }
 
     document.getElementById("dutyLists").onclick = function (event) {
-      console.log(event.target.classList)
+      // console.log(event.target.classList)
 
       if (event.target.classList.contains("buttonAdd")) {
         let dutysContainer = event.target.parentNode
-        console.log(dutysContainer)
         let list = dutysContainer.querySelector("ul")
-        console.log(list)
         list.appendChild(dutysContainer.querySelector(".template").cloneNode(true)).classList.remove("template")
       }
       if (event.target.classList.contains("buttonRemove")) {
@@ -298,9 +272,7 @@
       }
       if (event.target.classList.contains("buttonAdd")) {
         let stationsContainer = event.target.parentNode
-        console.log(stationsContainer)
         let list = stationsContainer.querySelector("table tbody")
-        console.log(list)
         let newStation =stationsContainer.querySelector(".template").cloneNode(true)
         list.appendChild(newStation)
         Sortable.create(newStation.querySelector("ul"), {
@@ -351,7 +323,7 @@
       let stationsSettings = document.getElementById("stations")
       
       let kvInputArr = Array.from(kvSettings.querySelectorAll("input")).filter(input=>!input.classList.contains("template"))
-      console.log(kvInputArr)
+      // console.log(kvInputArr)
       kvInputArr.forEach(input=>{
         settings[input.id] = parseInputTypes(input)
       })
@@ -372,8 +344,11 @@
         let dutyList = Array.from(list.querySelectorAll("ul>li"))
         dutyList.shift()
         return {
-          title: list.querySelector("input").value,
-          duties: dutyList.map(listItem=>listItem.querySelector("input").value)
+          title: list.querySelector(".title").value,
+          duties: dutyList.map(listItem=>listItem.querySelector("input").value),
+          limitXHours: list.querySelector(".limitXHours").value,
+          limitYHours: list.querySelector(".limitYHours").value,
+          limitType: list.querySelector(".limitType").value
         }
       })
       settings.dutyLists = dutyListsArr
@@ -398,7 +373,8 @@
       })
       settings.stations = stationsArr.map(station=>Object.fromEntries(station))
 
-      console.log(settings)
+      // console.log(settings)
+      // console.log(JSON.stringify(settings, (k,v) => v === undefined ? null : v))
 
       function parseInputTypes(input){
         if (input == undefined) return undefined
@@ -448,15 +424,18 @@
       Array.from(dutyListsEl).forEach(el=>{
         if (!el.classList.contains("template")) el.remove()
       })
-      let dutyListTempalte = document.querySelector("#dutyLists>ul>.template")
+      let dutyListTemplate = document.querySelector("#dutyLists>ul>.template")
       settings.dutyLists.forEach(dutyList=>{
-        let newList = dutyListTempalte.cloneNode(true)
+        let newList = dutyListTemplate.cloneNode(true)
         Array.from(newList.querySelectorAll("li")).forEach(el=>{
         if (!el.classList.contains("template")) el.remove()
         })
         newList.classList.remove("template")
         let liTemplate = newList.querySelector(".template")
-        newList.querySelector("input").value = dutyList.title
+        newList.querySelector(".title").value = dutyList.title
+        newList.querySelector(".limitXHours").value = dutyList.limitXHours
+        newList.querySelector(".limitYHours").value = dutyList.limitYHours
+        newList.querySelector(".limitType").value = dutyList.limitType
         dutyList.duties.forEach(duty=>{
           let newLi = liTemplate.cloneNode(true)
           newLi.classList.remove("template")
@@ -479,6 +458,7 @@
         Object.entries(station).forEach(property=>{
           let key = property[0]
           let value = property[1]
+          // console.log("key:", key)
           let propertyEl = newStation.querySelector(`#${key}`)
           if(key == "positionPriority"){
             let positionEls = propertyEl.querySelectorAll("ul>li")
