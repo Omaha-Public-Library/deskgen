@@ -9,6 +9,8 @@ When a branch gets started with Deskgen, they'll be provided with a new Google S
 
 To make a schedule, look for the "Generator" dropdown menu at the top right of the page. In that menu you'll have the option to remake the schedule that you have open, make a new schedule for the following day, or make a new schedule for any other day. For your first schedule, click **New schedule for other day**, select a date and hit "generate schedule", and wait a few seconds for the app to run.
 
+The first time you run Deskgen, you'll get a popup asking if you want to grant all the necessary permissions - accept all of these, and run Deskgen again.
+
 Every time a new schedule is generated, check it over to make sure everything looks good. The new schedule will be a normal sheet that you can edit like your old one, but try to keep edits to a minimum - one of the big advantages of this system is that you can quickly regenerate schedules to reflect last minute staff changes, new meetings, etc, and if you regenerate a schedule it won't include those sheet edits you made before.
 
 Instead, a better way to change the schedule is through the settings which control how it generates. For example, if you notice staff are being assigned to be on the front desk for longer than you'd like, don't manually change the timeline - just change the relevant setting and regenerate the schedule. See the [Settings section](#settings) for more info, and [reach out to Corson](mailto:candroski@omahalibrary.org) with questions not answered there.
@@ -21,32 +23,21 @@ Deskgen will automatically display events and schedule staff around them, but th
 - By default, the names of guests will be displayed before the event title in "Happening Today." You can disable this with the "addNamesToEvents" setting if you prefer to add staff names to event titles. 
 
 ## Settings
-Settings control how a schedule is generated, including what kinds of things staff do during the day and how that should be displayed. They can be found in the "SETTINGS" sheet of your desk schedule spreadsheet (if you don't see it, check the hidden sheets in the bottom left ≡ icon). The sheet is broken up into a few sections, which must always be separated with an empty row:
+Settings control how a schedule is generated, including what kinds of things staff do during the day and how that should be displayed. They can be found in the Generator menu > Settings, and are organized in four tabs:
 
 ### Main Settings
-The first section covers general settings. The Settings Name column should not be changed, and the Description column explains each. You can change anything in the Value column, but settings with a yellow background may cause problems if changed.
-
-### Opening Duties and Closing Duties
-In these sections, you can list the opening and closing duties to be displayed on the desk schedule. Staff will be automatically assigned to each on a rotating basis, and can check off these tasks as they complete them. Check the box in the "Require PIC" column if this task should only be assigned to PIC trained staff.
+The first section covers general settings. Hover over each to see a description.
 
 ### Stations
-Stations are the tasks that staff are assigned throughout their shifts. These are the building blocks of the desk schedule timeline, and can be extensively customized. You can add as many or as few stations as you like by adding or deleting columns in this section of the settings sheet. Each station has several settings:
+Stations are the tasks that staff are assigned throughout their shifts. These are the building blocks of the desk schedule timeline, and have lots of options that determine how they're assigned. Hover over each header to see details about these options. The listed order of stations determines which will be prioritized for assignment. For example, If you only have three staff scheduled at a given time, and there are five stations in the list which they're eligible for, staff will only be assigned only to the first three. Click and drag the ✥ handles to change this station priority order.
 
-- **Color** - The color used on the station timeline and station key. You can adjust this, but for stations used by all/most branches (like Available, Program/Meeting, Front Desk), keep the default color if possible so that they're consistent across the system, and easy to read by staff not normally on your schedule.
-- **Station Name** - The name displayed in the station key.
-- **Group** - For schedules with multiple floors, this number/word is used to group stations within floors. Should only be used at Central.
-- **Position Priority** - List of positions which can be assigned to this station, ordered starting with positions which are most preferred for this position. Positions which aren't listed here won't be assigned to this station at all. Positions must exactly match the names of positions in WhenIWork, and be separated by a comma.
-- **Duration** - How long should staff be assigned to this station before they're rotated to a new one. If left blank, will default to the "assignmentLength" value above.
-- **Duration Type** - Allows you to specify different duration rules.
-- **Limit to Time Range** - Limits when a station can be assigned to a specific time range. **Times must be written in 24hr decimal format** - eg, use 9 for 9:00am, 9.5 for 9:30am, 14 for 2:00pm, 14.5 for 2:30pm. These start and end values behave differently depending on the **Limit Type**: 
-	- **Specific Time** - Only assign this station between an absolute start and end time.
-	- **X to Y hours after open** - Only assign this station between X hours after open, and Y hours after open - eg, if opening time is 9:00, a Start of 0 and and End of 2 means this station will only be assigned between 9:00 and 11:00.
-	- **X to Y hours before close** - Only assign this station between X hours before close, and Y hours before close - eg, if closing time is 8:00, a Start of 2 and and End of 1 means this station will only be assigned between 6:00 and 7:00.
-- **# of Staff** - How many staff should be assigned to a station at any time.
+## Station advanced rule examples
 
-The order in which stations are listed indicates their priority. If you only have three staff scheduled at a given time, and there are five stations in the list which they're eligible for, staff will be assigned only to the first three.
+###  Duties
+In these sections, you can list the opening and closing duties to be displayed on the desk schedule. Staff will be automatically assigned to each on a rotating basis, and can check off these tasks as they complete them. Check the box in the "Require PIC" column if this task should only be assigned to PIC trained staff.
 
-### Station advanced rule examples
+###  Open Hours
+In these sections, you can list the opening and closing duties to be displayed on the desk schedule. Staff will be automatically assigned to each on a rotating basis, and can check off these tasks as they complete them. Check the box in the "Require PIC" column if this task should only be assigned to PIC trained staff.
 
 To create more specific rules about station assignment, you can create **multiple lines for the same station with different rules**.
 For example, if you want to assign a duty at the start AND end of every day, you can create one line for that duty limited to the first hour of the day, and another for the same duty limited to the last hour:
@@ -76,8 +67,8 @@ Past desk schedules are automatically moved to a separate archive spreadsheet li
 - [x] Genealogy
 - [x] Downtown
 - [x] AV Sorensen
-- [ ] Abrahams
-- [ ] Swanson
+- [x] Abrahams
+- [x] Swanson
 - [ ] Millard
 - [ ] ...TBD
 

@@ -23,7 +23,7 @@
     table {
       text-align: left;
       border-collapse: collapse;
-      border-style: hidden;
+      /*border-style: hidden;*/
     }
 
     table, th{
@@ -33,8 +33,22 @@
       /* border-left: 1px solid black; */
       /* border-right: 1px solid black; */
     }
-
-    #stations tr>td:first-of-type,
+    .headerGroup1{
+      border-top: 4px solid #8b89c3;
+    }
+    /* .headerGroup1:nth-child(1 of .headerGroup1){
+      border-left: 4px solid #8b89c3;
+    } */
+    .headerGroup2{
+      border-top: 4px solid darksalmon;
+    }
+    /* .headerGroup2:nth-child(1 of .headerGroup2){
+      border-left: 4px solid darksalmon;
+    } */
+    /* .headerGroup2:nth-last-child(1 of .headerGroup2){
+      border-right: 4px solid darksalmon;
+    } */
+    
     #stations tr>th:first-of-type {
       background-color: white;
       border: 1px solid white;
@@ -51,12 +65,14 @@
     tbody tr:nth-child(even) {
       background-color: #e4e4e4;
     }
+    tbody tr:nth-child(odd) {
+      background-color: #c7c7c7;
+    }
 
-    td,
-    th {
+    td, th {
       width: 1px;
       white-space: nowrap;
-      padding: 0px 8px;
+      padding: 0px 4px;
       height: 32px;
       font-size: 0.9em;
     }
@@ -68,6 +84,9 @@
     .handle {
       cursor: grab;
       font-style: normal;
+    }
+    .handleParent:hover {
+      background-color: #ffffff;
     }
 
     .template {
@@ -93,12 +112,16 @@
       text-align: left;
     }
 
-    #durationType{
-      width: 132px;
+    #durationType > select{
+      width: 96px;
     }
 
-    #limitType {
-      width: 102px;
+    #limitType > select {
+      width: 96px;
+    }
+
+    #color > input {
+      width: 110%;
     }
 
     .buttonAdd{
@@ -155,6 +178,7 @@
       padding: 16px 16px;
       border: 1px solid #aaa;
       border-radius: 4px;
+      /* background: #efefef; */
     }
 
     #dutyLists>ul>li>ul>li{
@@ -170,6 +194,47 @@
 
     #dutyLists li>ul{
       padding: 4px 0px;
+    }
+
+    /* Tooltip container */
+    .tooltip {
+      position: relative;
+      display: inline-block;
+      border-bottom: 1px dotted black; /* Add dots under the hoverable text */
+      cursor: help;
+    }
+
+    /* Tooltip text */
+    .tooltiptext {
+      visibility: hidden; /* Hidden by default */
+      width: 280px;
+      background-color: black;
+      color: #ffffff;
+      text-align: left;
+      padding: 8px;
+      border-radius: 6px;
+      position: absolute;
+      z-index: 1; /* Ensure tooltip is displayed above content */
+      top: 140%;
+      left: 0px;
+      white-space: normal;
+      margin: 0px;
+    }
+
+    .tooltiptext::after {
+      content: " ";
+      position: absolute;
+      bottom: 100%;
+      left: 16px; /* To the left of the tooltip */
+      margin-left: -12px;
+      border-width: 8px;
+      border-style: solid;
+      border-color: transparent transparent black transparent;
+    }
+
+    /* Show the tooltip text on hover */
+    .tooltip:hover .tooltiptext {
+      visibility: visible;
     }
 
   </style>
@@ -248,30 +313,30 @@
   </div>
 
   <div id="stationsTab" class="tabcontent">
-    <div id="stations" style="margin: 16px 0px;">
+    <div id="stations" style="margin: 16px 0px 0px 0px;">
       <table>
         <thead>
           <tr class="header">
             <th></th>
-            <th>Color</th>
-            <th>Station Name</th>
-            <th>Group</th>
-            <th>Positions</th>
-            <th>Duration Type</th>
-            <th>Duration</th>
-            <th>Limit Type</th>
-            <th>X Hours</th>
-            <th>Y Hours</th>
-            <th>Start Time</th>
-            <th>End Time</th>
-            <th># of Staff</th>
+            <th><span class="tooltip">Color<p class="tooltiptext">The color used on the station timeline and station key. You can adjust this, but for stations used by all/most branches (like Available, Program/Meeting, Front Desk), keep the default color if possible so that they're consistent across the system, and easy to read by staff not normally on your schedule.</p></span></th>
+            <th><span class="tooltip">Station Name<p class="tooltiptext">The name displayed in the station key.</p></span></th>
+            <th><span class="tooltip">Group<p class="tooltiptext">For schedules with multiple floors, this number/word is used to group stations within floors. Should only be used at Central.</p></span></th>
+            <th><span class="tooltip">Positions<p class="tooltiptext">List of positions which can be assigned to this station, ordered by priority - positions at the top will be preferred over those at the bottom. Click and drag the ✥ handles to change this order. Uncheck positions to make them inelgible for assignment.</p></span></th>
+            <th class="headerGroup1"><span class="tooltip">Duration Type<p class="tooltiptext">Allows you to specify different duration rules.</p></span></th>
+            <th class="headerGroup1"><span class="tooltip">Duration<p class="tooltiptext">How long should staff be assigned to this station before they're rotated to a new one. If left blank, will default to the "assignmentLength" value in Main Settings.</p></span></th>
+            <th class="headerGroup2"><span class="tooltip">Limit Type<p class="tooltiptext">Allows you to specify different ways to limit when a station can be assigned.</p></span></th>
+            <th class="headerGroup2"><span class="tooltip">X Hours<p class="tooltiptext">Used with the "X to Y hours after open/before close" limit types.</p></span></th>
+            <th class="headerGroup2"><span class="tooltip">Y Hours<p class="tooltiptext">Used with the "X to Y hours after open/before close" limit types.</p></span></th>
+            <th class="headerGroup2"><span class="tooltip">Start Time<p class="tooltiptext">Used with the "Specific Time" limit type.</p></span></th>
+            <th class="headerGroup2"><span class="tooltip">End Time<p class="tooltiptext">Used with the "Specific Time" limit type.</p></span></th>
+            <th><span class="tooltip"># of Staff<p class="tooltiptext">How many staff should be assigned to a station at any time.</p></span></th>
             <th></th>
           </tr>
         </thead>
         <tbody>
 
-          <tr class="template">
-            <td><i class="handle">✥</i></td>
+          <tr class="template handleParent">
+            <td class="handleParent"><i class="handle">✥</i></td>
             <td id="color"><input type="color" value="#6aa84f"></td>
             <td id="name"><input type="text" value="Front Desk"></td>
             <td id="group"><input type="text" value=""></td>
@@ -280,14 +345,14 @@
               <button class="expandList">edit...</button>
               <ul class="hidden-list">
                 <li class="template"><i class="handle">✥</i><input type="checkbox" checked><span>template</span></li>
-                <li><i class="handle">✥</i><input type="checkbox" checked><span>Aide</span></li>
+                <li><i class="handle">✥</i><input type="checkbox" checked><span>Part-Time Library Aide</span></li>
                 <li><i class="handle">✥</i><input type="checkbox" checked><span>Part-Time Clerk II</span></li>
                 <li><i class="handle">✥</i><input type="checkbox" checked><span>Clerk II</span></li>
                 <li><i class="handle">✥</i><input type="checkbox" checked><span>Senior Clerk</span></li>
-                <li><i class="handle">✥</i><input type="checkbox" checked><span>Part-Time Associate Specialist</span></li>
-                <li><i class="handle">✥</i><input type="checkbox" checked><span>Associate Specialist</span></li>
-                <li><i class="handle">✥</i><input type="checkbox" checked><span>Part-Time Specialist</span></li>
-                <li><i class="handle">✥</i><input type="checkbox" checked><span>Specialist</span></li>
+                <li><i class="handle">✥</i><input type="checkbox" checked><span>Part-Time Associate Library Specialist</span></li>
+                <li><i class="handle">✥</i><input type="checkbox" checked><span>Associate Library Specialist</span></li>
+                <li><i class="handle">✥</i><input type="checkbox" checked><span>Part-Time Library Specialist</span></li>
+                <li><i class="handle">✥</i><input type="checkbox" checked><span>Library Specialist</span></li>
                 <li><i class="handle">✥</i><input type="checkbox" checked><span>Assistant Branch Manager</span></li>
                 <li><i class="handle">✥</i><input type="checkbox" checked><span>Branch Manager</span></li>
               </ul>
@@ -395,6 +460,30 @@
         let station = event.target.parentNode.parentNode
         let stationsContainer = station.parentNode
         station.insertAdjacentElement("beforebegin", station.cloneNode(true))
+      }
+      if (event.target.parentNode.id == "limitType") {
+        updateLimitInputs(event.target.parentNode.parentNode)
+      }
+    }
+
+    function updateLimitInputs(station){
+      let specificTimeStart = station.querySelector("#limitToStartTime > input")
+      let specificTimeEnd = station.querySelector("#limitToEndTime > input")
+      let limitXHours = station.querySelector("#limitXHours > input")
+      let limitYHours = station.querySelector("#limitYHours > input")
+      let select = station.querySelector("#limitType > select")
+      let value = select.options[select.selectedIndex].innerText
+      if (value == "Specific Time") {
+        specificTimeStart.disabled = false
+        specificTimeEnd.disabled = false
+        limitXHours.disabled = true
+        limitYHours.disabled = true
+      }
+      else{
+        specificTimeStart.disabled = true
+        specificTimeEnd.disabled = true
+        limitXHours.disabled = false
+        limitYHours.disabled = false
       }
     }
 
@@ -507,16 +596,38 @@
       && setting[0] != "stations"
       && setting[0] != "dutyLists"
       )
+      let kvTooltips=[
+        {text:"assignStations", tooltip:"Assign staff to stations. If unchecked, will generate a blank schedule with only meals and events."},
+        {text:"defragPrePass", tooltip:"Avoid half hour assignments. May extend stations half an hour past their normal duration limit."},
+        {text:"changeOnTheHour", tooltip:"Try to only change station assignments on the hour and not at the half hour."},
+        {text:"generatePicAssignments", tooltip:"Assign lead PIC at all times during the day, displayed on timeline at top of schedule."},
+        {text:"groupPicsAtTop", tooltip:"Group PIC trained staff at the top of the schedule, above Reference staff."},
+        {text:"assignmentLength", tooltip:"After this many hours, try to move staff to another station. Overridden by Duration setting of individual stations."},
+        {text:"mealBreakLength", tooltip:"Length of meal breaks in hours. For half hours, format as decimal like 0.5 or 1.5. Will only assign meals to staff working 8+ hours."},
+        {text:"idealEarlyMealHour", tooltip:"Try to assign lunch near this time. Will only assign meals to staff working 8+ hours."},
+        {text:"idealLateMealHour", tooltip:"Try to assign dinner near this time. Will only assign meals to staff working 8+ hours."},
+        {text:"idealMealTimePlusMinusHours", tooltip:"How long before/after above times should meals be assigned when coverage is limited?"},
+        {text:"addNamesToEvents", tooltip:`In "Happening Today," display names of all event guests before the title of the event.`},
+        {text:"alwaysShowBranchManager", tooltip:"Show branch manager on schedule, even on days they don't work"},
+        {text:"alwaysShowAssistantBranchManager", tooltip:"Show ABMs on schedule, even on days they don't work"},
+        {text:"alwaysShowAllStaff", tooltip:"Show all staff on schedule, even on days they don't work"},
+        {text:"earliestDisplayTime", tooltip:"Cut off any shifts/events earlier than this time"},
+        {text:"locationID", tooltip:"The locationID used to identify the branch schedule in When I Work"},
+        {text:"googleCalendarID", tooltip:`ID for the programs/meetings calendar. Found in Google Calendar, in the settings for that calendar under "Integrate calendar"`},
+        {text:"archiveSheetURL", tooltip:"Past schedules will be automatically hidden, then in one day, moved to this spreadsheet to be archived."},
+        {text:"verboseLog", tooltip:"When this is checked, more information will be logged to the Apps Script Console and a debug timeline will popup after schedule generation."},
+      ]
       kvSettings.forEach(kv=>{
         let key = kv[0]
         let val = kv[1]
         let tr = kvSettingsTable.querySelector(".template").cloneNode(true)
         tr.classList.remove("template")
         tr.querySelector("input").classList.remove("template")
-        tr.querySelector("td").innerText = key
+        tr.querySelector("td").innerHTML = `<span class="tooltip">${key}<p class="tooltiptext">${kvTooltips.find(tt=>tt.text==key)?.tooltip}</p></span>`
         initInput(tr.querySelector("td input"), key, val)
         kvSettingsTable.querySelector("tbody").appendChild(tr)
       })
+
 
     //openHours
       let openHoursArr = Array.from(document.getElementById("openHours").querySelectorAll("tr"))
@@ -617,6 +728,10 @@
         if (val.includes(".000Z")) return new Date(val).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12:false})
         return val
       }
+
+      Array.from(stationsContainer.querySelectorAll("table>tbody>tr")).forEach(el=>{
+        updateLimitInputs(el)
+      })
     }
   </script>
 </body>

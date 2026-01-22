@@ -2,11 +2,16 @@ var verboseLog = false;
 
 function onOpen(){
   SpreadsheetApp.getUi().createMenu('Generator')
-  .addItem('Redo schedule for current date', 'buildDeskScheduleRedo')
-  .addItem('New schedule for following date', 'buildDeskScheduleTomorrow')
-  .addItem('New schedule for other date...', 'buildDeskScheduleInputDate')
-  .addItem('Settings', 'popupSettings')
-  .addItem('Open archive', 'openArchive')
+  // .addItem('Redo schedule for current date', 'buildDeskScheduleRedo')
+  .addItem('↺ Redo schedule for current date', 'buildDeskScheduleRedo')
+  // .addItem('New schedule for following date', 'buildDeskScheduleTomorrow')
+  .addItem('→ New schedule for following date', 'buildDeskScheduleTomorrow')
+  // .addItem('New schedule for other date...', 'buildDeskScheduleInputDate')
+  .addItem('＋ New schedule for other date...', 'buildDeskScheduleInputDate')
+  // .addItem('Settings', 'popupSettings')
+  .addItem('⛭ Settings', 'popupSettings')
+  // .addItem('Open archive', 'openArchive')
+  .addItem(' ⧖ Open archive', 'openArchive')
   .addToUi()
   // if(Session.getActiveUser().getEmail() === "candroski@omahalibrary.org")
   //   SpreadsheetApp.getUi().createMenu('Generator Admin')
@@ -167,6 +172,8 @@ function buildDeskSchedule(deskSchedDate){
   const ui = SpreadsheetApp.getUi()
   const templateSheet = ss.getSheetByName('TEMPLATE')
   var token: string = null
+
+  // ui.alert("🚧🏗️🦤🚧\nCorson is doing a little maintenance and the generator might not run correctly!\nIf it doesn't run, check back in a little while.\nIf it does, double check the results!");
   
   deskSheet = ss.getActiveSheet()
   
@@ -309,7 +316,8 @@ class DeskSchedule{
       //add gcal events that don't include scheduled users
       gCalEvents.forEach(gCalEvent=>{
       let guestEmailList = gCalEvent.getGuestList().map(guest=>guest.getEmail().toLowerCase())
-      let guestIdList = wiwData.users.filter(u=>guestEmailList.includes(u.email.toLowerCase())).map(u=>u.id)
+      // let guestIdList = wiwData.users.filter(u=>guestEmailList.includes(u.email.toLowerCase())).map(u=>u.id)
+      let guestIdList = wiwData.users.filter(u => guestEmailList.some(guestEmail=>guestEmail.localeCompare(u.email, "en", {sensitivity: "base"}) === 0)).map(u => u.id);
       //if event guest list doesn't include any scheduled users
       if(!wiwData.shifts.some(shift=>guestIdList.includes(shift.user_id))){
         let startTime = new Date(gCalEvent.getStartTime().getTime())
@@ -425,17 +433,36 @@ class DeskSchedule{
     this.positionHierarchy = [ //manually created, name/id must match wiw, will break if wiw positions are changed
       {"id":11534158,"name":"Branch Manager", "group":"Reference","picDurationMax":3},
       {"id":11534159,"name":"Assistant Branch Manager", "group":"Reference", "picDurationMax":3},
-      {"id":11534161,"name":"Specialist", "group":"Reference", "picDurationMax":2},
-      {"id":11566533,"name":"Part-Time Specialist", "group":"Reference", "picDurationMax":2},
-      {"id":11534164,"name":"Associate Specialist", "group":"Reference", "picDurationMax":2},
-      {"id":11656177,"name":"Part-Time Associate Specialist", "group":"Reference", "picDurationMax":2},
+      {"id":11534161,"name":"Library Specialist", "group":"Reference", "picDurationMax":2},
+      {"id":11566533,"name":"Part-Time Library Specialist", "group":"Reference", "picDurationMax":2},
+      {"id":11534164,"name":"Associate Library Specialist", "group":"Reference", "picDurationMax":2},
+      {"id":11656177,"name":"Part-Time Associate Library Specialist", "group":"Reference", "picDurationMax":2},
       {"id":11534162,"name":"Senior Clerk", "group":"Clerk","picDurationMax":0},
       {"id":11534163,"name":"Clerk II", "group":"Clerk","picDurationMax":0},
       {"id":11762122,"name":"Part-Time Clerk II", "group":"Clerk","picDurationMax":0},
-      {"id":11534165,"name":"Aide", "group":"Aide", "picDurationMax":0},
+      {"id":11534165,"name":"Part-Time Library Aide", "group":"Aide", "picDurationMax":0},
+      
+      {"id":11810398,"name":"Part-Time Applications Analyst", "group":"Departments","picDurationMax":0},
+      {"id":11810399,"name":"Librarian II", "group":"Departments","picDurationMax":0},
+      {"id":11810400,"name":"Librarian I", "group":"Departments","picDurationMax":0},
+      {"id":11810401,"name":"Marketing and Communications Specialist", "group":"Departments","picDurationMax":0},
+      {"id":11810402,"name":"Library Technology Specialist", "group":"Departments","picDurationMax":0},
+      {"id":11810403,"name":"Library Special Projects Manager", "group":"Departments","picDurationMax":0},
+      {"id":11810404,"name":"Office Supervisor", "group":"Departments","picDurationMax":0},
+      {"id":11810405,"name":"Librarian III", "group":"Departments","picDurationMax":0},
+      {"id":11810406,"name":"Marketing Manager", "group":"Departments","picDurationMax":0},
+      {"id":11810407,"name":"Library Director", "group":"Departments","picDurationMax":0},
+      {"id":11810408,"name":"Graphics Specialist", "group":"Departments","picDurationMax":0},
+      {"id":11810409,"name":"Part-Time Social Media Manager", "group":"Departments","picDurationMax":0},
+      {"id":11810410,"name":"Office Manager", "group":"Departments","picDurationMax":0},
+      {"id":11810411,"name":"Assistant Library Director", "group":"Departments","picDurationMax":0},
+      {"id":11810412,"name":"Social Media Manager", "group":"Departments","picDurationMax":0},
+      {"id":11810413,"name":"Executive Secretary", "group":"Departments","picDurationMax":0},
+
       //custom, not in WIW, for annotation events
       {"id":0,"name":"Annotation Event"}
     ]
+    
     /*
       Descending:
     Branch Manager, Assistant Branch Manager, Specialist, Part-Time Specialist, Associate Specialist, Part-Time Associate Specialist, Senior Clerk, Clerk II, Part-Time Clerk II, Aide
@@ -463,7 +490,8 @@ class DeskSchedule{
         //get events from gcal
         gCalEvents.forEach(gCalEvent=>{
           let guestEmailList = gCalEvent.getGuestList().map(guest=>guest.getEmail().toLowerCase())
-          if(guestEmailList.includes(wiwUserObj.email.toLowerCase())){
+          // if(guestEmailList.includes(wiwUserObj.email.toLowerCase())){
+          if (guestEmailList.some(guestEmail=>guestEmail.localeCompare(wiwUserObj.email, "en", {sensitivity: "base"}) === 0)) {
             //if event last all day (gcal without start/end) clamp event start/end to shift start/end
             let startTime = new Date(gCalEvent.getStartTime().getTime())
             let endTime = new Date(gCalEvent.getEndTime().getTime())
@@ -627,7 +655,8 @@ class DeskSchedule{
       // SpreadsheetApp.newRichTextValue().setText('\n').setTextStyle(SpreadsheetApp.newTextStyle().setItalic(true).build()).build(),
       ...gCalEvents.map((ev,i)=>{
         let guestEmailList = ev.getGuestList()/*todo: filter out 'no' responses*/.map(g=>g.getEmail())
-        let guestNames = guestEmailList.map(email=>this.shortenFullName(((this.shifts.find(shift=>shift.email==email))||{name:"(user not on schedule)"}).name)) //to do: handle 
+        // let guestNames = guestEmailList.map(email=>this.shortenFullName(((this.shifts.find(shift=>shift.email==email))||{name:"(user not on schedule)"}).name)) //to do: handle 
+        let guestNames = guestEmailList.map(email=>this.shortenFullName(((this.shifts.find(shift=>shift.email.localeCompare(email, "en", {sensitivity: "base"}) === 0))||{name:"(user-not-on-schedule)"}).name)) //to do: handle 
         let timesString = new Date(ev.getStartTime().getTime()).getTimeStringHHMM12() +'-'+ new Date(ev.getEndTime().getTime()).getTimeStringHHMM12()
         timesString = timesString.replace('12:00-12:00', 'All Day')
         let concatRT = concatRichText([
@@ -677,6 +706,8 @@ class DeskSchedule{
     mergeConsecutiveInRow(picTimelineRange)
   }
   
+  //add error alerts when position can't be found
+
   getPositionById(id: number){
     return this.positionHierarchy.filter(pos => pos.id == id)[0]
   }
