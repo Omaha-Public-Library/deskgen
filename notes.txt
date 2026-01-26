@@ -34,11 +34,8 @@ wiw location notes - dt parking
 
 handle overlapping events not assigned to specific staff - stagger across multiple rows
 
-
-add colored header bgs that groups duration / limit
-contextual greying out for limit type
+add explanation about multiple duty lists on settings page
 add reverse button to station priority
-get rid of padding on color picker
 
 show time range option for duty lists
 load settings fails if settings cell is blank, should only affect first run but maybe add catch

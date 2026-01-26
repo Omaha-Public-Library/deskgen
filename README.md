@@ -26,37 +26,42 @@ Deskgen will automatically display events and schedule staff around them, but th
 Settings control how a schedule is generated, including what kinds of things staff do during the day and how that should be displayed. They can be found in the Generator menu > Settings, and are organized in four tabs:
 
 ### Main Settings
-The first section covers general settings. Hover over each to see a description.
+The first tab covers general settings. Hover over each to see a description.
 
 ### Stations
-Stations are the tasks that staff are assigned throughout their shifts. These are the building blocks of the desk schedule timeline, and have lots of options that determine how they're assigned. Hover over each header to see details about these options. The listed order of stations determines which will be prioritized for assignment. For example, If you only have three staff scheduled at a given time, and there are five stations in the list which they're eligible for, staff will only be assigned only to the first three. Click and drag the ✥ handles to change this station priority order.
+Stations are the tasks that staff are assigned throughout their shifts. These are the building blocks of the desk schedule timeline, and have lots of options that determine how they're assigned. Hover over each header to see details about these options.
 
-## Station advanced rule examples
+The listed order of stations determines which will be prioritized for assignment. For example, If you only have three staff scheduled at a given time, and there are five stations in the list which they're eligible for, staff will only be assigned only to the first three. Click and drag the ✥ handles to change this station priority order.
 
-###  Duties
-In these sections, you can list the opening and closing duties to be displayed on the desk schedule. Staff will be automatically assigned to each on a rotating basis, and can check off these tasks as they complete them. Check the box in the "Require PIC" column if this task should only be assigned to PIC trained staff.
+Use the **Positions** setting to choose which staff can be assigned to a station. The order of this list determines priority just like the station list, and can also be rearranged with their ✥ click and drag handles.
 
-###  Open Hours
-In these sections, you can list the opening and closing duties to be displayed on the desk schedule. Staff will be automatically assigned to each on a rotating basis, and can check off these tasks as they complete them. Check the box in the "Require PIC" column if this task should only be assigned to PIC trained staff.
+#### Station advanced rule examples
 
 To create more specific rules about station assignment, you can create **multiple lines for the same station with different rules**.
 For example, if you want to assign a duty at the start AND end of every day, you can create one line for that duty limited to the first hour of the day, and another for the same duty limited to the last hour:
    
-| Station Name | ... | Start | End | Limit Type                |
-|--------------|-----|-------|-----|---------------------------|
-| Pull List    |     | 0     | 1   | X to Y hours after open   |
-| Pull List    |     | 1     | 0   | X to Y hours before close |
+| Color | Station Name | ... |  Limit Type                |X Hours| Y Hours |
+|-|--------------|-----|---------------------------|-------|-----|
+|🟥| Pull List    |     | X to Y hours after open   |0     | 1   | 
+|🟥| Pull List    |     | X to Y hours before close | 1     | 0   |
 
 Or, if you wanted to assign a second person to a station only after all other stations were covered, you could create one line for the station at the top of the priority list, and another at the bottom of the list after those other stations:
 
-| Station Name    | ... | # of Staff |
-|-----------------|-----|------------|
-| Front Desk      |     | 1          |
-| Children's Desk |     | 1          |
-| Phones          |     | 1          |
-| Front Desk      |     | 1          |
+| Color | Station Name    | ... | # of Staff |
+|- |-----------------|-----|------------|
+|🟩|  Front Desk      |     | 1          |
+|🟦| Children's Desk |     | 1          |
+|🟪| Phones          |     | 1          |
+|🟩| Front Desk      |     | 1          |
 
 Here, the Front Desk will only have on staff assigned to it, unless there are enough staff available to cover the Children's Desk and Phones, then a second staff will be assigned to the Front Desk.
+
+###  Duties
+In this tab, you can make lists of duties to be displayed on the desk schedule. Staff who work during the duty list's time will be automatically be assigned to them on a rotating basis, and can check off these tasks as they complete them. Check the box in the "Require PIC" column if this task should only be assigned to PIC trained staff.
+You can have multiple duty lists, but they'll only be displayed if there are enough spaces marked for them in the TEMPLATE sheet. Right now that's a little fussy to adjust, for now let Corson know if you'd like to change the number of duty lists on your schedule.
+
+###  Open Hours
+In this tab, you can list the opening and closing duties to be displayed on the desk schedule. Staff will be automatically assigned to each on a rotating basis, and can check off these tasks as they complete them. Check the box in the "Require PIC" column if this task should only be assigned to PIC trained staff.
 
  ## Archiving
 Past desk schedules are automatically moved to a separate archive spreadsheet linked in SETTINGS. Yesterday's desk schedule can be found in the main desk schedule under hidden sheets (bottom left ≡ icon). Desk Schedules older than yesterday can be found in the archive.

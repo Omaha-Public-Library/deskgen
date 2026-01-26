@@ -578,9 +578,8 @@ class DeskSchedule {
         const happeningTodayRichTextArray = [
             // SpreadsheetApp.newRichTextValue().setText('\n').setTextStyle(SpreadsheetApp.newTextStyle().setItalic(true).build()).build(),
             ...gCalEvents.map((ev, i) => {
-                let guestEmailList = ev.getGuestList() /*todo: filter out 'no' responses*/.map(g => g.getEmail());
-                // let guestNames = guestEmailList.map(email=>this.shortenFullName(((this.shifts.find(shift=>shift.email==email))||{name:"(user not on schedule)"}).name)) //to do: handle 
-                let guestNames = guestEmailList.map(email => this.shortenFullName(((this.shifts.find(shift => shift.email.localeCompare(email, "en", { sensitivity: "base" }) === 0)) || { name: "(user-not-on-schedule)" }).name)); //to do: handle 
+                let guestList = ev.getGuestList(); /*todo: filter out 'no' responses*/
+                let guestNames = guestList.map(guest => this.shortenFullName(((this.shifts.find(shift => shift.email?.localeCompare(guest.getEmail(), "en", { sensitivity: "base" }) === 0)) || { name: guest.getName() }).name)); //to do: handle 
                 let timesString = new Date(ev.getStartTime().getTime()).getTimeStringHHMM12() + '-' + new Date(ev.getEndTime().getTime()).getTimeStringHHMM12();
                 timesString = timesString.replace('12:00-12:00', 'All Day');
                 let concatRT = concatRichText([
