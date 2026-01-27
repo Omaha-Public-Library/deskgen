@@ -94,6 +94,9 @@ wheniwork feature request, supervisor see other schedules
 supervisors can edit anyone's availabilty?
 storytime rotation based on storytime training in WIW?
 programming/storytime tags for eligibility, standardized, multiple types of storytime!
+
+wiw support hour count
+communico - amy would like to assign extra person to tech desk only when equipment reservation is made in communico
 ===========================================
 
 questions for managers -

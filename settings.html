@@ -99,7 +99,7 @@
       cursor: grab;
     }
 
-    .hideList {
+    .hideList, .buttonSort, .buttonFlip {
       display: none;
     }
 
@@ -341,20 +341,22 @@
             <td id="name"><input type="text" value="Front Desk"></td>
             <td id="group"><input type="text" value=""></td>
             <td id="positionPriority">
-              <button class="hideList">save</button>
               <button class="expandList">edit...</button>
+              <button class="hideList">save</button>
+              <button class="buttonSort">sort ↓</button>
+              <button class="buttonFlip">flip ⇵</button>
               <ul class="hidden-list">
                 <li class="template"><i class="handle">✥</i><input type="checkbox" checked><span>template</span></li>
-                <li><i class="handle">✥</i><input type="checkbox" checked><span>Part-Time Library Aide</span></li>
-                <li><i class="handle">✥</i><input type="checkbox" checked><span>Part-Time Clerk II</span></li>
-                <li><i class="handle">✥</i><input type="checkbox" checked><span>Clerk II</span></li>
-                <li><i class="handle">✥</i><input type="checkbox" checked><span>Senior Clerk</span></li>
-                <li><i class="handle">✥</i><input type="checkbox" checked><span>Part-Time Associate Library Specialist</span></li>
-                <li><i class="handle">✥</i><input type="checkbox" checked><span>Associate Library Specialist</span></li>
-                <li><i class="handle">✥</i><input type="checkbox" checked><span>Part-Time Library Specialist</span></li>
-                <li><i class="handle">✥</i><input type="checkbox" checked><span>Library Specialist</span></li>
-                <li><i class="handle">✥</i><input type="checkbox" checked><span>Assistant Branch Manager</span></li>
-                <li><i class="handle">✥</i><input type="checkbox" checked><span>Branch Manager</span></li>
+                <li data-position="Part-Time Library Aide"><i class="handle">✥</i><input type="checkbox" checked><span>Part-Time Library Aide</span></li>
+                <li data-position="Part-Time Clerk II"><i class="handle">✥</i><input type="checkbox" checked><span>Part-Time Clerk II</span></li>
+                <li data-position="Clerk II"><i class="handle">✥</i><input type="checkbox" checked><span>Clerk II</span></li>
+                <li data-position="Senior Clerk"><i class="handle">✥</i><input type="checkbox" checked><span>Senior Clerk</span></li>
+                <li data-position="Part-Time Associate Library Specialist"><i class="handle">✥</i><input type="checkbox" checked><span>Part-Time Associate Library Specialist</span></li>
+                <li data-position="Associate Library Specialist"><i class="handle">✥</i><input type="checkbox" checked><span>Associate Library Specialist</span></li>
+                <li data-position="Part-Time Library Specialist"><i class="handle">✥</i><input type="checkbox" checked><span>Part-Time Library Specialist</span></li>
+                <li data-position="Library Specialist"><i class="handle">✥</i><input type="checkbox" checked><span>Library Specialist</span></li>
+                <li data-position="Assistant Branch Manager"><i class="handle">✥</i><input type="checkbox" checked><span>Assistant Branch Manager</span></li>
+                <li data-position="Branch Manager"><i class="handle">✥</i><input type="checkbox" checked><span>Branch Manager</span></li>
               </ul>
             </td>
             <td id="durationType">
@@ -390,6 +392,18 @@
   <button id="submit" onclick="sendSettings()" style="margin: 32px 0px; width: 120px; height: 40px;">💾 Save all</button>
 
   <script>
+    let defaultOrder = [
+      "Branch Manager",
+      "Assistant Branch Manager",
+      "Library Specialist",
+      "Part-Time Library Specialist",
+      "Associate Library Specialist",
+      "Part-Time Associate Library Specialist",
+      "Senior Clerk",
+      "Clerk II",
+      "Part-Time Clerk II",
+      "Part-Time Library Aide",
+    ]
     function openTab(evt, tabName) {//https://www.w3schools.com/howto/howto_js_tabs.asp
       var i, tabcontent, tablinks;
       tabcontent = document.getElementsByClassName("tabcontent");
@@ -405,9 +419,12 @@
     }
     document.querySelector(".tablinks").click()
 
-    var settings = JSON.parse(<?= settings ?>, (k,v)=>v = v===null?undefined:v)
-
-    loadSettings(settings)
+    let settingsInput = <?= settings ?>
+    let settings = {}
+    if (settingsInput.length>0){
+      settings = JSON.parse(settingsInput, (k,v)=>v = v===null?undefined:v)
+      loadSettings(settings)
+    }
 
     function sendSettings() {
       document.getElementById('submit').innerText="Saving..."
@@ -434,13 +451,17 @@
     document.getElementById("stations").onclick = function (event) {
       if (event.target.classList.contains("expandList")) {
         event.target.parentNode.querySelector("ul").style.display = "block"
-        event.target.parentNode.querySelector(".hideList").style.display = "block"
+        event.target.parentNode.querySelector(".hideList").style.display = "inline-block"
+        event.target.parentNode.querySelector(".buttonSort").style.display = "inline-block"
+        event.target.parentNode.querySelector(".buttonFlip").style.display = "inline-block"
         event.target.parentNode.querySelector(".expandList").style.display = "none"
       }
       if (event.target.classList.contains("hideList")) {
         event.target.parentNode.querySelector("ul").style.display = "none"
         event.target.parentNode.querySelector(".hideList").style.display = "none"
-        event.target.parentNode.querySelector(".expandList").style.display = "block"
+        event.target.parentNode.querySelector(".buttonSort").style.display = "none"
+        event.target.parentNode.querySelector(".buttonFlip").style.display = "none"
+        event.target.parentNode.querySelector(".expandList").style.display = "inline-block"
       }
       if (event.target.classList.contains("buttonAdd")) {
         let stationsContainer = event.target.parentNode
@@ -448,10 +469,26 @@
         let newStation =stationsContainer.querySelector(".template").cloneNode(true)
         list.appendChild(newStation)
         Sortable.create(newStation.querySelector("ul"), {
-          //handle: '.handle', // handle's class
           animation: 150,
+          dataIdAttr: 'data-position'
         })
         newStation.classList.remove("template")
+
+        let positionSoratble = Sortable.get(newStation.querySelector("#positionPriority>ul"))
+        console.log(positionSoratble, positionSoratble.toArray())
+
+        newStation.querySelector(".buttonSort").onclick = function(){
+          let order = positionSoratble.toArray().filter(pos=>defaultOrder.includes(pos))
+          console.log(order)
+          order.sort((a,b)=>defaultOrder.indexOf(a) - defaultOrder.indexOf(b))
+          console.log(order)
+          positionSoratble.sort(order, true)
+        }
+
+        newStation.querySelector(".buttonFlip").onclick = function(){
+          let order = positionSoratble.toArray()
+          positionSoratble.sort(order.reverse(), true)
+        }
       }
       if (event.target.classList.contains("buttonRemove")) {
         event.target.parentNode.parentNode.remove()
@@ -679,11 +716,25 @@
           // console.log("key:", key)
           let propertyEl = newStation.querySelector(`#${key}`)
           if(key == "positionPriority"){
-            let positionEls = propertyEl.querySelectorAll("ul>li")
-            Sortable.create(propertyEl.querySelector("ul"), {
-              //handle: '.handle', // handle's class
+            let positionSoratble = Sortable.create(propertyEl.querySelector("ul"), {
               animation: 150,
+              dataIdAttr: 'data-position'
             })
+
+            let positionEls = propertyEl.querySelectorAll("ul>li")
+            let currentOrder = [...propertyEl.querySelectorAll("ul>li>span")].filter(el=>!el.classList.contains("template")).map(span=>span.innerText)
+            
+            propertyEl.querySelector(".buttonSort").onclick = function(){
+              let order = positionSoratble.toArray().filter(pos=>defaultOrder.includes(pos))
+              order.sort((a,b)=>defaultOrder.indexOf(a) - defaultOrder.indexOf(b))
+              positionSoratble.sort(order, true)
+            }
+
+            propertyEl.querySelector(".buttonFlip").onclick = function(){
+              let order = positionSoratble.toArray()
+              positionSoratble.sort(order.reverse(), true)
+            }
+
             Array.from(positionEls).forEach(el => {
               if (!el.classList.contains("template")) el.remove()
             })
@@ -691,6 +742,7 @@
             value.forEach(position=>{
               let newPositionEl = positionTemplate.cloneNode(true)
               newPositionEl.classList.remove("template")
+              newPositionEl.setAttribute("data-position", position.title)
               newPositionEl.querySelector("span").innerText = position.title
               newPositionEl.querySelector("input").checked = position.enabled
               propertyEl.querySelector("ul").appendChild(newPositionEl)
