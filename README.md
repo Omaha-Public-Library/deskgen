@@ -64,7 +64,7 @@ You can have multiple duty lists, but they'll only be displayed if there are eno
 In this tab, you can list the opening and closing duties to be displayed on the desk schedule. Staff will be automatically assigned to each on a rotating basis, and can check off these tasks as they complete them. Check the box in the "Require PIC" column if this task should only be assigned to PIC trained staff.
 
  ## Archiving
-Past desk schedules are automatically moved to a separate archive spreadsheet linked in SETTINGS. Yesterday's desk schedule can be found in the main desk schedule under hidden sheets (bottom left ≡ icon). Desk Schedules older than yesterday can be found in the archive.
+Past desk schedules are automatically moved to a separate archive spreadsheet, which can found under Generator > Archive. Yesterday's desk schedule can be found in the main desk schedule under hidden sheets (bottom left ≡ icon). Desk Schedules older than yesterday can be found in the archive. All sheets in the archive are hidden by default.
 
 ## What's Next?
 

@@ -1,1 +1,6 @@
-{}
+{
+  "dependencies": {
+    "@types/google-apps-script": "^2.0.8",
+    "@types/sortablejs": "^1.15.9"
+  }
+}
