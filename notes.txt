@@ -117,3 +117,84 @@ dospace tag may be necessary
 follow up with travis about adding new staff to WIW
 when multiple staff are over duration limit, not prioritizing who to take off first
 alwaysShowAllStaff not working?
+
+next eliz reccomends:
+central
+benson
+elkhorn
+florence
+saddlerook
+south omaha
+willa cather
+washington - new manager
+
+one sheet for docs
+abms might help managers, get docs for both
+
+system awareness
+
+================ 1/28 Autumn at Millard ================
+get rid of zeros on staff shift times
+last name initials
+gcal description display over events
+
+station option to treat as duty? maybe call "subtask" of X station, don't add to grid, add to "X Duties" list
+break up long tasks between multiple staff?
+
+
+
+
+
+
+
+1 abm assigned roving each floor
+stacy suggests: mobile station acts as roving, will always have phone and can move floors?
+3 4hr shifts where ABM is lead PIC for building - but they could not be on help desk on 1st and 2nd floor
+mobile stations can be reassigned, but not service desksched
+2 people on service desks, one stay at desk one roving, they trade off on their own
+Matt - assign 4hr shift to ABM, and if we leave 3 on second and not 4, that's okay
+
+3-4-2, first second third
+
+3 people staffed for ASRS, can go down to 1 - pull them for covereage on other floors, which is priority
+
+GEN - pull when 0 staff available - if we have 1 gen staff, no coverage needed
+2nd floor - 3 minimum, mobile and 2 service, and pull staff if less than that
+1st floor - same as sencond
+
+12 minimum plus abms at all times
+
+no aides, everyone should be able to do all duties - assign in rotation to all staff
+
+clerks/aides duties
+aides can't do money
+
+lead PICS for all floors AND abm building pic - building PIC can be floor pic but only if they're not on service desk (workstation)
+all floor roving when assigned ABM lead pic - (no other roving station, mobile workstations will do some roving)
+associates only get 2 off desks or so - check document / numbers that stacy sent
+
+actually, no designated ASRS team, all associates rotate between assignment to 1 2 3 ASRS?
+
+"dream list next geneation thing" - reporting tool - how many hours on desk, how many off
+do space handled by two on 2nd service desk, no need to designate further
+
+we want to be able to look at schedules by april 13th
+
+
+2nd meeting autumn!
+WIW request monthly repeats
+must report and delete
+figure out manager shift splitting
+autumn thinks its ok to open things up and trust ABMs
+what tag groups should we use to determing for eligibility (spec+, clerk+, etc)? crash manager meeting next week?
+
+desk staff (no aides), aides, PIC as duty eligibility bools
+
+stuff for standards group
+
+pull list - check why half hour long stations are preassigned in prepass - thurs 2.5 when pink is set 1.5 in morning
+how far off is each staff from goal percentage of time off desk?
+
+sort aide list by start time
+
+WIW scheduler staff order can be customized

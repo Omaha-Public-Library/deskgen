@@ -35,6 +35,17 @@ function showAnchor(name,url) {
   SpreadsheetApp.getUi().showModelessDialog(ui,"Link to archive");
 }
 
+function unhideAllArchivedSheets(){
+  let settings = new Settings(new Date())
+  if (!settings.archiveSheetURL){
+    console.error("no archive sheet defined in settings, skipping archiving")
+    return
+  }
+  let archiveSpreadsheet = SpreadsheetApp.openByUrl(settings.archiveSheetURL)
+
+  archiveSpreadsheet.getSheets().forEach(sh=>sh.showSheet()); 
+}
+
 function archivePastSchedules(){
   let count = 7
   //get first sheet by index. check date, if today/future stop. otherwise, check if it exists in archive, if so stop and warn. if not, copy to archive spreadsheet. then check if it exists in archive spreadsheet, if so delete. repeat x nums of times or until reaching today/future date.
@@ -60,11 +71,12 @@ function archivePastSchedules(){
       sourceSpreadsheet.deleteSheet(sourceSheetList[i])
     }
     else {
-      sourceSheetList[i].copyTo(archiveSpreadsheet).setName(sheetNameFromDate(getScheduleSheetDate(sourceSheetList[i]),true)).hideSheet();
+      sourceSheetList[i].copyTo(archiveSpreadsheet).setName(sheetNameFromDate(getScheduleSheetDate(sourceSheetList[i]),true))//.hideSheet()
       sourceSheetList[i].hideSheet()
       console.log("no name+date match for past sheet "+ sourceSheetList[i].getName() +" in archive, copying sheet to archive. Will delete next interval.")
     }
   }
+  unhideAllArchivedSheets() //remove in a couple days
 }
 
 function getScheduleSheetDate(schedSheet: GoogleAppsScript.Spreadsheet.Sheet, addMissingYear = false): Date{
@@ -1253,9 +1265,9 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
       ?.setValues(this.shifts.map(s=>[ //start-end as hh:mm-hh:mm
         (s.startTime?.getTime()-s.endTime?.getTime()==0 || s.startTime==undefined || s.endTime==undefined)?
         '': //for all day events that are loaded as starting and ending at 1, don't display time
-        s.startTime.getTimeStringHHMM12()
+        s.startTime.getTimeStringHH12()
         +'-'+
-        s.endTime.getTimeStringHHMM12()]))
+        s.endTime.getTimeStringHH12()]))
     performanceLog("display timline - shift info columns")
     
     //Display station colors
@@ -1349,7 +1361,7 @@ sortShiftsByWhetherAssignmentLengthReached(stationBeingAssigned: string, time: D
 
         for(let time = new Date(dutyList.startTime); time < dutyList.endTime; time.addTime(0, 30)){
           this.shifts.forEach(shift=>{
-            if (![undefined, this.defaultStations.undefined, this.defaultStations.mealBreak, this.defaultStations.off, this.defaultStations.programMeeting].includes(shift.getStationAtTime(time)?.name)){
+            if (![undefined, this.defaultStations.undefined, this.defaultStations.mealBreak, this.defaultStations.off, this.defaultStations.programMeeting].includes(shift.getStationAtTime(time)?.name) && !shift.tags.includes("In training (do not assign to stations)")){
               shiftsWithinTimeLimit.push(shift)
             }
           })
@@ -2046,7 +2058,7 @@ function getWiwData(token:string, deskSchedDate:Date, settings: Settings):WiwDat
     {
       method: 'post',
       headers:{
-        'w-userid': '51060839',
+        'w-userid': '52574917',
         Authorization: 'Bearer ' + token,
         'Content-Type': 'application/json',
       },
@@ -2057,7 +2069,7 @@ function getWiwData(token:string, deskSchedDate:Date, settings: Settings):WiwDat
   wiwData.tags = JSON.parse(UrlFetchApp.fetch(`https://worktags.api.wheniwork-production.com/tags`, {
     method: 'get',
     headers:{
-      'w-userid': '51060839',
+      'w-userid': '52574917',
       Authorization: 'Bearer ' + token,
       'Content-Type': 'application/json',
     }
