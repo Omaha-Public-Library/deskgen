@@ -431,8 +431,9 @@
       document.getElementById('submit').disable="true"
       // document.querySelectorAll('.active').style.display = "none"
       exportSettings()
-      google.script.run.saveSettings(JSON.stringify(settings, (k,v) => v === undefined ? null : v))
-      setTimeout(google.script.host.close, 5000)
+      google.script.run.withSuccessHandler(google.script.host.close)
+        .saveSettings(JSON.stringify(settings, (k,v) => v === undefined ? null : v))
+      // setTimeout(google.script.host.close, 5000)
     }
 
     document.getElementById("dutyLists").onclick = function (event) {
