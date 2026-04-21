@@ -298,7 +298,19 @@
         <li class="template">
           <i class="handle">✥</i>
           <input type="text" class="title" value="Duties" style="width: 244px;"><button class="buttonRemove">-</button>
-          <span style="display: block; padding-left: 20px;"><input type="number" class="limitXHours" value="0" style="width: 34px"> to <input type="number" class="limitYHours" value="0" style="width: 34px"> hours <select class="limitType"><option>before open</option><option>after open</option><option>before close</option></select></span>
+          <span style="display: block; padding-left: 20px;">
+            <!-- floor:<input type="text" class="floor" value=""> -->
+            floor:<select class="floor">
+              <option></option>
+              <option>Genealogy</option>
+              <option>2nd Floor</option>
+              <option>1st Floor</option>
+              <option>ASRS</option>
+            </select>
+          </span>
+          <span style="display: block; padding-left: 20px;">
+            <input type="number" class="limitXHours" value="0" style="width: 34px"> to <input type="number" class="limitYHours" value="0" style="width: 34px"> hours <select class="limitType"><option>before open</option><option>after open</option><option>before close</option></select>
+          </span>
           <ul>
             <li class="template"><i class="handle">✥</i><input type="text" value=""><button
                 class="buttonRemove">-</button></li>
@@ -320,7 +332,7 @@
             <th></th>
             <th><span class="tooltip">Color<p class="tooltiptext">The color used on the station timeline and station key. You can adjust this, but for stations used by all/most branches (like Available, Program/Meeting, Front Desk), keep the default color if possible so that they're consistent across the system, and easy to read by staff not normally on your schedule.</p></span></th>
             <th><span class="tooltip">Station Name<p class="tooltiptext">The name displayed in the station key.</p></span></th>
-            <th><span class="tooltip">Group<p class="tooltiptext">For schedules with multiple floors, this number/word is used to group stations within floors. Should only be used at Central.</p></span></th>
+            <th><span class="tooltip">Floor<p class="tooltiptext">For schedules with multiple floors, this number/word is used to group stations within floors. Should only be used at Central.</p></span></th>
             <th><span class="tooltip">Positions<p class="tooltiptext">List of positions which can be assigned to this station, ordered by priority - positions at the top will be preferred over those at the bottom. Click and drag the ✥ handles to change this order. Uncheck positions to make them inelgible for assignment.</p></span></th>
             <th class="headerGroup1"><span class="tooltip">Duration Type<p class="tooltiptext">Allows you to specify different duration rules.</p></span></th>
             <th class="headerGroup1"><span class="tooltip">Duration<p class="tooltiptext">How long should staff be assigned to this station before they're rotated to a new one. If left blank, will default to the "assignmentLength" value in Main Settings.</p></span></th>
@@ -339,7 +351,16 @@
             <td class="handleParent"><i class="handle">✥</i></td>
             <td id="color"><input type="color" value="#6aa84f"></td>
             <td id="name"><input type="text" value="Front Desk"></td>
-            <td id="group"><input type="text" value=""></td>
+            <td id="floor">
+              <!-- <input type="text" value=""> -->
+              <select class="floor" style="width: 32px">
+                <option></option>
+                <option>Genealogy</option>
+                <option>2nd Floor</option>
+                <option>1st Floor</option>
+                <option>ASRS</option>
+              </select>
+            </td>
             <td id="positionPriority">
               <button class="expandList">edit...</button>
               <button class="hideList">save</button>
@@ -361,7 +382,8 @@
             </td>
             <td id="durationType">
               <select>
-                <option>Always while open</option>
+                <option>While open</option>
+                <option>Always</option>
                 <option>For X hours per day total</option>
                 <option>For X hours per day for each staff</option>
               </select>
@@ -404,6 +426,28 @@
       "Part-Time Clerk II",
       "Part-Time Library Aide",
     ]
+    let kvTooltips=[
+      {text:"assignStations", tooltip:"Assign staff to stations. If unchecked, will generate a blank schedule with only meals and events."},
+      {text:"defragPrePass", tooltip:"Avoid half hour assignments. May extend stations half an hour past their normal duration limit."},
+      {text:"changeOnTheHour", tooltip:"Try to only change station assignments on the hour and not at the half hour."},
+      {text:"generatePicAssignments", tooltip:"Assign lead PIC at all times during the day, displayed on timeline at top of schedule."},
+      {text:"groupPicsAtTop", tooltip:"Group PIC trained staff at the top of the schedule, above Reference staff."},
+      {text:"assignmentLength", tooltip:"After this many hours, try to move staff to another station. Overridden by Duration setting of individual stations."},
+      {text:"mealBreakLength", tooltip:"Length of meal breaks in hours. For half hours, format as decimal like 0.5 or 1.5. Will only assign meals to staff working 8+ hours."},
+      {text:"idealEarlyMealHour", tooltip:"Try to assign lunch near this time. Will only assign meals to staff working 8+ hours."},
+      {text:"idealLateMealHour", tooltip:"Try to assign dinner near this time. Will only assign meals to staff working 8+ hours."},
+      {text:"idealMealTimePlusMinusHours", tooltip:"How long before/after above times should meals be assigned when coverage is limited?"},
+      {text:"addNamesToEvents", tooltip:`In "Happening Today," display names of all event guests before the title of the event.`},
+      {text:"alwaysShowBranchManager", tooltip:"Show branch manager on schedule, even on days they don't work"},
+      {text:"alwaysShowAssistantBranchManager", tooltip:"Show ABMs on schedule, even on days they don't work"},
+      {text:"alwaysShowAllStaff", tooltip:"Show all staff on schedule, even on days they don't work"},
+      {text:"earliestDisplayTime", tooltip:"Cut off any shifts/events earlier than this time"},
+      {text:"locationID", tooltip:`The locationID used to identify the branch schedule in When I Work.<br>Genealogy & Local History Room: 5717951<br>Downtown Library: 5752528<br>Library Administration Branch - LAB: 5762058<br>Central Library: 5786790<br>W. Clarke Swanson Library: 5850259<br>AV Sorensen Library: 5851118<br>Milton R. Abrahams Library: 5874256<br>Benson Library: 5878811<br>Charles B. Washington Library: 5878812<br>Bess Johnson Elkhorn Library: 5878813<br>South Omaha Library: 5878815<br>Millard Library: 5878816<br>Willa Cather Library: 5878817<br>Florence Library: 5878818<br>Saddlebrook Library: 5878819`},
+      {text:"googleCalendarID", tooltip:`ID for the programs/meetings calendar. Found in Google Calendar, in the settings for that calendar under "Integrate calendar"`},
+      {text:"archiveSheetURL", tooltip:"Past schedules will be automatically hidden, then in one day, moved to this spreadsheet to be archived."},
+      {text:"verboseLog", tooltip:"When this is checked, more information will be logged to the Apps Script Console and a debug timeline will popup after schedule generation."},
+    ]
+
     function openTab(evt, tabName) {//https://www.w3schools.com/howto/howto_js_tabs.asp
       var i, tabcontent, tablinks;
       tabcontent = document.getElementsByClassName("tabcontent");
@@ -420,11 +464,11 @@
     document.querySelector(".tablinks").click()
 
     let settingsInput = <?= settings ?>
-    let settings = {}
+    let settings = undefined
     if (settingsInput.length>0){
       settings = JSON.parse(settingsInput, (k,v)=>v = v===null?undefined:v)
-      loadSettings(settings)
     }
+    loadSettings(settings)
 
     function sendSettings() {
       document.getElementById('submit').innerText="Saving..."
@@ -553,7 +597,7 @@
       settings = {}
       let kvSettings = document.getElementById("kvSettings")
       let openHoursSettings = document.getElementById("openHours")
-      let dutyContainer = document.querySelector("#dutyLists")
+      // let dutyContainer = document.querySelector("#dutyLists")
       let stationsSettings = document.getElementById("stations")
       
       let kvInputArr = Array.from(kvSettings.querySelectorAll("input")).filter(input=>!input.classList.contains("template"))
@@ -579,6 +623,7 @@
         dutyList.shift()
         return {
           title: list.querySelector(".title").value,
+          floor: list.querySelector(".floor").value,
           duties: dutyList.map(listItem=>listItem.querySelector("input").value),
           limitXHours: list.querySelector(".limitXHours").value,
           limitYHours: list.querySelector(".limitYHours").value,
@@ -629,32 +674,13 @@
       Array.from(kvSettingsTable.querySelectorAll("tr")).forEach(tr=>{
         if (!tr.classList.contains("template")) tr.remove()
       })
-      kvSettings = Object.entries(settings).filter(setting => 
+      if (settings != undefined) kvSettings = Object.entries(settings).filter(setting => 
       setting[0] != "openHours"
       && setting[0] != "stations"
       && setting[0] != "dutyLists"
       )
-      let kvTooltips=[
-        {text:"assignStations", tooltip:"Assign staff to stations. If unchecked, will generate a blank schedule with only meals and events."},
-        {text:"defragPrePass", tooltip:"Avoid half hour assignments. May extend stations half an hour past their normal duration limit."},
-        {text:"changeOnTheHour", tooltip:"Try to only change station assignments on the hour and not at the half hour."},
-        {text:"generatePicAssignments", tooltip:"Assign lead PIC at all times during the day, displayed on timeline at top of schedule."},
-        {text:"groupPicsAtTop", tooltip:"Group PIC trained staff at the top of the schedule, above Reference staff."},
-        {text:"assignmentLength", tooltip:"After this many hours, try to move staff to another station. Overridden by Duration setting of individual stations."},
-        {text:"mealBreakLength", tooltip:"Length of meal breaks in hours. For half hours, format as decimal like 0.5 or 1.5. Will only assign meals to staff working 8+ hours."},
-        {text:"idealEarlyMealHour", tooltip:"Try to assign lunch near this time. Will only assign meals to staff working 8+ hours."},
-        {text:"idealLateMealHour", tooltip:"Try to assign dinner near this time. Will only assign meals to staff working 8+ hours."},
-        {text:"idealMealTimePlusMinusHours", tooltip:"How long before/after above times should meals be assigned when coverage is limited?"},
-        {text:"addNamesToEvents", tooltip:`In "Happening Today," display names of all event guests before the title of the event.`},
-        {text:"alwaysShowBranchManager", tooltip:"Show branch manager on schedule, even on days they don't work"},
-        {text:"alwaysShowAssistantBranchManager", tooltip:"Show ABMs on schedule, even on days they don't work"},
-        {text:"alwaysShowAllStaff", tooltip:"Show all staff on schedule, even on days they don't work"},
-        {text:"earliestDisplayTime", tooltip:"Cut off any shifts/events earlier than this time"},
-        {text:"locationID", tooltip:"The locationID used to identify the branch schedule in When I Work"},
-        {text:"googleCalendarID", tooltip:`ID for the programs/meetings calendar. Found in Google Calendar, in the settings for that calendar under "Integrate calendar"`},
-        {text:"archiveSheetURL", tooltip:"Past schedules will be automatically hidden, then in one day, moved to this spreadsheet to be archived."},
-        {text:"verboseLog", tooltip:"When this is checked, more information will be logged to the Apps Script Console and a debug timeline will popup after schedule generation."},
-      ]
+      // else kvSettings = //default?
+
       kvSettings.forEach(kv=>{
         let key = kv[0]
         let val = kv[1]
@@ -689,6 +715,7 @@
         newList.classList.remove("template")
         let liTemplate = newList.querySelector(".template")
         newList.querySelector(".title").value = dutyList.title
+        newList.querySelector(".floor").value = dutyList.floor ? dutyList.floor : ""
         newList.querySelector(".limitXHours").value = dutyList.limitXHours
         newList.querySelector(".limitYHours").value = dutyList.limitYHours
         newList.querySelector(".limitType").value = dutyList.limitType

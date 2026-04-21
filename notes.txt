@@ -144,7 +144,7 @@ break up long tasks between multiple staff?
 
 
 
-
+======== Central Meeting with Matt and Stacey ========
 
 
 1 abm assigned roving each floor
@@ -175,13 +175,13 @@ associates only get 2 off desks or so - check document / numbers that stacy sent
 
 actually, no designated ASRS team, all associates rotate between assignment to 1 2 3 ASRS?
 
-"dream list next geneation thing" - reporting tool - how many hours on desk, how many off
+"dream list next generation thing" - reporting tool - how many hours on desk, how many off
 do space handled by two on 2nd service desk, no need to designate further
 
 we want to be able to look at schedules by april 13th
 
 
-2nd meeting autumn!
+ ==== 2nd meeting autumn! ====
 WIW request monthly repeats
 must report and delete
 figure out manager shift splitting
@@ -198,3 +198,104 @@ how far off is each staff from goal percentage of time off desk?
 sort aide list by start time
 
 WIW scheduler staff order can be customized
+
+check how gcal linking to recurring events works https://mail.google.com/mail/u/0/#inbox/FMfcgzQfBkSGVPNhcqfDJTZzxDnbMKDt
+
+
+========================================== CENTRAL ==========================================
+each station needs a floor, which includes:
+    -floor name
+    -floor required tag - staff with X tag will be first priority for staffing these stations.
+    -floor minimum staff # - start with this and then divide staff evenly between floors?
+    -color
+floor assignment system
+    -order each shift list the same way duties are
+    -assign each shift with a preferred tag to corresponding floor
+        get list of all stations preferred tags, for each make new shift list, then for each shift move to corresponding list
+    -figure out counts for each floor (minimums - currently assigned(from preferred) + even distribution of remaining (manage remainder))
+    -split list into chunks based on counts
+    (this way, staff should gradually cycle through a floor that switches between floors... but won't often be with opposite of alphabet)
+change behavior of getStationCount & related to take optional floor argument eg:
+getStationCountAtTime(this.defaultStations.undefined, time, shift.floor)
+
+behavior to display stationkeys per each floor
+concept of home floor, assigned at opening? can change throughout day? yes
+lead pic assignment - do as a station? assign between events and stations? then add station assignment check to prevent lead pic from going on desk
+
+regenerate from current time of day
+    before assigning meals, would need to check if meal already assigned
+
+when checking for required displaycells, check quantity based on # of floors too
+
+
+Questions for Matt and Stacy-
+    review PIC behavior, Do Space training/tag, 
+    is it more important for people to rotate between floors evenly, or for for positions to be evenly distributed and coverage to be even?
+    will this many people be in GEN every day?
+
+Building PIC should not be assigned any other station. 2-4 availalbe each day for BPIC assignment, find as BM ABM pos. Stacy only scheduled for coverage time
+yeah we'll use do space tag for all staff trained
+can go down to 1 in genealogy if needed, down to 2 on ASRS, down to 3 on second,
+only associates in ASRS
+no PIC on lower level
+associates can't be PICs or do programs
+when covering across floors, pull associates then specialists first, all floors
+seperate opening/close duty list for do space
+prioratize cross floor coverage over pic timelines
+
+prompt at GEN for in training staff floor assignment?
+
+
+X   ok what if... when getting initial floor balancing counts, you get MIN of pre 11:30 and post 5:00 instead of just open/close half hour?
+
+and throw out lowest result to avoid moving people for only half hour coverage?
+
+X   4/20 - moving an 1130-8 shift to cover when a shorter shift would be enough to cover 5-8 - prioritize moving shorter shifts that cover just as much of the needed period?
+
+now that meal times are added in line, make them smarter! deprioritize shifts that have only been at current station for half hour, prioritize shifts at limit... but when meals don't span whole +- range, they're assigned early, and can't respond to prev half hour of stations... oh! maybe only assign meals for current half hour, instead of block all at once? figure out block, then only mark meals for current half hour? might have to add check to see if meals already assigned to shift...
+
+should closing inital balance consider balance in center part of day? or add seperate 11:30 balance pass?
+
+{"scriptId": "15YlqOhW1qy08VPeXlPNDmQwHgV3YbNxPEkEbeyVRPpyCTPX2YUBmdC4Q", "//branch":"CN"}
+
+only count GEN tagged for GEN minimum? not a big issues for now, GEN staff start in GEN and are only moved out as needed to cover floors under minimum
+
+x   oh no I think managers assigned as building pics are counted towards floor minimums because that's not assigned until after the balance check
+
+questions:
+should all floor PIC count towards floor minimum?
+should we move staff to cover another floor if it only dips below min for half hour? (happens around meals) no, lets add that grace
+4.24 - what to do when no managers available for building PIC? a warning
+who needs ideum table docs?
+
+maybe all floor PIC should be assigned before meals and other stations
+//or if ASRS is > other stations?
+
+
+next priorities:
+    x   fix off floor visual bug
+    add half hour grace for floor minimums before moving staff, unless floor is totally empty. also maybe add a minimum to the length of time balanced? or maybe not, this would be a problem if it only checked in half hour increments repeatedly and could give grace to each of them, but balance times should only be half hour once before moving from morning=>midday=>evening
+    X   unique names across entire system
+    x   merge central with main code
+    better off desk time assignment by role over week avg
+    tasks requiring tags
+    warnings about floor minimums and building pics on schedule generation
+    only regen from current time onward
+    make archive function a little more robust
+    write out floor name at start of off floor
+    don't run roaming PIC pass if not at central?
+
+
+When updating managers, note these changes:
+    will now try to rotate people between stations better - staff will be assigned more stations that they're eligible for in a shift, less likely to be stuck at just one or two stations all day
+
+
+Fair assignment of off desk time
+will need to know how many hours a week each role works
+    could pull full week of WIW data... would that be slow/messy?
+    could assume based on position - the numbers I got do this too
+    could get target ratio per position, and prioritize assignment based on current ratio, which only count of needs hours worked and hours off desk in week so far (accumulate in saved date)
+    the solution for this should be designed with stats in mind. should stats be something tallied as week goes on, or counted on demand anytime?
+    also relevant for regenerating only part of day that hasn't passed - how can station timeline be stored, or read directly from spreadsheet?
+        reading from spreadsheet is rough because all cell notes are now gone... users could be found from unique names, would that be enough? then get station from color?
+        or, give up on retaining any post gen adjustments, just save pictimeline as JSON and reconstruct stations when loaded
