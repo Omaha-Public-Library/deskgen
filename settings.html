@@ -297,7 +297,7 @@
       <ul>
         <li class="template">
           <i class="handle">✥</i>
-          <input type="text" class="title" value="Duties" style="width: 244px;"><button class="buttonRemove">-</button>
+          <input type="text" class="title" value="Duties" style="width: 244px;"><button class="buttonRemove" style="float: right">-</button>
           <span style="display: block; padding-left: 20px;">
             <!-- floor:<input type="text" class="floor" value=""> -->
             floor:<select class="floor">
@@ -309,12 +309,37 @@
             </select>
           </span>
           <span style="display: block; padding-left: 20px;">
-            <input type="number" class="limitXHours" value="0" style="width: 34px"> to <input type="number" class="limitYHours" value="0" style="width: 34px"> hours <select class="limitType"><option>before open</option><option>after open</option><option>before close</option></select>
+            <input type="number" class="limitXHours" value="0.5" style="width: 34px"> to <input type="number" class="limitYHours" value="0" style="width: 34px"> hours <select class="limitType"><option>before open</option><option>after open</option><option>before close</option></select>
           </span>
+          <!-- <span style="display: block; padding-left: 20px;">
+            <input type="checkbox" checked>S 
+            <input type="checkbox" checked>M 
+            <input type="checkbox" checked>T 
+            <input type="checkbox" checked>W 
+            <input type="checkbox" checked>T 
+            <input type="checkbox" checked>F 
+            <input type="checkbox" checked>S 
+          </span> -->
           <ul>
-            <li class="template"><i class="handle">✥</i><input type="text" value=""><button
-                class="buttonRemove">-</button></li>
-            <li><i class="handle">✥</i><input type="text" value=""><button class="buttonRemove">-</button>
+            <li class="template"><i class="handle">✥</i>
+              <input class="dutyTitle" type="text" value="">
+              <select class="staffType">
+                <option selected="selected">All staff</option>
+                <option>Aides only</option>
+                <option>All except Aides</option>
+                <option>PICs only</option>
+              </select>
+              <button class="buttonRemove" style="float: right">-</button>
+            </li>
+            <li><i class="handle">✥</i>
+              <input class="dutyTitle" type="text" value="">
+              <select class="staffType">
+                <option selected="selected">All staff</option>
+                <option>Aides only</option>
+                <option>All except Aides</option>
+                <option>PICs only</option>
+              </select>
+              <button class="buttonRemove" style="float: right">-</button>
             </li>
           </ul>
           <button class="buttonAdd" style="margin-left: 40px;">add duty</button>
@@ -624,7 +649,12 @@
         return {
           title: list.querySelector(".title").value,
           floor: list.querySelector(".floor").value,
-          duties: dutyList.map(listItem=>listItem.querySelector("input").value),
+          duties: dutyList.map(listItem=>{
+            return {
+              title: listItem.querySelector(".dutyTitle").value,
+              staffType: listItem.querySelector(".staffType").value
+            }
+          }),
           limitXHours: list.querySelector(".limitXHours").value,
           limitYHours: list.querySelector(".limitYHours").value,
           limitType: list.querySelector(".limitType").value
@@ -722,7 +752,8 @@
         dutyList.duties.forEach(duty=>{
           let newLi = liTemplate.cloneNode(true)
           newLi.classList.remove("template")
-          newLi.querySelector("input").value = duty
+          newLi.querySelector(".dutyTitle").value = duty.title
+          newLi.querySelector(".staffType").value = duty.staffType
           newList.querySelector("ul").appendChild(newLi)
         })
         document.querySelector("#dutyLists>ul").appendChild(newList)

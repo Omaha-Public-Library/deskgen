@@ -1842,7 +1842,8 @@ class DeskSchedule{
 
         for(let time = new Date(dutyList.startTime); time < dutyList.endTime; time.addTime(0, 30)){
           this.shifts.forEach(shift=>{
-            if (![undefined, this.defaultStations.undefined.name, this.defaultStations.mealBreak.name, this.defaultStations.off.name, this.defaultStations.programMeeting.name].includes(shift.getStationAtTime(time)?.name) && !shift.tags.includes("In training (do not assign to stations)")){
+            // if (![undefined, this.defaultStations.undefined.name, this.defaultStations.mealBreak.name, this.defaultStations.off.name, this.defaultStations.programMeeting.name].includes(shift.getStationAtTime(time)?.name) && !shift.tags.includes("In training (do not assign to stations)")){
+            if (![this.defaultStations.mealBreak.name, this.defaultStations.off.name, this.defaultStations.programMeeting.name, this.defaultStations.offFloorStation, "Building PIC"].includes(shift.getStationAtTime(time)?.name) && !shift.tags.includes("In training (do not assign to stations)")){
               shiftsWithinTimeLimit.push(shift)
             }
           })
@@ -1858,16 +1859,26 @@ class DeskSchedule{
         //   })
         // }
         dutyList.duties.forEach((duty,i) => {
-          let firstEligibleShift = this.shifts.find(shift=>shiftsWithinTimeLimit.some(s=>s?.name == shift?.name))
+          let firstEligibleShift = this.shifts.find(shift=>
+            shiftsWithinTimeLimit
+              .filter(s=>{
+                if(duty.staffType=="All staff") return true
+                if(duty.staffType=="Aides only" && s.position == 11534165) return true
+                if(duty.staffType=="All except Aides" && s.position != 11534165) return true
+                if(duty.staffType=="PICs only" && s.isPIC) return true
+                return false
+              })
+              .some(s=>s?.name == shift?.name)
+          )
           if(firstEligibleShift != undefined){
             //assign first eligible staff
-            dutyList.staff.push(firstEligibleShift==undefined ? "" : firstEligibleShift?.name) //+ (dutiesStaffShifts[0].isPIC?'*':'')
+            duty.staffName = firstEligibleShift==undefined ? "" : firstEligibleShift?.name //+ (dutiesStaffShifts[0].isPIC?'*':'')
             //move staff to end of assignment queue
             this.shifts.sort((shiftA, shiftB)=>{
               return shiftA.user_id==firstEligibleShift.user_id ? 1 : shiftB.user_id==firstEligibleShift.user_id ? -1 : 0
             })
           }
-          else dutyList.staff.push("")
+          else duty.staffName = ""
         })
       })
 
@@ -1899,13 +1910,12 @@ class DeskSchedule{
         let dutyList = this.settings.dutyLists[i]
         let titleCell = listTitleCells[i]
         let dutyRange = this.deskSheet.getRange(listDutiesCells[i].getRow(), listDutiesCells[i].getColumn(), dutyList.duties.length, 1)
-        let staffRange = this.deskSheet.getRange(listStaffCells[i].getRow(), listStaffCells[i].getColumn(), dutyList.staff.length, 1)
+        let staffRange = this.deskSheet.getRange(listStaffCells[i].getRow(), listStaffCells[i].getColumn(), dutyList.duties.length, 1)
         let checkRange = this.deskSheet.getRange(listCheckCells[i].getRow(), listCheckCells[i].getColumn(), dutyList.duties.length, 1)
         
         titleCell.setValue(`${dutyList.title} ${dutyList.startTime.toLocaleTimeString('en', {hour: 'numeric', minute:'numeric'}).replace(" AM","").replace(" PM","")} - ${dutyList.endTime.toLocaleTimeString('en', {hour: 'numeric', minute:'numeric'})}`)
-        dutyRange.setValues(dutyList.duties.map(e=>[e]))
-        staffRange.setValues(dutyList.staff.map(staff=>[this.shortenFullName(staff)+(staff.includes('*')?'*':'')]))
-        dutyRange.setValues(dutyList.duties.map(e=>[e]))
+        dutyRange.setValues(dutyList.duties.map(duty=>[duty.title]))
+        staffRange.setValues(dutyList.duties.map(duty=>[this.shortenFullName(duty.staffName)+(duty.staffName.includes('*')?'*':'')]))
         checkRange.insertCheckboxes()
       }
       
@@ -2461,13 +2471,13 @@ class DisplayCells{
 class Duty{
   title: string
   staffName: string
-  requirePic: boolean
+  staffType: string
 
-  constructor(title: string, staffName: string, requirePic: boolean){
-    this.title = title
-    this.staffName = staffName
-    this.requirePic = requirePic
-  }
+  // constructor(title: string, staffName: string, staffType: string){
+  //   this.title = title
+  //   this.staffName = staffName
+  //   this.staffType = "All staff"
+  // }
 }
 
 function log(arg?:any){
@@ -2479,8 +2489,8 @@ function log(arg?:any){
 class DutyList {
   title:string
   floor:string
-  duties:string[]
-  staff:string[]
+  duties:Duty[]
+  // staff:string[]
   limitXHours:number
   limitYHours:number
   limitType:DutyListLimitType
@@ -2534,8 +2544,6 @@ class Settings{
       value = value === null? undefined : value
       return value;
     }
-
-    this.dutyLists.forEach(duty=>duty.staff = [])
     
     verboseLog = this.verboseLog
     // console.log("loaded settings:", this)
