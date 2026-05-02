@@ -248,11 +248,17 @@ function buildDeskSchedule(deskSchedDate){
   deskSchedule.timelineAddAvailabilityAndEvents();  performanceLog("timeline add availability and events")
   deskSchedule.timelineAddStations(deskSchedule.stations.filter(station=>station.name=="Building PIC"), false, false)
                                                     performanceLog("timeline add stations")
-  deskSchedule.timelineBalanceFloors(deskSchedule.settings.openTime(deskSchedule.date), new Date(deskSchedule.settings.openTime(deskSchedule.date)).addTime(2,30), false);
-                                                    performanceLog("timeline init floors")
+  let dayLength = (deskSchedule.settings.closeTime(deskSchedule.date).getTime() - deskSchedule.settings.openTime(deskSchedule.date).getTime())/3600000
+  let midDay = new Date(deskSchedule.settings.closeTime(deskSchedule.date).getTime()/2 + deskSchedule.settings.openTime(deskSchedule.date).getTime()/2)
+  midDay.setMinutes(0,0,0)
+  if (dayLength>8) deskSchedule.timelineBalanceFloors(deskSchedule.settings.openTime(deskSchedule.date), new Date(deskSchedule.settings.openTime(deskSchedule.date)).addTime(2,30), false);
+  // else deskSchedule.timelineBalanceFloors(deskSchedule.settings.openTime(deskSchedule.date), midDay, false);
+  else deskSchedule.timelineBalanceFloors(deskSchedule.settings.openTime(deskSchedule.date), deskSchedule.settings.closeTime(deskSchedule.date), false);
+                                                    performanceLog("timeline balance floors")
                                                     deskSchedule.logDeskData('after init floor balance at open')
-  deskSchedule.timelineBalanceFloors(new Date(deskSchedule.settings.closeTime(deskSchedule.date)).addTime(-3), deskSchedule.settings.closeTime(deskSchedule.date), false)
-                                                    performanceLog("timeline init floors")
+  if (dayLength>8) deskSchedule.timelineBalanceFloors(new Date(deskSchedule.settings.closeTime(deskSchedule.date)).addTime(-3), deskSchedule.settings.closeTime(deskSchedule.date), false)
+  // else deskSchedule.timelineBalanceFloors(midDay, deskSchedule.settings.closeTime(deskSchedule.date), false)
+                                                    performanceLog("timeline balance floors")
                                                     deskSchedule.logDeskData('after init floor balance at close')
   // deskSchedule.timelineAddMeals();                  performanceLog("timeline add meals")
   deskSchedule.timelineAddStations(deskSchedule.stations.filter(station=>station.name!="Building PIC"));
@@ -330,6 +336,7 @@ class DeskSchedule{
       this.floors = [
          {
           index: 1,
+          reassignStaffPriority:3,
           name: "Genealogy",
           preferredTag: "Genealogy",
           minimumStaff: 1,
@@ -339,6 +346,7 @@ class DeskSchedule{
         },
         {
           index: 2,
+          reassignStaffPriority:1,
           name: "2nd Floor",
           preferredTag: "Service Desk",
           minimumStaff: 3,
@@ -348,6 +356,7 @@ class DeskSchedule{
         },
         {
           index: 3,
+          reassignStaffPriority:2,
           name: "1st Floor",
           preferredTag: "Service Desk",
           minimumStaff: 3,
@@ -357,6 +366,7 @@ class DeskSchedule{
         },
         {
           index: 4,
+          reassignStaffPriority:4,
           name: "ASRS",
           preferredTag: null,
           minimumStaff: 1,
@@ -369,6 +379,7 @@ class DeskSchedule{
     else this.floors = [
       {
         index: 0,
+        reassignStaffPriority: 0,
         name: undefined,
         preferredTag: undefined,
         minimumStaff: undefined,
@@ -706,8 +717,10 @@ class DeskSchedule{
     log(nonGenAsrsShifts.map(shift=>`${shift.startTime.getTimeStringHHMM12()} - ${shift.positionGroup} - ${shift.name}`).join('\n'))
 
     //sort by position
-    nonGenAsrsShifts.sort((a: Shift, b: Shift)=>a.positionGroup?.localeCompare(b.positionGroup))
-    log(nonGenAsrsShifts.map(shift=>`${shift.positionGroup} - ${shift.name}`).join('\n'))
+    // nonGenAsrsShifts.sort((a: Shift, b: Shift)=>a.positionGroup?.localeCompare(b.positionGroup))
+    // log(nonGenAsrsShifts.map(shift=>`${shift.positionGroup} - ${shift.name}`).join('\n'))
+    nonGenAsrsShifts.sort((a: Shift, b: Shift)=>this.getPositionHierarchyIndex(a.position) - this.getPositionHierarchyIndex(b.position))
+    log(nonGenAsrsShifts.map(shift=>`${this.getPositionById(shift.position)} - ${shift.name}`).join('\n'))
 
     //put in training at end
     nonGenAsrsShifts.sort((aShift: Shift, bShift: Shift)=>{
@@ -1148,19 +1161,21 @@ class DeskSchedule{
     if (this.floors.length < 2) return
 
     this.updateFloorOverstaffCount(balanceTimeStart, balanceTimeEnd, useLowMinimums)
-    //sort by default order, then by furthest below preferred staffing count to highest above
-    this.floors.sort((a,b)=>a.index-b.index)
-    this.floors.sort((a,b)=>a.overstaffCountPreferred - b.overstaffCountPreferred)
 
     //do rebalancing pass 10 times, or until no floors are understaffed, or until no floors are overstaffed
     // this.ui.alert(balanceTimeStart.toLocaleString() + " - maxdif:"+ maxDifference(this.floors.map(floor=>floor.overstaffCountPreferred)) +'\n'+this.floors.map((floor)=>floor.name +":    "+ floor.overstaffCountPreferred).join('\n'))
-    for(let i=0; i<10 && maxDifference(this.floors.map(floor=>floor.overstaffCountPreferred)) > 1; i++){ //or if ASRS is > other stations?
+    for(let i=0; i<20 && (maxDifference(this.floors.map(floor=>floor.overstaffCountPreferred)) > 1 || this.floors.some(floor=>floor.overstaffCountPreferred<this.getFloor("ASRS").overstaffCountPreferred)); i++){ //or if ASRS is > other stations?
       // let imabalanceAvg = overstaffCounts.reduce((a,b)=>a+b)/overstaffCounts.length || 0
       // let imbalancesNormalizedAbovePreferred = imabalanceAvg < 1 ? overstaffCounts : overstaffCounts.map((imb)=>imb-Math.floor(imabalanceAvg))
       //debug log overstaffCounts
       // this.ui.alert(balanceTimeStart.toLocaleString() + " - maxdif:"+ maxDifference(this.floors.map(floor=>floor.overstaffCountPreferred)) +'\n'+this.floors.map((floor)=>floor.name +":    "+ floor.overstaffCountPreferred).join('\n'))
 
-      this.floors.forEach((takingFloor)=>{
+      //sort by default order, then by furthest below preferred staffing count to highest above
+      this.floors.sort((a,b)=>a.reassignStaffPriority-b.reassignStaffPriority)
+      this.floors.sort((a,b)=>a.overstaffCountPreferred - b.overstaffCountPreferred)
+
+      // this.floors.forEach((takingFloor)=>{
+      mainloop: for (const takingFloor of this.floors){
         let givingFloor = this.floors[this.floors.length-1]
         if (!useLowMinimums || takingFloor.overstaffCountPreferred < 0){
           let givingFloorShifts = this.shifts.filter(shift=>shift.floor?.name == givingFloor.name)
@@ -1173,7 +1188,11 @@ class DeskSchedule{
           givingFloorShifts.sort((shiftA, shiftB)=>{
             let sort = shiftB.countAvailabilityLength(balanceTimeStart, balanceTimeEnd) - shiftA.countAvailabilityLength(balanceTimeStart, balanceTimeEnd)
             //...and sort shifts that are shortest for tiebreaker
-            if (sort == 0) sort = (shiftA.endTime.getTime() - shiftA.startTime.getTime()) - (shiftB.endTime.getTime() - shiftB.startTime.getTime())
+            //add additional check to make sure moving long shift doesn't mess up balance of the rest of the day?
+            if (sort == 0 && givingFloor.name == "ASRS")
+              sort = (shiftB.endTime.getTime() - shiftB.startTime.getTime()) - (shiftA.endTime.getTime() - shiftA.startTime.getTime()) //longest shifts to top
+            else if (sort == 0) 
+              sort = (shiftA.endTime.getTime() - shiftA.startTime.getTime()) - (shiftB.endTime.getTime() - shiftB.startTime.getTime()) //shortest shifts to top
             return sort
           })
           
@@ -1182,19 +1201,26 @@ class DeskSchedule{
               if(
                 (!useLowMinimums && givingFloor.overstaffCountPreferred - takingFloor.overstaffCountPreferred > 1)
                 || (useLowMinimums && takingFloor.overstaffCountPreferred < 0 && givingFloor.overstaffCountPreferred > 0)
+                || (givingFloor.name == "ASRS" && takingFloor.overstaffCountPreferred < givingFloor.overstaffCountPreferred)
               ){
                 // this.ui.alert((useLowMinimums?"balancing by minimum count":"balancing by preferred count")+'\n'+balanceTimeStart.toLocaleString() + " - maxdif:"+ maxDifference(this.floors.map(floor=>floor.overstaffCountPreferred)) +'\n'+this.floors.map((floor)=>`${floor.name.padEnd(9,'-')}---${useLowMinimums?'min:'+floor.minimumStaff:'pref:'+floor.preferredStaff}, actual:${this.getStationCountAtTime(this.shifts, this.defaultStations.undefined, balanceTimeStart, floor.name) + this.getStationCountAtTime(this.shifts, this.defaultStations.available, balanceTimeStart, floor.name)}, overstaff count:${floor.overstaffCountPreferred}`).join('\n')+`\n\nmoving ${givingShift.name} from ${givingFloor.name} to ${takingFloor.name}`)
                 this.logDeskData((useLowMinimums?"balancing by minimum count":"balancing by preferred count")+'<br><br>'+balanceTimeStart.toLocaleTimeString() + " - " + balanceTimeEnd.toLocaleTimeString() + " maxdif:"+ maxDifference(this.floors.map(floor=>(floor.overstaffCountPreferred))) +'<br><br>'+this.floors.map((floor)=>`${floor.name.padEnd(9,'-')}---${useLowMinimums?'min:'+floor.minimumStaff:'pref:'+floor.preferredStaff}, actual:${this.getStationCountAtTime(this.shifts, this.defaultStations.undefined, balanceTimeStart, floor.name) + this.getStationCountAtTime(this.shifts, this.defaultStations.available, balanceTimeStart, floor.name)}, overstaff count:${floor.overstaffCountPreferred}`).join('<br><br>')+`<br><br><br><br>moving ${givingShift.name} from ${givingFloor.name} to ${takingFloor.name}`)
                 givingShift.floor = takingFloor
                 if (!this.shiftsSplitAcrossFloors.some(shiftSplit=>shiftSplit.name==givingShift.name)) this.shiftsSplitAcrossFloors.push(givingShift)
                 this.updateFloorOverstaffCount(balanceTimeStart, balanceTimeEnd, useLowMinimums)
+                this.floors.sort((a,b)=>a.reassignStaffPriority-b.reassignStaffPriority)
+                this.floors.sort((a,b)=>a.overstaffCountPreferred - b.overstaffCountPreferred)
+                break mainloop//added so that only one shift can be moved to floor before rechecking others
               }
-              else break
+              // else break
             }
           }
         }
-      })
+      }
+      this.logDeskData((useLowMinimums?"balancing by minimum count":"balancing by preferred count")+'<br><br>'+balanceTimeStart.toLocaleTimeString() + " - " + balanceTimeEnd.toLocaleTimeString() + " maxdif:"+ maxDifference(this.floors.map(floor=>(floor.overstaffCountPreferred))) +'<br><br>'+this.floors.map((floor)=>`${floor.name.padEnd(9,'-')}---${useLowMinimums?'min:'+floor.minimumStaff:'pref:'+floor.preferredStaff}, actual:${this.getStationCountAtTime(this.shifts, this.defaultStations.undefined, balanceTimeStart, floor.name) + this.getStationCountAtTime(this.shifts, this.defaultStations.available, balanceTimeStart, floor.name)}, overstaff count:${floor.overstaffCountPreferred}`).join('<br><br>')+`<br><br><br><br>balancing end results`)
       //sort by furthest below preferred staffing count to highest above 
+      this.updateFloorOverstaffCount(balanceTimeStart, balanceTimeEnd, useLowMinimums)
+      this.floors.sort((a,b)=>a.reassignStaffPriority-b.reassignStaffPriority)
       this.floors.sort((a,b)=>a.overstaffCountPreferred - b.overstaffCountPreferred)
     }
   }
@@ -1798,7 +1824,6 @@ class DeskSchedule{
   }
 
   displayDuties(displayCells: DisplayCells) {
-    //OPENING
     if (this.settings.dutyLists.length>0){ //redundant now that theres that min check below?
 
       this.sortShiftsByFairRotation(this.shifts)
@@ -1842,13 +1867,19 @@ class DeskSchedule{
 
         for(let time = new Date(dutyList.startTime); time < dutyList.endTime; time.addTime(0, 30)){
           this.shifts.forEach(shift=>{
-            // if (![undefined, this.defaultStations.undefined.name, this.defaultStations.mealBreak.name, this.defaultStations.off.name, this.defaultStations.programMeeting.name].includes(shift.getStationAtTime(time)?.name) && !shift.tags.includes("In training (do not assign to stations)")){
-            if (![this.defaultStations.mealBreak.name, this.defaultStations.off.name, this.defaultStations.programMeeting.name, this.defaultStations.offFloorStation, "Building PIC"].includes(shift.getStationAtTime(time)?.name) && !shift.tags.includes("In training (do not assign to stations)")){
+            // console.log(`${dutyList.title}: ${shift.name}\n${shift.getStationAtTime(time)?.name}: ${![this.defaultStations.mealBreak.name, this.defaultStations.off.name, this.defaultStations.programMeeting.name, this.defaultStations.offFloorStation.name, "Building PIC"].includes(shift.getStationAtTime(time)?.name)}\n${!shift.tags.includes("In training (do not assign to stations)")}\n${shift.getStationAtTime(time)?.floor}: ${shift.getStationAtTime(time)?.floor == dutyList.floor}, ${shift.getStationAtTime(time)?.floor == "undefined"}, ${shift.getStationAtTime(time)?.floor == undefined}`)
+            if (
+                ![this.defaultStations.mealBreak.name, this.defaultStations.off.name, this.defaultStations.programMeeting.name, this.defaultStations.offFloorStation.name, "Building PIC"]
+                  .includes(shift.getStationAtTime(time)?.name)
+                && !shift.tags.includes("In training (do not assign to stations)")
+                // && (shift.getStationAtTime(time)?.floor == dutyList.floor || shift.getStationAtTime(time)?.floor == "undefined" || shift.getStationAtTime(time)?.floor == undefined)
+                && (shift.getStationAtTime(time)?.floor == dutyList.floor || this.floors.length <= 1)
+              ){
               shiftsWithinTimeLimit.push(shift)
             }
           })
         }
-        
+        // console.log(`${dutyList.title}:\n${shiftsWithinTimeLimit.map(shift=>shift.name).join('\n')}`)
         // if(duty.requirePic){
         //   dutiesStaffShifts.every(shift=>{
         //     if (shift.isPIC){
@@ -1858,14 +1889,15 @@ class DeskSchedule{
         //     }
         //   })
         // }
-        dutyList.duties.forEach((duty,i) => {
+        dutyList.duties.forEach((duty) => {
+          //find first shift in shiftsWithinTimeLimit who meets staffType.... why am I finding and not just filtering sWTL?
           let firstEligibleShift = this.shifts.find(shift=>
             shiftsWithinTimeLimit
               .filter(s=>{
-                if(duty.staffType=="All staff") return true
-                if(duty.staffType=="Aides only" && s.position == 11534165) return true
-                if(duty.staffType=="All except Aides" && s.position != 11534165) return true
-                if(duty.staffType=="PICs only" && s.isPIC) return true
+                if     (duty.staffType=="All staff") return true
+                else if(duty.staffType=="Aides only" && s.position == 11534165) return true
+                else if(duty.staffType=="All except Aides" && s.position != 11534165) return true
+                else if(duty.staffType=="PICs only" && s.isPIC) return true
                 return false
               })
               .some(s=>s?.name == shift?.name)
@@ -2058,6 +2090,7 @@ enum DutyListLimitType {
 
 class Floor{
   index: number
+  reassignStaffPriority: number
   name: string
   preferredTag: string
   minimumStaff: number
@@ -2826,7 +2859,7 @@ function concatRichText(richTextValueArray:GoogleAppsScript.Spreadsheet.RichText
   richTextValueArray.forEach( next => {
     let runs = next.getRuns()
     runs.forEach( run => {
-      if (run.getText().length>0){
+      if (run.getText().length>0 && start + run.getStartIndex()<Math.min(start + run.getEndIndex(), richText.build().getText().length)){
         richText = richText.setTextStyle(start+run.getStartIndex(),Math.min(start+run.getEndIndex(), richText.build().getText().length),run.getTextStyle())
         if( run.getLinkUrl() ) {
           richText = richText.setLinkUrl(start+run.getStartIndex(),Math.min(start+run.getEndIndex(), richText.build().getText().length),run.getLinkUrl())
