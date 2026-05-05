@@ -1047,7 +1047,10 @@ class DeskSchedule {
         this.updateFloorOverstaffCount(balanceTimeStart, balanceTimeEnd, useLowMinimums);
         //do rebalancing pass 10 times, or until no floors are understaffed, or until no floors are overstaffed
         // this.ui.alert(balanceTimeStart.toLocaleString() + " - maxdif:"+ maxDifference(this.floors.map(floor=>floor.overstaffCountPreferred)) +'\n'+this.floors.map((floor)=>floor.name +":    "+ floor.overstaffCountPreferred).join('\n'))
-        for (let i = 0; i < 20 && (maxDifference(this.floors.map(floor => floor.overstaffCountPreferred)) > 1 || this.floors.some(floor => floor.overstaffCountPreferred < this.getFloor("ASRS").overstaffCountPreferred)); i++) { //or if ASRS is > other stations?
+        for (let i = 0; i < 20 &&
+            (!useLowMinimums && (maxDifference(this.floors.map(floor => floor.overstaffCountPreferred)) > 1)
+                || (!useLowMinimums && this.floors.some(floor => floor.overstaffCountPreferred < this.getFloor("ASRS").overstaffCountPreferred))
+                || (useLowMinimums && this.floors.some(floor => floor.overstaffCountPreferred < 0))); i++) { //or if ASRS is > other stations?
             // let imabalanceAvg = overstaffCounts.reduce((a,b)=>a+b)/overstaffCounts.length || 0
             // let imbalancesNormalizedAbovePreferred = imabalanceAvg < 1 ? overstaffCounts : overstaffCounts.map((imb)=>imb-Math.floor(imabalanceAvg))
             //debug log overstaffCounts
