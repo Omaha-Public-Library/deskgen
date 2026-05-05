@@ -246,8 +246,9 @@ function buildDeskSchedule(deskSchedDate){
   //generate timeline
   deskSchedule.timelineInit();                      performanceLog("timeline init")
   deskSchedule.timelineAddAvailabilityAndEvents();  performanceLog("timeline add availability and events")
-  deskSchedule.timelineAddStations(deskSchedule.stations.filter(station=>station.name=="Building PIC"), false, false)
-                                                    performanceLog("timeline add stations")
+  if (settings.locationID == 5786790)
+    deskSchedule.timelineAddStations(deskSchedule.stations.filter(station=>station.name=="Building PIC" /*|| station.name==deskSchedule.defaultStations.available.name*/), deskSchedule.shifts, false, false)
+                                                    performanceLog("timeline add building PIC")
   let dayLength = (deskSchedule.settings.closeTime(deskSchedule.date).getTime() - deskSchedule.settings.openTime(deskSchedule.date).getTime())/3600000
   let midDay = new Date(deskSchedule.settings.closeTime(deskSchedule.date).getTime()/2 + deskSchedule.settings.openTime(deskSchedule.date).getTime()/2)
   midDay.setMinutes(0,0,0)
@@ -261,7 +262,7 @@ function buildDeskSchedule(deskSchedDate){
                                                     performanceLog("timeline balance floors")
                                                     deskSchedule.logDeskData('after init floor balance at close')
   // deskSchedule.timelineAddMeals();                  performanceLog("timeline add meals")
-  deskSchedule.timelineAddStations(deskSchedule.stations.filter(station=>station.name!="Building PIC"));
+  deskSchedule.timelineAddStations(deskSchedule.stations.filter(station=>station.name!="Building PIC"), deskSchedule.shifts);
                                                     performanceLog("timeline add stations")
   deskSchedule.timelineAssignPics();                performanceLog("timeline assign PICs")
 
@@ -300,8 +301,9 @@ class DeskSchedule{
   annotationUser = []
   logDeskDataRecord = []
   defaultStations = {
-    // undefined: new Station("#cccccc", "undefined"),
-    undefined: new Station("#ffffff", "undefined"),
+    undefined: new Station("#cccccc", "undefined"),
+    // undefined: new Station("#222222", "undefined"),
+    // undefined: new Station("#ffffff", "undefined"),
     programMeeting: new Station("#ffd966", "Program/Meeting"),
     available: new Station("#ffffff", "Available", 99),
     training: new Station("#d7bda8", "In Training", 99),
@@ -311,7 +313,7 @@ class DeskSchedule{
   }
   durationTypes:DurationType = DurationType.Alwayswhileopen
   limitTypes:LimitType = LimitType.SpecificTime
-  positionHierarchy: {id:number,name:string, group?:string,picDurationMax?:number}[]
+  positionHierarchy: {id:number, name:string, group?:string, picDurationMax?:number, offDeskRatio?:number}[]
   // floors: {genealogy:Floor,second:Floor,first:Floor,asrs:Floor}
   floors: Floor[]
   //history:
@@ -500,33 +502,33 @@ class DeskSchedule{
     // log('annotationUser:\n'+ JSON.stringify(annotationUser))
 
     this.positionHierarchy = [ //manually created, name/id must match wiw, will break if wiw positions are changed
-      {"id":11534158,"name":"Branch Manager",                           "group":"Reference","picDurationMax":3},
-      {"id":11534159,"name":"Assistant Branch Manager",                 "group":"Reference", "picDurationMax":3},
-      {"id":11534161,"name":"Library Specialist",                       "group":"Reference", "picDurationMax":2},
-      {"id":11566533,"name":"Part-Time Library Specialist",             "group":"Reference", "picDurationMax":2},
-      {"id":11534164,"name":"Associate Library Specialist",             "group":"Reference", "picDurationMax":2},
-      {"id":11656177,"name":"Part-Time Associate Library Specialist",   "group":"Reference", "picDurationMax":2},
-      {"id":11534162,"name":"Senior Clerk",                             "group":"Clerk","picDurationMax":0},
-      {"id":11534163,"name":"Clerk II",                                 "group":"Clerk","picDurationMax":0},
-      {"id":11762122,"name":"Part-Time Clerk II",                       "group":"Clerk","picDurationMax":0},
-      {"id":11534165,"name":"Part-Time Library Aide",                   "group":"Aide", "picDurationMax":0},
+      {"id":11534158,"name":"Branch Manager",                           "group":"Reference",    "offDeskRatio": 30 / 40,  "picDurationMax":3},
+      {"id":11534159,"name":"Assistant Branch Manager",                 "group":"Reference",    "offDeskRatio": 20 / 40,  "picDurationMax":3},
+      {"id":11534161,"name":"Library Specialist",                       "group":"Reference",    "offDeskRatio": 12 / 40,  "picDurationMax":2},
+      {"id":11566533,"name":"Part-Time Library Specialist",             "group":"Reference",    "offDeskRatio":  4 / 20,  "picDurationMax":2},
+      {"id":11534164,"name":"Associate Library Specialist",             "group":"Reference",    "offDeskRatio": 10 / 40,  "picDurationMax":2},
+      {"id":11656177,"name":"Part-Time Associate Library Specialist",   "group":"Reference",    "offDeskRatio":  4 / 20,  "picDurationMax":2},
+      {"id":11534162,"name":"Senior Clerk",                             "group":"Clerk",        "offDeskRatio": 10 / 40,  "picDurationMax":0},
+      {"id":11534163,"name":"Clerk II",                                 "group":"Clerk",        "offDeskRatio": 10 / 40,  "picDurationMax":0},
+      {"id":11762122,"name":"Part-Time Clerk II",                       "group":"Clerk",        "offDeskRatio":  4 / 20,  "picDurationMax":0},
+      {"id":11534165,"name":"Part-Time Library Aide",                   "group":"Aide",         "offDeskRatio":  0 / 40,  "picDurationMax":0},
       
-      {"id":11810398,"name":"Part-Time Applications Analyst", "group":"Departments","picDurationMax":0},
-      {"id":11810399,"name":"Librarian II", "group":"Departments","picDurationMax":0},
-      {"id":11810400,"name":"Librarian I", "group":"Departments","picDurationMax":0},
-      {"id":11810401,"name":"Marketing and Communications Specialist", "group":"Departments","picDurationMax":0},
-      {"id":11810402,"name":"Library Technology Specialist", "group":"Departments","picDurationMax":0},
-      {"id":11810403,"name":"Library Special Projects Manager", "group":"Departments","picDurationMax":0},
-      {"id":11810404,"name":"Office Supervisor", "group":"Departments","picDurationMax":0},
-      {"id":11810405,"name":"Librarian III", "group":"Departments","picDurationMax":0},
-      {"id":11810406,"name":"Marketing Manager", "group":"Departments","picDurationMax":0},
-      {"id":11810407,"name":"Library Director", "group":"Departments","picDurationMax":0},
-      {"id":11810408,"name":"Graphics Specialist", "group":"Departments","picDurationMax":0},
-      {"id":11810409,"name":"Part-Time Social Media Manager", "group":"Departments","picDurationMax":0},
-      {"id":11810410,"name":"Office Manager", "group":"Departments","picDurationMax":0},
-      {"id":11810411,"name":"Assistant Library Director", "group":"Departments","picDurationMax":0},
-      {"id":11810412,"name":"Social Media Manager", "group":"Departments","picDurationMax":0},
-      {"id":11810413,"name":"Executive Secretary", "group":"Departments","picDurationMax":0},
+      {"id":11810398,"name":"Part-Time Applications Analyst",           "group":"Departments",  "offDeskRatio":  0 / 40,  "picDurationMax":0},
+      {"id":11810399,"name":"Librarian II",                             "group":"Departments",  "offDeskRatio":  0 / 40,  "picDurationMax":0},
+      {"id":11810400,"name":"Librarian I",                              "group":"Departments",  "offDeskRatio":  0 / 40,  "picDurationMax":0},
+      {"id":11810401,"name":"Marketing and Communications Specialist",  "group":"Departments",  "offDeskRatio":  0 / 40,  "picDurationMax":0},
+      {"id":11810402,"name":"Library Technology Specialist",            "group":"Departments",  "offDeskRatio":  0 / 40,  "picDurationMax":0},
+      {"id":11810403,"name":"Library Special Projects Manager",         "group":"Departments",  "offDeskRatio":  0 / 40,  "picDurationMax":0},
+      {"id":11810404,"name":"Office Supervisor",                        "group":"Departments",  "offDeskRatio":  0 / 40,  "picDurationMax":0},
+      {"id":11810405,"name":"Librarian III",                            "group":"Departments",  "offDeskRatio":  0 / 40,  "picDurationMax":0},
+      {"id":11810406,"name":"Marketing Manager",                        "group":"Departments",  "offDeskRatio":  0 / 40,  "picDurationMax":0},
+      {"id":11810407,"name":"Library Director",                         "group":"Departments",  "offDeskRatio":  0 / 40,  "picDurationMax":0},
+      {"id":11810408,"name":"Graphics Specialist",                      "group":"Departments",  "offDeskRatio":  0 / 40,  "picDurationMax":0},
+      {"id":11810409,"name":"Part-Time Social Media Manager",           "group":"Departments",  "offDeskRatio":  0 / 40,  "picDurationMax":0},
+      {"id":11810410,"name":"Office Manager",                           "group":"Departments",  "offDeskRatio":  0 / 40,  "picDurationMax":0},
+      {"id":11810411,"name":"Assistant Library Director",               "group":"Departments",  "offDeskRatio":  0 / 40,  "picDurationMax":0},
+      {"id":11810412,"name":"Social Media Manager",                     "group":"Departments",  "offDeskRatio":  0 / 40,  "picDurationMax":0},
+      {"id":11810413,"name":"Executive Secretary",                      "group":"Departments",  "offDeskRatio":  0 / 40,  "picDurationMax":0},
 
       //custom, not in WIW, for annotation events
       {"id":0,"name":"Annotation Event"}
@@ -1225,7 +1227,7 @@ class DeskSchedule{
     }
   }
 
-  timelineAddStations(stations:Station[], assignMeals:Boolean = true, balanceFloors:Boolean = true){
+  timelineAddStations(stations:Station[], shifts:Shift[], assignMeals:Boolean = true, balanceFloors:Boolean = true){
     if(!this.settings.assignStations || this.shifts.length < 1) return
     log("running timelineAddStations")
     //  things to weigh:
@@ -1267,27 +1269,26 @@ class DeskSchedule{
       }
 
       this.floors.forEach(floor=>{
-        let floorShifts = this.shifts.filter(shift=>shift.floor?.name == floor.name)
+        let floorShifts = shifts.filter(shift=>shift.floor?.name == floor.name)
         let floorStations = stations.filter(station=>(station.floor == floor.name || station.floor == undefined))
   
         //prepass
         if (this.settings.defragPrePass){
-          let undefinedCount = this.getStationCountAtTime(this.shifts, this.defaultStations.undefined, time)
-          // this.ui.alert('undefined at '+time.toLocaleTimeString()+' '+undefinedCount)
-  
           floorStations.forEach((station, stationIndex)=>{
             //skip default stations EXCEPT available, the rest are handled in timelineAddAvailabilityAndEvents and timelineAddMeals
             if(Object.values(this.defaultStations).map(s=>s.name).includes(station.name) && station.name != this.defaultStations.available.name) return
     
             //assign
-            this.shifts.forEach(shift=> {
+            floorShifts.forEach(shift=> {
               if (station.positionPriority.length<1 || station.positionPriority.some(pos=>
                 pos.enabled && pos.title == this.getPositionById(shift.position)?.name
               )){ //if staff is assigned to this station in positionpriority
-                let currentStation = shift.getStationAtTime(time)
+                // let currentStation = shift.getStationAtTime(time) //unused
                 let nextStation = shift.getStationAtTime(nextTime)
                 let prevStation = shift.getStationAtTime(prevTime)
-                
+                let undefinedCount = this.getStationCountAtTime(shifts, this.defaultStations.undefined, time, floor.name)
+                let staffNeededToCoverMainStations = floorStations.slice(0,stationIndex).filter(station=>station.name!=this.defaultStations.available.name).map(station=>station.numOfStaff).reduce((acc, cur)=>acc+cur, 0)
+                // this.ui.alert('undefined at '+time.toLocaleTimeString()+' '+undefinedCount)
                 if(
                   this.assignmentEligibilityCheck(shift, station, time)
                   //extra qualifications for prepass:
@@ -1295,8 +1296,8 @@ class DeskSchedule{
                   && station.name != this.defaultStations.available.name //don't extend available so that it rotates more and half hour before open isn't extended
                   && (nextStation.name != this.defaultStations.undefined.name //if unavailable in half an hour
                     || time.getTime() == new Date(this.dayEndTime).addTime(0,-30).getTime() //if it's the last half hour of the day
-                    || shift.countHowLongAtStation(station.name, prevTime) == 0.5) //if staff has only been on station for half a day
-                  && stationIndex < undefinedCount //if there's enough availability to assign this and all higher priority stations
+                    || shift.countHowLongAtStation(station.name, prevTime) == 0.5) //if staff has only been on station for half an hour
+                  && undefinedCount > staffNeededToCoverMainStations //if there's enough availability to assign this and all higher priority stations
                 ){
                   shift.setStationAtTime(station, time)
                   // currentStation = shift.getStationAtTime(time)
@@ -1310,30 +1311,30 @@ class DeskSchedule{
         }
   
         //main pass
-        floorStations.forEach(station=>{
+        floorStations.forEach((station,stationIndex)=>{
           //skip default stations EXCEPT available, the rest are handled in timelineAddAvailabilityAndEvents and timelineAddMeals
           if(Object.values(this.defaultStations).map(s=>s.name).includes(station.name) && station.name != this.defaultStations.available.name) return
           
-          // log(`${time.getTimeStringHHMM12()}, ${station.name}: sort shifts into priority order for assignment, if none given in settings defulats to sortShiftsByPositionHiearchyDesc:\n${this.shifts.map(s=>s.name).join('\n')}`)
+          // log(`${time.getTimeStringHHMM12()}, ${station.name}: sort shifts into priority order for assignment, if none given in settings defulats to sortShiftsByPositionHiearchyDesc:\n${shifts.map(s=>s.name).join('\n')}`)
           if (this.settings.locationID == 5786790)
-            this.sortShiftsByFairRotation(this.shifts)
+            this.sortShiftsByFairRotation(shifts)
           else
-            this.sortShiftsByUserPositionPriority(this.shifts, station.positionPriority)
+            this.sortShiftsByUserPositionPriority(shifts, station.positionPriority)
   
-          // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`sort by stationpriority:\n${time.getTimeStringHHMM12()}, ${station.name}: ${this.shifts.map(s=>s.name+", "+station.positionPriority.map(p=>this.getPositionByName(p.title).id).indexOf(s.position)).join('\n')}`)
+          // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`sort by stationpriority:\n${time.getTimeStringHHMM12()}, ${station.name}: ${shifts.map(s=>s.name+", "+station.positionPriority.map(p=>this.getPositionByName(p.title).id).indexOf(s.position)).join('\n')}`)
           
           //if on this station, move to front
-          this.shifts.sort((shiftA, shiftB)=>{
+          shifts.sort((shiftA, shiftB)=>{
             let aVal = shiftA.getStationAtTime(prevTime).name == station.name ? 0:1
             let bVal = shiftB.getStationAtTime(prevTime).name == station.name ? 0:1
             // console.log(`${time.getTimeStringHHMM12()} - ${station.name}\n${shiftA.name.substring(0,9)} is on ${shiftA.getStationAtTime(prevTime)}, ${aVal}\n${shiftB.name.substring(0,9)} is on ${shiftB.getStationAtTime(prevTime)}, ${bVal}\n${aVal-bVal}`)
             return aVal-bVal
           })
   
-          // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if on station move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${this.shifts.map(s=>s.name).join('\n')}`)
+          // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if on station move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${shifts.map(s=>s.name).join('\n')}`)
           
           //if not on this station and over max, move to front
-          this.shifts.sort((shiftA, shiftB)=>{
+          shifts.sort((shiftA, shiftB)=>{
             let aStationPrev = shiftA.getStationAtTime(prevTime)
             let bStationPrev = shiftB.getStationAtTime(prevTime)
             
@@ -1345,18 +1346,36 @@ class DeskSchedule{
             ? 0:1
             return aVal-bVal
           })
+          // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if not on station and over max move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${shifts.map(s=>s.name).join('\n')}`)
 
+          //sort by percentage of shift which has been spent at this station weighted by off desk time goals, asc 
+          if (station.name == this.defaultStations.available.name) shifts.sort((shiftA, shiftB)=>{
+            let offDeskRatioA = this.positionHierarchy.find(pos=>pos.id==shiftA.position).offDeskRatio
+            let shiftLengthA = (shiftA.endTime.getTime() - shiftA.startTime.getTime())/3600000
+            let offDeskRatioB = this.positionHierarchy.find(pos=>pos.id==shiftB.position).offDeskRatio
+            let shiftLengthB = (shiftB.endTime.getTime() - shiftB.startTime.getTime())/3600000
+            let aVal = (shiftA.countTotalTimeAtStation(station.name, nextTime)/offDeskRatioA) / (shiftLengthA)
+            let bVal = (shiftB.countTotalTimeAtStation(station.name, nextTime)/offDeskRatioB) / (shiftLengthB)
+            // if (time.getTimeStringHHMM24()=="14:00" && station.name=="Available") console.log(`${station.name}:${floor.name}${time.toLocaleTimeString()}
+              // ${shiftA.name}--offDeskRatioA:${offDeskRatioA}, totalTime:${shiftA.countTotalTimeAtStation(station.name, nextTime)}, shiftLengthA:${shiftLengthA}, aVal:${aVal}
+              // ${shiftB.name}--offDeskRatioB:${offDeskRatioB}, totalTime:${shiftB.countTotalTimeAtStation(station.name, nextTime)}, shiftLengthB:${shiftLengthB}, bVal:${bVal}
+              // ${aVal-bVal}, manager priority: ${(aVal - ([11534158, 11534159].includes(shiftA.position) ? 0.2 : 0)) - (bVal - ([11534158, 11534159].includes(shiftB.position) ? 0.2 : 0))}
+              // `)
+            //tiebreaker slightly prioritizes managers
+            aVal -= ([11534158, 11534159].includes(shiftA.position) ? 0.2 : 0)
+            bVal -= ([11534158, 11534159].includes(shiftB.position) ? 0.2 : 0)
+            return aVal - bVal
+          })
           //sort by percentage of shift which has been spent at this station, asc
-          this.shifts.sort((shiftA, shiftB)=>{
+          else shifts.sort((shiftA, shiftB)=>{
             let aVal = shiftA.countTotalTimeAtStation(station.name, nextTime) / (shiftA.endTime.getTime() - shiftA.startTime.getTime())
             let bVal = shiftB.countTotalTimeAtStation(station.name, nextTime) / (shiftB.endTime.getTime() - shiftB.startTime.getTime())
             return aVal - bVal
           })
-  
-          // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if not on station and over max move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${this.shifts.map(s=>s.name).join('\n')}`)
+          // if (time.getTimeStringHHMM24()=="14:00" && station.name=="Available") console.log(`sort by perc of shift on station weighted by off desk time goals:\n${time.getTimeStringHHMM12()}, ${station.name}:\n${shifts.map(s=>s.name).join('\n')}`)
           
           //if available for this time and following half hour, move to top
-          this.shifts.sort((shiftA, shiftB)=>{
+          shifts.sort((shiftA, shiftB)=>{
             let aStation = shiftA.getStationAtTime(time)
             let aStationNext = shiftA.getStationAtTime(nextTime)
             let bStation = shiftB.getStationAtTime(time)
@@ -1369,10 +1388,10 @@ class DeskSchedule{
             return aVal-bVal
           })
   
-          // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if available for this time and following half hour, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${this.shifts.map(s=>`${s.name}, now:${s.getStationAtTime(time).name}, next:${s.getStationAtTime(nextTime).name}, ${s.getStationAtTime(time).name==this.defaultStations.undefined}, ${s.getStationAtTime(nextTime).name==this.defaultStations.undefined}`).join('\n')}`)
+          // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if available for this time and following half hour, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${shifts.map(s=>`${s.name}, now:${s.getStationAtTime(time).name}, next:${s.getStationAtTime(nextTime).name}, ${s.getStationAtTime(time).name==this.defaultStations.undefined}, ${s.getStationAtTime(nextTime).name==this.defaultStations.undefined}`).join('\n')}`)
           
           //if on this station and over max, move to end
-          this.shifts.sort((shiftA, shiftB)=>{
+          shifts.sort((shiftA, shiftB)=>{
             let aStationPrev = shiftA.getStationAtTime(prevTime)
             let bStationPrev = shiftB.getStationAtTime(prevTime)
             
@@ -1411,10 +1430,10 @@ class DeskSchedule{
             return aVal-bVal
           })
   
-          // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if on this station and over max, move to end:\n${time.getTimeStringHHMM12()}, ${station.name}: ${this.shifts.map(s=>s.name).join('\n')}`)
+          // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if on this station and over max, move to end:\n${time.getTimeStringHHMM12()}, ${station.name}: ${shifts.map(s=>s.name).join('\n')}`)
           
           //if on this station and not over max, move to front
-          this.shifts.sort((shiftA, shiftB)=>{
+          shifts.sort((shiftA, shiftB)=>{
             let aStationPrev = shiftA.getStationAtTime(prevTime)
             let bStationPrev = shiftB.getStationAtTime(prevTime)
             
@@ -1427,11 +1446,11 @@ class DeskSchedule{
             return aVal-bVal
           })
   
-          // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if on this station and not over max, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${this.shifts.map(s=>s.name).join('\n')}`)
+          // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if on this station and not over max, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${shifts.map(s=>s.name).join('\n')}`)
           
           //if changeOnTheHour AND on this station AND not more than half an hour over, move to front
           if(this.settings.changeOnTheHour && time.getMinutes()!=0){
-            this.shifts.sort((shiftA, shiftB)=>{
+            shifts.sort((shiftA, shiftB)=>{
               let aStationPrev = shiftA.getStationAtTime(prevTime)
               let bStationPrev = shiftB.getStationAtTime(prevTime)
               
@@ -1442,10 +1461,10 @@ class DeskSchedule{
             })
           }
           
-          // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if changeonthehour and on this station and not more than half an hour over, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${this.shifts.map(s=>s.name).join('\n')}`)
+          // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if changeonthehour and on this station and not more than half an hour over, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${shifts.map(s=>s.name).join('\n')}`)
           
           // log("sort by amount of time total at station, as ratio of shift length")
-          // this.shifts.sort((shiftA, shiftB)=>{
+          // shifts.sort((shiftA, shiftB)=>{
           //   let aTotalStationTime = shiftA.countTotalTimeAtStation(station.name, prevTime)
           // let aRatioOfShiftAtStation = aTotalStationTime/shiftA.durationInHours
             
@@ -1456,31 +1475,60 @@ class DeskSchedule{
           
           //   return aRatioOfShiftAtStation - bRatioOfShiftAtStation
           // })
-          // console.log(time.getTimeStringHHMM24()+' '+station.name+'\n', this.shifts.map(shift=>shift.name.substring(0,3)+': '+shift.countTotalTimeAtStation(station.name, prevTime)+', '+Math.round(shift.countTotalTimeAtStation(station.name, prevTime)/shift.durationInHours*100)+'%').join('\n'))
+          // console.log(time.getTimeStringHHMM24()+' '+station.name+'\n', shifts.map(shift=>shift.name.substring(0,3)+': '+shift.countTotalTimeAtStation(station.name, prevTime)+', '+Math.round(shift.countTotalTimeAtStation(station.name, prevTime)/shift.durationInHours*100)+'%').join('\n'))
           
           // this.sortShiftsByWhetherAssignmentLengthReached(station.name, time)
 
-          //if not on this floor, move to end
-          this.shifts.sort((shiftA, shiftB)=>{
+          //if not on this floor, move to end -- lets make this redundant, need to filter shifts to floor before sorting
+          shifts.sort((shiftA, shiftB)=>{
             let aVal = shiftA.floor?.name == station.floor ? 0:1
             let bVal = shiftB.floor?.name == station.floor ? 0:1
             return bVal-aVal
           })
+
+          //put managers who have had <50% of their off desk time at bottom of queue for other stations
+          if (this.settings.strictPrioritizeManagerOffDeskTime && station.name != this.defaultStations.available.name && station.name != "Building PIC"){
+            // this.ui.alert(`${station.name} being sorted by need for off desk time ${station.name != this.defaultStations.available.name} ${station.name != "Building PIC"}`)
+            shifts.sort((shiftA, shiftB)=>{
+              let offDeskRatioA = this.positionHierarchy.find(pos=>pos.id==shiftA.position).offDeskRatio
+              let shiftLengthA = (shiftA.endTime.getTime() - shiftA.startTime.getTime())/3600000
+              let offDeskRatioB = this.positionHierarchy.find(pos=>pos.id==shiftB.position).offDeskRatio
+              let shiftLengthB = (shiftB.endTime.getTime() - shiftB.startTime.getTime())/3600000
+              let aVal = (shiftA.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)/offDeskRatioA) / (shiftLengthA)
+              let bVal = (shiftB.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)/offDeskRatioB) / (shiftLengthB)
+              //if manager and less than .5 of quota, move to start of queue
+              let aValM = ([11534158, 11534159].includes(shiftA.position) && aVal < 0.5 ? aVal : 10)
+              let bValM = ([11534158, 11534159].includes(shiftB.position) && bVal < 0.5 ? bVal : 10)
+
+              // if (time.getTimeStringHHMM24()=="14:00" && station.name!="Available") console.log(`${station.name}:${floor.name} - ${time.toLocaleTimeString()}
+              //   ${shiftA.name}--offDeskRatioA:${offDeskRatioA}, totalTime:${shiftA.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)}, shiftLengthA:${shiftLengthA}, aVal:${aVal}, aValM:${(aValM)}
+              //   ${shiftB.name}--offDeskRatioB:${offDeskRatioB}, totalTime:${shiftB.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)}, shiftLengthB:${shiftLengthB}, bVal:${bVal}, bValM:${(bValM)}
+              //   bVal-aVal: ${bVal - aVal}, bValM - aValM: ${(bValM) - (aValM)}
+              //   `)
+              return bValM - aValM
+            })
+          }
+          // if (time.getTimeStringHHMM24()=="14:00" /*&& station.name=="Available"*/) console.log(`sort by perc of shift on station weighted by off desk time goals:\n${time.getTimeStringHHMM12()}, ${station.name}:\n${shifts.map(s=>s.name).join('\n')}`)
           
           //assign
-          this.shifts.forEach(shift=> {
+          shifts.forEach(shift=> {
             if (station.positionPriority.length<1 || station.positionPriority.some(pos=>
               pos.enabled && pos.title == this.getPositionById(shift.position).name
             )){ //if staff is assigned to this station
-              let currentStation = shift.getStationAtTime(time)
+              // let currentStation = shift.getStationAtTime(time)
               // let prevStation = shift.getStationAtTime(prevTime)
               // let timeOnPrevStation = shift.countHowLongAtStation(prevStation.name, new Date(time).addTime(0,-30))
               // console.log(`at ${time.getTimeStringHHMM24()}, ${shift.name} has been ${prevStation} for ${timeOnPrevStation}hours.`, currentStation, currentStation == this.defaultStations.undefined, stationCount<station.numOfStaff)
+              // let undefinedCount = this.getStationCountAtTime(shifts, this.defaultStations.undefined, time, floor.name)
+              // this.ui.alert(`${this.stations.filter(station=>(station.floor == floor.name)).map(s=>s.name+', '+s.numOfStaff).join('\n')}\n\n${this.stations.filter(station=>(station.floor == floor.name)).slice(0,stationIndex).join('\n')}\n\n${this.stations.filter(station=>(station.floor == floor.name)).slice(0,stationIndex).filter(station=>station.name!=this.defaultStations.available.name).map(station=>station.numOfStaff).join('\n')}`)
+              // let staffNeededToCoverMainStations = this.stations.filter(station=>(station.floor == floor.name)).slice(0,stationIndex).filter(station=>station.name!=this.defaultStations.available.name).map(station=>station.numOfStaff).reduce((acc, cur)=>acc+cur, 0)
+              // this.ui.alert(`${time.toLocaleTimeString()} ${floor.name} ${station.name}\nundefinedCount:${undefinedCount}\nstaffNeededToCoverMainStations${staffNeededToCoverMainStations}`)
               if(
                 this.assignmentEligibilityCheck(shift, station, time)
+                // && (!availablePrePass || undefinedCount > staffNeededToCoverMainStations)
               ){
                 shift.setStationAtTime(station, time)
-                currentStation = shift.getStationAtTime(time)
+                // currentStation = shift.getStationAtTime(time)
                 // let timeOnCurrStation = shift.countHowLongAtStation(currentStation.name, time)
                 // console.log(`After assigning to ${currentStation} at ${time.getTimeStringHHMM24()}, ${shift.name} has been ${currentStation} for ${timeOnCurrStation}hours.`)
               }
@@ -2535,6 +2583,7 @@ class Settings{
   assignStations: boolean
   defragPrePass: boolean
   changeOnTheHour: boolean
+  strictPrioritizeManagerOffDeskTime: boolean
   generatePicAssignments: boolean
   groupPicsAtTop: boolean
   assignmentLength: number

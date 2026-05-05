@@ -256,6 +256,7 @@
       <tr><td>assignStations</td><td><input type="checkbox" id="assignStations" checked></td></tr>
       <tr><td>defragPrePass</td><td><input type="checkbox" id="defragPrePass" checked></td></tr>
       <tr><td>changeOnTheHour</td><td><input type="checkbox" id="changeOnTheHour" checked></td></tr>
+      <tr><td>strictPrioritizeManagerOffDeskTime</td><td><input type="checkbox" id="strictPrioritizeManagerOffDeskTime"></td></tr>
       <tr><td>generatePicAssignments</td><td><input type="checkbox" id="generatePicAssignments" checked></td></tr>
       <tr><td>groupPicsAtTop</td><td><input type="checkbox" id="groupPicsAtTop" checked></td></tr>
       <tr><td>assignmentLength</td><td><input type="number" id="assignmentLength" value="2"></td></tr>
@@ -455,6 +456,7 @@
       {text:"assignStations", tooltip:"Assign staff to stations. If unchecked, will generate a blank schedule with only meals and events."},
       {text:"defragPrePass", tooltip:"Avoid half hour assignments. May extend stations half an hour past their normal duration limit."},
       {text:"changeOnTheHour", tooltip:"Try to only change station assignments on the hour and not at the half hour."},
+      {text:"strictPrioritizeManagerOffDeskTime", tooltip:"Managers will be strictly prioritized for off desk time above all other staff until they've had most of their off desk time for the day. If left unchecked, will try to assign all staff off desk time in amounts based on their position. Useful to check when understaffed, and managers need to be prioritized for off desk time at the expense of other position's off desk time."},
       {text:"generatePicAssignments", tooltip:"Assign lead PIC at all times during the day, displayed on timeline at top of schedule."},
       {text:"groupPicsAtTop", tooltip:"Group PIC trained staff at the top of the schedule, above Reference staff."},
       {text:"assignmentLength", tooltip:"After this many hours, try to move staff to another station. Overridden by Duration setting of individual stations."},

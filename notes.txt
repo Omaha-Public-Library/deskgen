@@ -299,3 +299,46 @@ will need to know how many hours a week each role works
     also relevant for regenerating only part of day that hasn't passed - how can station timeline be stored, or read directly from spreadsheet?
         reading from spreadsheet is rough because all cell notes are now gone... users could be found from unique names, would that be enough? then get station from color?
         or, give up on retaining any post gen adjustments, just save pictimeline as JSON and reconstruct stations when loaded
+
+
+what would overhaul of station assignment look like?
+    current problem is that the sort/place procedure doesn't look ahead at all possibilities
+    temp fix--two off desk stations, first manager only? would only bypass a few of the sorts, wouldn't solve problem in most cases...
+    the big fix: consider all possibilities before assignment
+        1.  Get list of station assignments needed for time solution (filter down all desired stations to all possible given staff count at time)
+        2.  For each station assignment, get list of all eligible shifts
+        3.  Sort station assignment list
+                How? Need to assign fussiest stations first...
+                Prioritize assignments for which there's only one possibility, so that it doesn't go to another SA
+                Then prioritize time off desk
+                Then sort rest by # of possiblities?
+        4. Sort shift assignment for each
+                Special sorting rule for off-desk time?
+                Otherwise prioritize stations like current process
+
+        okay but will problems conitnue to be caused by that last step?
+        will I need a new priority variable for #3 station assignment variable? or just use existing order except for putting available first?
+        does this approach allow for prioritizing station assignments and shifts that are in progress
+    
+    should I just try to make a seperate off desk prepass for existing process? hmmmmmm
+        would that just look like... getting available staff count, see if it's enough to allow off desk time, and if so, assign it first?
+
+    *** ok what about a prepass that designates people as preferred for time off, then ranks them low in assignment sorting step to avoid them getting assigned to non-available stations? could be tacked on, but would be easier with possiblity first assignment...
+
+I should add a sort to prefer associates for reassignment to ASRS?
+
+bug when balancing based on minimums where loop starts and continues for full 20 count when no one is below minimum?
+
+lower priority --- tiebreaker for overstaff count that, instead of minimum, is average count of over/understaffing? stored as decimal on overstaff count - x.5 nuetral, up or down to x.99 / x.01 ... but what are bounds? maybe just relative to double/half preferred/min?
+
+at start of station assignment step, check for available count and skip if there's no space left to assign
+
+might be a good idea to revisit station/available assignment by position ratio, 2nd hard sort seems good but should double check 1st softer one
+improve by taking into account amount of shift that has passed?
+
+need to check if moving a person to a new floor actually solves the problem before moving them! see martha 5.7
+
+
+
+QUESTIONS   
+    Right now, if no one on floor is eligible for opening duty it isn't assigned. What do you want to do in this situation - leave unassigned and alert, pull from another floor, relax qualifications to include building PIC/ anyone?
