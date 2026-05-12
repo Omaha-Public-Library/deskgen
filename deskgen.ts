@@ -1123,6 +1123,7 @@ class DeskSchedule{
         let shiftToSwapWith = shiftsToSwapWith[0]
         if (shiftToSwapWith.startTime.getTime() == shiftToSplit.startTime.getTime() && shiftToSwapWith.endTime.getTime() == shiftToSplit.endTime.getTime()){
           let midShift = new Date((shiftToSplit.endTime.getTime() + shiftToSplit.startTime.getTime())/2)
+          midShift.setMinutes(Math.round(midShift.getMinutes() / 30) * 30)
           shiftToSplit.moveToFloor(shiftToSwapWith.floor, midShift)
           shiftToSwapWith.moveToFloor(oldFloor, midShift)
         }
@@ -2141,9 +2142,7 @@ class Shift{
   }
 
   setStationDuringTimeRange(station:Station, startTime:Date, endTime:Date){
-    let adjustedEndTime = new Date(endTime)
-    adjustedEndTime.addTime(0,-30)
-    for(let time = new Date(startTime); time < adjustedEndTime; time.addTime(0,30)){
+    for(let time = new Date(startTime); time < endTime; time.addTime(0,30)){
       this.setStationAtTime(station, time)
     }
   }
