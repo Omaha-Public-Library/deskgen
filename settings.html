@@ -379,7 +379,7 @@
             <td id="name"><input type="text" value="Front Desk"></td>
             <td id="floor">
               <!-- <input type="text" value=""> -->
-              <select class="floor" style="width: 32px">
+              <select class="floor" style="width: 32px" onchange="update(this)">
                 <option></option>
                 <option>Genealogy</option>
                 <option>2nd Floor</option>
@@ -407,7 +407,7 @@
               </ul>
             </td>
             <td id="durationType">
-              <select>
+              <select onchange="update(this)">
                 <option>While open</option>
                 <option>Always</option>
                 <option>For X hours per day total</option>
@@ -416,7 +416,7 @@
             </td>
             <td id="duration"><input type="number"></td>
             <td id="limitType">
-              <select>
+              <select onchange="update(this)">
                 <option>Specific Time</option>
                 <!-- <option>X to Y hours before open</option> -->
                 <option>X to Y hours after open</option>
@@ -474,6 +474,10 @@
       {text:"archiveSheetURL", tooltip:"Past schedules will be automatically hidden, then in one day, moved to this spreadsheet to be archived."},
       {text:"verboseLog", tooltip:"When this is checked, more information will be logged to the Apps Script Console and a debug timeline will popup after schedule generation."},
     ]
+
+    function update(val){ //https://stackoverflow.com/questions/44983149/javascript-clone-node-is-not-copying-all-values-from-cloned-to-new-object
+      val.options[val.selectedIndex].setAttribute("selected",""); 
+    }
 
     function openTab(evt, tabName) {//https://www.w3schools.com/howto/howto_js_tabs.asp
       var i, tabcontent, tablinks;
