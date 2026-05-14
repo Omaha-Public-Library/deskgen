@@ -18,13 +18,8 @@ function openArchive() {
         console.log(`No archive set!\n\nGo to the SETTINGS sheet and change "archiveSheetURL" to the URL of a spreadsheet you'd like old schedules to be archived in.`);
     }
     else {
-        showAnchor("Click here to open archive", settings.archiveSheetURL);
+        showAnchor("Schedule archive", "Click here to open archive:", "Desk schedule archive", settings.archiveSheetURL);
     }
-}
-function showAnchor(name, url) {
-    var html = '<html><body><a href="' + url + '" target="blank" onclick="google.script.host.close()">' + name + '</a></body></html>';
-    var ui = HtmlService.createHtmlOutput(html);
-    SpreadsheetApp.getUi().showModelessDialog(ui, "Link to archive");
 }
 function unhideAllArchivedSheets() {
     let settings = new Settings(new Date());
@@ -208,12 +203,19 @@ function buildDeskSchedule(deskSchedDate) {
     }
     let displayCells = new DisplayCells(deskSheet);
     displayCells.getByName('date').setValue(deskSchedDate.toDateString());
+    displayCells.getByName('date').protect().setWarningOnly(true);
     log('deskSchedDate: ' + deskSchedDate);
     performanceLog("sheet setup");
     const wiwData = getWiwData(token, deskSchedDate, settings);
     performanceLog("load WIW data");
     let deskSchedDateEnd = new Date(deskSchedDate.getTime() + 86399000);
     const gCal = CalendarApp.getCalendarById(settings.googleCalendarID);
+    if (gCal === null) {
+        const cid = Utilities.base64Encode(`${settings.googleCalendarID}`).replaceAll('=', '');
+        const calUrl = `https://calendar.google.com/calendar/u/0?cid=${cid}`;
+        showAnchor("Not subscribed to branch calendar", "You are not subscribed to the branch calender. Subscribe to this calendar, then try again:", "Branch calendar", calUrl);
+        return;
+    }
     const gCalEvents = gCal.getEvents(deskSchedDate, deskSchedDateEnd);
     log(`Loaded events from google calendar: ${gCal.getName()}`);
     //MUST BE SUBSCRIBED TO CAL - add check if user is subscribed, if they're not, notify them that you're subscribing them to it, give option to unsubscribe after
@@ -2347,6 +2349,11 @@ function circularReplacer() {
         }
         return value;
     };
+}
+function showAnchor(header, message, linkText, url) {
+    var html = '<html><body><p>' + message + '</p><br><a href="' + url + '" target="blank" onclick="google.script.host.close()">' + linkText + '</a></body></html>';
+    var ui = HtmlService.createHtmlOutput(html);
+    SpreadsheetApp.getUi().showModelessDialog(ui, header);
 }
 function concatRichText(richTextValueArray) {
     // remove the first to start the merge

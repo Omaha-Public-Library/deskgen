@@ -20,14 +20,8 @@ function openArchive(){
     console.log(`No archive set!\n\nGo to the SETTINGS sheet and change "archiveSheetURL" to the URL of a spreadsheet you'd like old schedules to be archived in.`)
   }
   else{
-    showAnchor("Click here to open archive", settings.archiveSheetURL)
+    showAnchor("Schedule archive", "Click here to open archive:", "Desk schedule archive", settings.archiveSheetURL)
   }
-}
-
-function showAnchor(name,url) {
-  var html = '<html><body><a href="'+url+'" target="blank" onclick="google.script.host.close()">'+name+'</a></body></html>';
-  var ui = HtmlService.createHtmlOutput(html)
-  SpreadsheetApp.getUi().showModelessDialog(ui,"Link to archive");
 }
 
 function unhideAllArchivedSheets(){
@@ -200,26 +194,26 @@ function buildDeskSchedule(deskSchedDate){
     }
     return
   }
-    
   else{
     //if sheet already exists and is open, save index...
     let sheetIndex = undefined
     if(existingSheet!==null && ss.getActiveSheet().getName() == newSheetName){
-    sheetIndex = ss.getActiveSheet().getIndex()
-  }
-  //...if previous loading sheet exists, use that, otherwise make a new one from template
-  let existingLoadingSheet = ss.getSheetByName("loading...")
-  deskSheet = existingLoadingSheet!==null ? existingLoadingSheet : ss.insertSheet("loading...", {template: templateSheet})
-  deskSheet.activate()
-  //move to previous spot, if saved
-  if (sheetIndex !== undefined) ss.moveActiveSheet(sheetIndex)
-    //...and delete old sheet if it exists
-  if (existingSheet!==null) ss.deleteSheet(existingSheet)
-    deskSheet.setName(newSheetName)
+      sheetIndex = ss.getActiveSheet().getIndex()
+    }
+    //...if previous loading sheet exists, use that, otherwise make a new one from template
+    let existingLoadingSheet = ss.getSheetByName("loading...")
+    deskSheet = existingLoadingSheet!==null ? existingLoadingSheet : ss.insertSheet("loading...", {template: templateSheet})
+    deskSheet.activate()
+    //move to previous spot, if saved
+    if (sheetIndex !== undefined) ss.moveActiveSheet(sheetIndex)
+      //...and delete old sheet if it exists
+    if (existingSheet!==null) ss.deleteSheet(existingSheet)
+      deskSheet.setName(newSheetName)
   }
   
   let displayCells: DisplayCells = new DisplayCells(deskSheet)
   displayCells.getByName('date').setValue(deskSchedDate.toDateString())
+  displayCells.getByName('date').protect().setWarningOnly(true)
   log('deskSchedDate: '+deskSchedDate)
 
   performanceLog("sheet setup")
@@ -229,6 +223,12 @@ function buildDeskSchedule(deskSchedDate){
 
   let deskSchedDateEnd = new Date(deskSchedDate.getTime()+86399000)
   const gCal = CalendarApp.getCalendarById(settings.googleCalendarID)
+  if (gCal === null){
+    const cid = Utilities.base64Encode(`${settings.googleCalendarID}`).replaceAll('=', '');
+    const calUrl = `https://calendar.google.com/calendar/u/0?cid=${cid}`;
+    showAnchor("Not subscribed to branch calendar", "You are not subscribed to the branch calender. Subscribe to this calendar, then try again:", "Branch calendar", calUrl)
+    return
+  }
   const gCalEvents = gCal.getEvents(deskSchedDate, deskSchedDateEnd)
   log(`Loaded events from google calendar: ${gCal.getName()}`)
   //MUST BE SUBSCRIBED TO CAL - add check if user is subscribed, if they're not, notify them that you're subscribing them to it, give option to unsubscribe after
@@ -243,7 +243,7 @@ function buildDeskSchedule(deskSchedDate){
 
   //central only
   if (settings.locationID == 5786790){
-deskSchedule.timelineAddStations(deskSchedule.stations.filter(station=>station.name=="Building PIC" /*|| station.name==deskSchedule.defaultStations.available.name*/), deskSchedule.shifts, false, false)
+    deskSchedule.timelineAddStations(deskSchedule.stations.filter(station=>station.name=="Building PIC" /*|| station.name==deskSchedule.defaultStations.available.name*/), deskSchedule.shifts, false, false)
                                                     performanceLog("timeline add building PIC")
     //initial floor balance
     let dayLength = (deskSchedule.settings.closeTime(deskSchedule.date).getTime() - deskSchedule.settings.openTime(deskSchedule.date).getTime())/3600000
@@ -2750,6 +2750,12 @@ function circularReplacer() {
     }
     return value;
   };
+}
+
+function showAnchor(header, message, linkText, url) {
+  var html = '<html><body><p>'+message+'</p><br><a href="'+url+'" target="blank" onclick="google.script.host.close()">'+linkText+'</a></body></html>';
+  var ui = HtmlService.createHtmlOutput(html)
+  SpreadsheetApp.getUi().showModelessDialog(ui, header);
 }
 
 function concatRichText(richTextValueArray:GoogleAppsScript.Spreadsheet.RichTextValue[]):GoogleAppsScript.Spreadsheet.RichTextValueBuilder { //modified from https://stackoverflow.com/questions/76546174/how-to-merge-two-rich-text-cells-that-each-contain-urls

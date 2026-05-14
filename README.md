@@ -1,5 +1,5 @@
 # Deskgen, the OPL desk schedule generator
-Deskgen is an app that automatically builds desk schedules using information from WhenIWork and your branch Google Calendar, customized using settings chosen by branch managers. It runs right from your branch desk schedule spreadsheet, and produces schedules in the form of sheets that are familiar and easy to edit. Our goal is to make generating schedules faster, easier, and more standardized across the system, while making sure managers can still customize their schedules to fit their specific branches and teams.
+Deskgen is an app that automatically builds desk schedules using information from WhenIWork and your branch Google Calendar. It runs right from your branch desk schedule spreadsheet, and each schedule made is a familiar sheet. Managers can change their [branch-specific settings](#settings) any time to customize desks/stations, duties, which staff do what and when. Our goal is to make generating schedules faster, easier, and more standardized across the system, while making sure managers can still customize their schedules to fit their specific branches and teams.
 
 Deskgen is still being developed with your input. Over the next few months, it will be rolled out one branch at a time for testing and feedback. If you have questions, ideas, or have run into a problem, [contact Corson](mailto:candroski@omahalibrary.org). Check rollout status [below](#rollout).
 
@@ -11,15 +11,14 @@ To make a schedule, look for the "Generator" dropdown menu at the top right of t
 
 The first time you run Deskgen, you'll get a popup asking if you want to grant all the necessary permissions - accept all of these, and run Deskgen again.
 
-Every time a new schedule is generated, check it over to make sure everything looks good. The new schedule will be a normal sheet that you can edit like your old one, but try to keep edits to a minimum - one of the big advantages of this system is that you can quickly regenerate schedules to reflect last minute staff changes, new meetings, etc, and if you regenerate a schedule it won't include those sheet edits you made before.
+Every time a new schedule is generated, make sure to review it. The new schedule will be a normal sheet that you can edit like your old one, but try to keep edits to a minimum - one of the big advantages of this system is that you can quickly regenerate schedules to reflect last minute staff changes, new meetings, etc, and if you regenerate a schedule it won't include those sheet edits you made before.
 
 Instead, a better way to change the schedule is through the settings which control how it generates. For example, if you notice staff are being assigned to be on the front desk for longer than you'd like, don't manually change the timeline - just change the relevant setting and regenerate the schedule. See the [Settings section](#settings) for more info, and [reach out to Corson](mailto:candroski@omahalibrary.org) with questions not answered there.
 
 ### Setting up Google Calendar Events
-Deskgen will automatically display events and schedule staff around them, but those events need to be set up correctly. All events that affect staff at your branch, including programs and meetings, need to be added to your branch Google Calendar, and all staff involved must be added as guests to the event.
+Deskgen will automatically display events and schedule staff around them, but those events need to be set up correctly. All events that affect staff at your branch, including programs and meetings, need to be added to your branch Google Calendar, and **all staff involved must be added as guests to the event**.
 
-- Events can include guests that aren't on your schedule. If none of the guests are on your schedule, the event will still show up in the "Happening Today" display. If the event also has a time range (isn't set to run all day) it will show up on the last row of the timeline.
-- Events that last all day will display fine too.
+- Events can include guests that aren't on your schedule. If none of the guests are on your schedule, the event will still show up in the "Happening Today" display. If the event also has a time range (isn't set to run all day) it will show up on announcement (📣) row of the timeline.
 - By default, the names of guests will be displayed before the event title in "Happening Today." You can disable this with the "addNamesToEvents" setting if you prefer to add staff names to event titles. 
 
 ## Settings
@@ -52,16 +51,21 @@ Or, if you wanted to assign a second person to a station only after all other st
 |🟩|  Front Desk      |     | 1          |
 |🟦| Children's Desk |     | 1          |
 |🟪| Phones          |     | 1          |
-|🟩| Front Desk      |     | 1          |
+|🟩| Front Desk      |     | 2          |
 
 Here, the Front Desk will only have on staff assigned to it, unless there are enough staff available to cover the Children's Desk and Phones, then a second staff will be assigned to the Front Desk.
 
+Note that the "# of Staff" from multi-line stations is not added together, ***the highest number is used***. In the above example, no more than 2 staff will be assigned to the Front desk.
+
 ###  Duties
-In this tab, you can make lists of duties to be displayed on the desk schedule. Staff who work during the duty list's time will be automatically be assigned to them on a rotating basis, and can check off these tasks as they complete them. Check the box in the "Require PIC" column if this task should only be assigned to PIC trained staff.
-You can have multiple duty lists, but they'll only be displayed if there are enough spaces marked for them in the TEMPLATE sheet. Right now that's a little fussy to adjust, for now let Corson know if you'd like to change the number of duty lists on your schedule.
+In this tab, you can make lists of duties to be displayed on the desk schedule. Staff who work during the duty list's time will be automatically be assigned to them on a rotating basis, and can check off these tasks as they complete them.
+
+The dropdown menu on the right side of each duty allows you to specify what kind of staff can be assigned a duty.
+
+Most schedules are laid out to accomodate up to three duty lists. If you'd like to add more, [contact Corson](mailto:candroski@omahalibrary.org).
 
 ###  Open Hours
-In this tab, you can list the opening and closing duties to be displayed on the desk schedule. Staff will be automatically assigned to each on a rotating basis, and can check off these tasks as they complete them. Check the box in the "Require PIC" column if this task should only be assigned to PIC trained staff.
+Set the open and close time for your branch for each day of the week.
 
  ## Archiving
 Past desk schedules are automatically moved to a separate archive spreadsheet, which can found under Generator > Archive. Yesterday's desk schedule can be found in the main desk schedule under hidden sheets (bottom left ≡ icon). Desk Schedules older than yesterday can be found in the archive.
@@ -74,7 +78,7 @@ Past desk schedules are automatically moved to a separate archive spreadsheet, w
 - [x] AV Sorensen
 - [x] Abrahams
 - [x] Swanson
-- [ ] Millard
+- [x] Millard
 - [ ] ...TBD
 
 # Developer Documentation
