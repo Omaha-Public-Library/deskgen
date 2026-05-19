@@ -338,7 +338,12 @@ improve by taking into account amount of shift that has passed?
 
 need to check if moving a person to a new floor actually solves the problem before moving them! see martha 5.7
 
-bug: no staff announcement events before day open bleed out of timeline 
+bug: no staff announcement events before day open bleed out of timeline
+
+CL if someone is balanced by minimum count before open, leaves fragment offfloor block in first half hour - add check to movetofloor? 5.17 example - wait maybe that moves back and forth?
+
+
 
 QUESTIONS   
     Right now, if no one on floor is eligible for opening duty it isn't assigned. What do you want to do in this situation - leave unassigned and alert, pull from another floor, relax qualifications to include building PIC/ anyone?
+    answered - alert

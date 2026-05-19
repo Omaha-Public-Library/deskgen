@@ -970,51 +970,69 @@ class DeskSchedule {
     timelineBreakUpASRS() {
         let longAsrsShifts = this.shifts.filter(shift => shift.floor.name == "ASRS" && (shift.endTime.getTime() - shift.startTime.getTime()) / 3600000 >= 8);
         longAsrsShifts.forEach(shiftToSplit => {
-            let shiftsToSwapWith = this.shifts.filter(shift => shift.floor.name != shiftToSplit.floor.name
-                && this.getPositionHierarchyIndex(shift.position) >= this.getPositionHierarchyIndex(this.getPositionByName("Associate Library Specialist").id)
-                && (shift.startTime.getTime() == shiftToSplit.startTime.getTime() || shift.endTime.getTime() == shiftToSplit.endTime.getTime())
-            // && (shift.endTime.getTime()-shift.startTime.getTime())/3600000==4
-            );
-            if (shiftsToSwapWith.length > 0) {
-                this.sortShiftsByPositionHiearchyAsc(this.shifts);
-                // first choice are associates with 4hr shifts starting at same time
-                // then associates with 8hr shifts at halfway point who haven't swapped floors yet
-                shiftsToSwapWith.sort((shiftA, shiftB) => {
-                    let aVal = shiftA.tags.includes("Genealogy") ? 1 : 0;
-                    let bVal = shiftB.tags.includes("Genealogy") ? 1 : 0;
-                    return aVal - bVal;
-                });
-                // shiftsToSwapWith.sort((shiftA:Shift,shiftB:Shift)=>{
-                //   let aVal = 0
-                //   let bVal = 0
-                //   if (shiftA.startTime.getTime() == time.getTime()) aVal++
-                //   if (shiftB.startTime.getTime() == time.getTime()) bVal++
-                //   if (shiftA.endTime.getTime() == shiftToSplit.endTime.getTime()) aVal++
-                //   if (shiftB.endTime.getTime() == shiftToSplit.endTime.getTime()) bVal++
-                //   return bVal-aVal
-                // })
-                shiftsToSwapWith.sort((shiftA, shiftB) => (shiftB.countTotalTimeAtStation(this.defaultStations.undefined.name, shiftToSplit.endTime, shiftToSplit.startTime) + shiftB.countTotalTimeAtStation(this.defaultStations.mealBreak.name, shiftToSplit.endTime, shiftToSplit.startTime)) - (shiftA.countTotalTimeAtStation(this.defaultStations.undefined.name, shiftToSplit.endTime, shiftToSplit.startTime) + shiftA.countTotalTimeAtStation(this.defaultStations.mealBreak.name, shiftToSplit.endTime, shiftToSplit.startTime)));
-                shiftsToSwapWith.sort((shiftA, shiftB) => (shiftB.endTime.getTime() - shiftB.startTime.getTime()) - (shiftA.endTime.getTime() - shiftA.startTime.getTime()));
-                let oldFloor = this.getFloor(shiftToSplit.floor.name);
-                let shiftToSwapWith = shiftsToSwapWith[0];
-                if (shiftToSwapWith.startTime.getTime() == shiftToSplit.startTime.getTime() && shiftToSwapWith.endTime.getTime() == shiftToSplit.endTime.getTime()) {
-                    let midShift = new Date((shiftToSplit.endTime.getTime() + shiftToSplit.startTime.getTime()) / 2);
-                    midShift.setMinutes(Math.round(midShift.getMinutes() / 30) * 30);
-                    shiftToSplit.moveToFloor(shiftToSwapWith.floor, midShift);
-                    shiftToSwapWith.moveToFloor(oldFloor, midShift);
-                }
-                else if (shiftToSwapWith.startTime.getTime() == shiftToSplit.startTime.getTime()) {
-                    shiftToSplit.moveToFloor(shiftToSwapWith.floor, shiftToSplit.startTime);
-                    shiftToSplit.moveToFloor(oldFloor, shiftToSwapWith.endTime);
-                    shiftToSwapWith.moveToFloor(oldFloor, shiftToSplit.startTime);
-                }
-                else {
-                    shiftToSplit.moveToFloor(shiftToSwapWith.floor, shiftToSwapWith.startTime);
-                    shiftToSwapWith.moveToFloor(oldFloor, shiftToSplit.startTime);
-                }
-                this.logDeskData(`split ${shiftToSplit.name} and swapped with ${shiftToSwapWith.name}`);
-            }
+            if (this.trySwap(shiftToSplit, this.shifts.filter(shift => this.getPositionHierarchyIndex(shift.position) >= this.getPositionHierarchyIndex(this.getPositionByName("Associate Library Specialist").id)))) { }
+            else if (this.trySwap(shiftToSplit, this.shifts.filter(shift => !shift.isPIC))) { }
+            else if (this.trySwap(shiftToSplit, this.shifts.filter(shift => this.getPositionHierarchyIndex(shift.position) >= this.getPositionHierarchyIndex(this.getPositionByName("Library Specialist").id)))) { }
+            else
+                console.log(shiftToSplit.name + ": can't find any shifts up to Specialists to swap with");
         });
+    }
+    trySwap(shiftToSplit, shiftsToSwap) {
+        let shiftsToSwapWith = shiftsToSwap.filter(shift => shift.floor.name != shiftToSplit.floor.name
+            // && this.getPositionHierarchyIndex(shift.position) >= this.getPositionHierarchyIndex(this.getPositionByName(highestPosition).id)
+            && (shift.startTime.getTime() == shiftToSplit.startTime.getTime() || shift.endTime.getTime() == shiftToSplit.endTime.getTime())
+        // && (shift.endTime.getTime()-shift.startTime.getTime())/3600000==4
+        );
+        // this.ui.alert(`swapping ${shiftToSplit.name}, ${shiftToSplit.startTime.getTimeStringHHMM24()}-${shiftToSplit.endTime.getTimeStringHHMM24()} with:\n${shiftsToSwapWith.map(s=>`${s.name}: ${s.startTime.getTimeStringHHMM24()}-${s.endTime.getTimeStringHHMM24()}`).join('\n')}`)
+        if (shiftsToSwapWith.length > 0) {
+            this.sortShiftsByPositionHiearchyAsc(this.shifts);
+            // first choice are associates with 4hr shifts starting at same time
+            // then associates with 8hr shifts at halfway point who haven't swapped floors yet
+            shiftsToSwapWith.sort((shiftA, shiftB) => {
+                let aVal = shiftA.tags.includes("Genealogy") ? 1 : 0;
+                let bVal = shiftB.tags.includes("Genealogy") ? 1 : 0;
+                return aVal - bVal;
+            });
+            // shiftsToSwapWith.sort((shiftA:Shift,shiftB:Shift)=>{
+            //   let aVal = 0
+            //   let bVal = 0
+            //   if (shiftA.startTime.getTime() == time.getTime()) aVal++
+            //   if (shiftB.startTime.getTime() == time.getTime()) bVal++
+            //   if (shiftA.endTime.getTime() == shiftToSplit.endTime.getTime()) aVal++
+            //   if (shiftB.endTime.getTime() == shiftToSplit.endTime.getTime()) bVal++
+            //   return bVal-aVal
+            // })
+            shiftsToSwapWith.sort((shiftA, shiftB) => (shiftB.countTotalTimeAtStation(this.defaultStations.undefined.name, shiftToSplit.endTime, shiftToSplit.startTime) + shiftB.countTotalTimeAtStation(this.defaultStations.mealBreak.name, shiftToSplit.endTime, shiftToSplit.startTime)) - (shiftA.countTotalTimeAtStation(this.defaultStations.undefined.name, shiftToSplit.endTime, shiftToSplit.startTime) + shiftA.countTotalTimeAtStation(this.defaultStations.mealBreak.name, shiftToSplit.endTime, shiftToSplit.startTime)));
+            //longest shifts first
+            shiftsToSwapWith.sort((shiftA, shiftB) => (shiftB.endTime.getTime() - shiftB.startTime.getTime()) - (shiftA.endTime.getTime() - shiftA.startTime.getTime()));
+            let oldFloor = this.getFloor(shiftToSplit.floor.name);
+            let shiftToSwapWith = shiftsToSwapWith[0];
+            if (shiftToSwapWith.endTime.getTime() - shiftToSwapWith.startTime.getTime() > shiftToSplit.endTime.getTime() - shiftToSplit.startTime.getTime()) {
+                //need to handle shifts > 8.5hrs, right now just ignore becuase they're rare
+            }
+            else if (shiftToSwapWith.startTime.getTime() == shiftToSplit.startTime.getTime() && shiftToSwapWith.endTime.getTime() == shiftToSplit.endTime.getTime()) {
+                let midShift = new Date((shiftToSplit.endTime.getTime() + shiftToSplit.startTime.getTime()) / 2);
+                midShift.setMinutes(Math.round(midShift.getMinutes() / 30) * 30);
+                shiftToSplit.moveToFloor(shiftToSwapWith.floor, midShift);
+                shiftToSwapWith.moveToFloor(oldFloor, midShift);
+                this.logDeskData(`split ${shiftToSplit.name} and swapped with ${shiftToSwapWith.name}`);
+                return true;
+            }
+            else if (shiftToSwapWith.startTime.getTime() == shiftToSplit.startTime.getTime()) {
+                shiftToSplit.moveToFloor(shiftToSwapWith.floor, shiftToSplit.startTime);
+                shiftToSplit.moveToFloor(oldFloor, shiftToSwapWith.endTime);
+                shiftToSwapWith.moveToFloor(oldFloor, shiftToSplit.startTime);
+                this.logDeskData(`split ${shiftToSplit.name} and swapped with ${shiftToSwapWith.name}`);
+                return true;
+            }
+            else { //end times match
+                shiftToSplit.moveToFloor(shiftToSwapWith.floor, shiftToSwapWith.startTime);
+                shiftToSwapWith.moveToFloor(oldFloor, shiftToSplit.startTime);
+                this.logDeskData(`split ${shiftToSplit.name} and swapped with ${shiftToSwapWith.name}`);
+                return true;
+            }
+        }
+        return false;
     }
     timelineAddStations(stations, shifts, assignMeals = true, balanceFloors = true) {
         if (!this.settings.assignStations || this.shifts.length < 1)
@@ -1056,6 +1074,8 @@ class DeskSchedule {
             }
             this.floors.forEach(floor => {
                 let floorShifts = shifts.filter(shift => shift.floor?.name == floor.name);
+                if (stations.some(station => station.name == "Building PIC"))
+                    floorShifts = shifts;
                 let floorStations = stations.filter(station => (station.floor == floor.name || station.floor == undefined));
                 //prepass
                 if (this.settings.defragPrePass) {
@@ -1201,7 +1221,7 @@ class DeskSchedule {
                         // )
                         return aVal - bVal;
                     });
-                    // if (time.getTimeStringHHMM24()=="14:00" && station.name=="1st childrens'") console.log(`if on this station and over max, move to end:\n${time.getTimeStringHHMM12()}, ${station.name}: ${floorShifts.map(s=>s.name).join('\n')}`)
+                    // if (station.name=="Building PIC") console.log(`if on this station and over max, move to end:\n${time.getTimeStringHHMM12()}, ${station.name}: ${floorShifts.map(s=>s.name).join('\n')}`)
                     //if on this station and not over max, move to front
                     floorShifts.sort((shiftA, shiftB) => {
                         let aStationPrev = shiftA.getStationAtTime(prevTime);
@@ -1214,7 +1234,7 @@ class DeskSchedule {
                             ? 0 : 1;
                         return aVal - bVal;
                     });
-                    // if (time.getTimeStringHHMM24()=="14:00" && station.name=="1st childrens'") console.log(`if on this station and not over max, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${floorShifts.map(s=>s.name).join('\n')}`)
+                    // if (station.name=="Building PIC") console.log(`if on this station and not over max, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${floorShifts.map(s=>s.name).join('\n')}`)
                     //if changeOnTheHour AND on this station AND not more than half an hour over, move to front
                     if (this.settings.changeOnTheHour && time.getMinutes() != 0) {
                         floorShifts.sort((shiftA, shiftB) => {
@@ -1226,6 +1246,7 @@ class DeskSchedule {
                             return aVal - bVal;
                         });
                     }
+                    // if (station.name=="Building PIC") console.log(`if changeonthehour and not over max, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}:\n${floorShifts.map(s=>s.name).join('\n')}`)
                     // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if changeonthehour and on this station and not more than half an hour over, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${floorShifts.map(s=>s.name).join('\n')}`)
                     // log("sort by amount of time total at station, as ratio of shift length")
                     // floorShifts.sort((shiftA, shiftB)=>{
@@ -1258,7 +1279,7 @@ class DeskSchedule {
                             return bValM - aValM;
                         });
                     }
-                    // if (time.getTimeStringHHMM24()=="14:00" /*&& station.name=="Available"*/) console.log(`put managers who have had <50% of their off desk time at bottom of queue for other stations:\n${time.getTimeStringHHMM12()}, ${station.name}:\n${shifts.map(s=>s.name).join('\n')}`)
+                    // if (station.name=="Building PIC") console.log(`put managers who have had <50% of their off desk time at bottom of queue for other stations:\n${time.getTimeStringHHMM12()}, ${station.name}:\n${floorShifts.map(s=>s.name).join('\n')}`)
                     //assign
                     floorShifts.forEach(shift => {
                         if (station.positionPriority.length < 1 || station.positionPriority.some(pos => pos.enabled && pos.title == this.getPositionById(shift.position).name)) { //if staff is assigned to this station
@@ -1463,7 +1484,7 @@ class DeskSchedule {
         //Merge duplicate shifts
         let displayShifts = [];
         let duplicateSets = [];
-        let filteredShifts = this.shifts.filter(shift => !shift.stationTimeline.every(station => [this.defaultStations.off.name, this.defaultStations.undefined.name, this.defaultStations.off.name, this.defaultStations.offFloorStation.name].includes(station.name)));
+        let filteredShifts = this.shifts.filter(shift => !shift.stationTimeline.every(station => [this.defaultStations.off.name, /*this.defaultStations.undefined.name,*/ this.defaultStations.off.name, this.defaultStations.offFloorStation.name].includes(station.name)));
         filteredShifts.forEach(shift => {
             let duplicates = filteredShifts.filter(s => s.name == shift.name && s.floor.name == shift.floor.name);
             if (duplicates.length == 1)
