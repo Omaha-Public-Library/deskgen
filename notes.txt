@@ -342,6 +342,10 @@ bug: no staff announcement events before day open bleed out of timeline
 
 CL if someone is balanced by minimum count before open, leaves fragment offfloor block in first half hour - add check to movetofloor? 5.17 example - wait maybe that moves back and forth?
 
+Wait... is it better to prioritize or avoid meal breaks in ASRS?
+
+5.24 - why move martha before other GEN staff?
+
 
 
 QUESTIONS   

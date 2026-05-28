@@ -1225,6 +1225,7 @@ class DeskSchedule{
                 if(
                   this.assignmentEligibilityCheck(shift, station, time)
                   //extra qualifications for prepass:
+                  && !(this.settings.strictPrioritizeManagerOffDeskTime && [11534158, 11534159].includes(shift.position))
                   && prevStation.name == station.name //if already on the station being considered for assignment
                   && station.name != this.defaultStations.available.name //don't extend available so that it rotates more and half hour before open isn't extended
                   && (nextStation.name != this.defaultStations.undefined.name //if unavailable in half an hour
@@ -1433,7 +1434,7 @@ class DeskSchedule{
               return bValM - aValM
             })
           }
-          // if (station.name=="Building PIC") console.log(`put managers who have had <50% of their off desk time at bottom of queue for other stations:\n${time.getTimeStringHHMM12()}, ${station.name}:\n${floorShifts.map(s=>s.name).join('\n')}`)
+          // if (station.name=="Available") console.log(`put managers who have had <50% of their off desk time at bottom of queue for other stations:\n${time.getTimeStringHHMM12()}, ${station.name}:\n${floorShifts.map(s=>s.name).join('\n')}`)
           
           //assign
           floorShifts.forEach(shift=> {
