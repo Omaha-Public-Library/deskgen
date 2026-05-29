@@ -346,7 +346,9 @@ Wait... is it better to prioritize or avoid meal breaks in ASRS?
 
 5.24 - why move martha before other GEN staff?
 
-
+okay so lets look at tech desk hardcoded tag check,
+and adding a sorting step that prioritizes staff who have already had more than their share of off desk time,
+and adjust the position-distributor sorting step to factor in how much of a shift has happened
 
 QUESTIONS   
     Right now, if no one on floor is eligible for opening duty it isn't assigned. What do you want to do in this situation - leave unassigned and alert, pull from another floor, relax qualifications to include building PIC/ anyone?

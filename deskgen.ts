@@ -1286,10 +1286,13 @@ class DeskSchedule{
           if (station.name == this.defaultStations.available.name) floorShifts.sort((shiftA, shiftB)=>{
             let offDeskRatioA = this.positionHierarchy.find(pos=>pos.id==shiftA.position).offDeskRatio
             let shiftLengthA = (shiftA.endTime.getTime() - shiftA.startTime.getTime())/3600000
+            let shiftCompletionA = (time.getTime() - shiftA.startTime.getTime())/shiftLengthA/3600000
             let offDeskRatioB = this.positionHierarchy.find(pos=>pos.id==shiftB.position).offDeskRatio
             let shiftLengthB = (shiftB.endTime.getTime() - shiftB.startTime.getTime())/3600000
-            let aVal = (shiftA.countTotalTimeAtStation(station.name, nextTime)/offDeskRatioA) / (shiftLengthA)
-            let bVal = (shiftB.countTotalTimeAtStation(station.name, nextTime)/offDeskRatioB) / (shiftLengthB)
+            let shiftCompletionB = (time.getTime() - shiftB.startTime.getTime())/shiftLengthB/3600000
+            //ratio of position's off desk quota which they've been given, 0 to 1
+            let aVal = (shiftA.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)/offDeskRatioA) / (shiftLengthA) / shiftCompletionA
+            let bVal = (shiftB.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)/offDeskRatioB) / (shiftLengthB) / shiftCompletionB
             // if (time.getTimeStringHHMM24()=="14:00" && station.name=="Available") console.log(`${station.name}:${floor.name}${time.toLocaleTimeString()}
               // ${shiftA.name}--offDeskRatioA:${offDeskRatioA}, totalTime:${shiftA.countTotalTimeAtStation(station.name, nextTime)}, shiftLengthA:${shiftLengthA}, aVal:${aVal}
               // ${shiftB.name}--offDeskRatioB:${offDeskRatioB}, totalTime:${shiftB.countTotalTimeAtStation(station.name, nextTime)}, shiftLengthB:${shiftLengthB}, bVal:${bVal}
@@ -1302,8 +1305,12 @@ class DeskSchedule{
           })
           //sort by percentage of shift which has been spent at this station, asc
           else floorShifts.sort((shiftA, shiftB)=>{
-            let aVal = shiftA.countTotalTimeAtStation(station.name, nextTime) / (shiftA.endTime.getTime() - shiftA.startTime.getTime())
-            let bVal = shiftB.countTotalTimeAtStation(station.name, nextTime) / (shiftB.endTime.getTime() - shiftB.startTime.getTime())
+            let shiftLengthA = (shiftA.endTime.getTime() - shiftA.startTime.getTime())/3600000
+            let shiftCompletionA = (time.getTime() - shiftA.startTime.getTime())/shiftLengthA/3600000
+            let shiftLengthB = (shiftB.endTime.getTime() - shiftB.startTime.getTime())/3600000
+            let shiftCompletionB = (time.getTime() - shiftB.startTime.getTime())/shiftLengthB/3600000
+            let aVal = (shiftA.countTotalTimeAtStation(station.name, nextTime)) / (shiftLengthA) / shiftCompletionA
+            let bVal = (shiftB.countTotalTimeAtStation(station.name, nextTime)) / (shiftLengthB) / shiftCompletionB
             return aVal - bVal
           })
           // if (time.getTimeStringHHMM24()=="14:00" && station.name=="1st childrens'") console.log(`sort by perc of shift on station weighted by off desk time goals if assigning available, else sort by percentage of shift which has been sent at this station, asc:\n${time.getTimeStringHHMM12()}, ${station.name}:\n${floorShifts.map(s=>s.name).join('\n')}`)
@@ -1413,18 +1420,29 @@ class DeskSchedule{
           // console.log(time.getTimeStringHHMM24()+' '+station.name+'\n', floorShifts.map(shift=>shift.name.substring(0,3)+': '+shift.countTotalTimeAtStation(station.name, prevTime)+', '+Math.round(shift.countTotalTimeAtStation(station.name, prevTime)/shift.durationInHours*100)+'%').join('\n'))
 
           //put managers who have had <50% of their off desk time at bottom of queue for other stations
-          if (this.settings.strictPrioritizeManagerOffDeskTime && station.name != this.defaultStations.available.name && station.name != "Building PIC"){
+          if (station.name != this.defaultStations.available.name && station.name != "Building PIC"){
             // this.ui.alert(`${station.name} being sorted by need for off desk time ${station.name != this.defaultStations.available.name} ${station.name != "Building PIC"}`)
             floorShifts.sort((shiftA, shiftB)=>{
               let offDeskRatioA = this.positionHierarchy.find(pos=>pos.id==shiftA.position).offDeskRatio
               let shiftLengthA = (shiftA.endTime.getTime() - shiftA.startTime.getTime())/3600000
+              let shiftCompletionA = (time.getTime() - shiftA.startTime.getTime())/shiftLengthA/3600000
               let offDeskRatioB = this.positionHierarchy.find(pos=>pos.id==shiftB.position).offDeskRatio
               let shiftLengthB = (shiftB.endTime.getTime() - shiftB.startTime.getTime())/3600000
-              let aVal = (shiftA.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)/offDeskRatioA) / (shiftLengthA)
-              let bVal = (shiftB.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)/offDeskRatioB) / (shiftLengthB)
+              let shiftCompletionB = (time.getTime() - shiftB.startTime.getTime())/shiftLengthB/3600000
+              //ratio of position's off desk quota which they've been given, 0 to 1
+              let aVal = (shiftA.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)/offDeskRatioA) / (shiftLengthA) / shiftCompletionA
+              let bVal = (shiftB.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)/offDeskRatioB) / (shiftLengthB) / shiftCompletionB
+              //value to sort by, considering position
+              let aValM = 0
+              let bValM = 0
               //if manager and less than .5 of quota, move to start of queue
-              let aValM = ([11534158, 11534159].includes(shiftA.position) && aVal < 0.5 ? aVal : 10)
-              let bValM = ([11534158, 11534159].includes(shiftB.position) && bVal < 0.5 ? bVal : 10)
+              if (this.settings.strictPrioritizeManagerOffDeskTime){
+                aValM = ([11534158, 11534159].includes(shiftA.position) && aVal < 0.5 ? 0 : 10)
+                bValM = ([11534158, 11534159].includes(shiftB.position) && bVal < 0.5 ? 0 : 10)
+              }
+              // if not manager and over quota, move to end of queue
+              if (![11534158, 11534159].includes(shiftA.position) && aVal >= 1) aValM = 100
+              if (![11534158, 11534159].includes(shiftB.position) && bVal >= 1) bValM = 100
 
               // if (time.getTimeStringHHMM24()=="14:00" && station.name!="Available") console.log(`${station.name}:${floor.name} - ${time.toLocaleTimeString()}
               //   ${shiftA.name}--offDeskRatioA:${offDeskRatioA}, totalTime:${shiftA.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)}, shiftLengthA:${shiftLengthA}, aVal:${aVal}, aValM:${(aValM)}
@@ -1492,6 +1510,7 @@ class DeskSchedule{
       && !shift.tags.includes("In training (do not assign to stations)")
       && stationCount<station.numOfStaff
       && (shift.floor.name == station.floor || station.floor == undefined)
+      && !(station.name == "Tech Desk" && !shift.tags.includes("Do Space"))
     ){/*continue*/} else return false
 
     let withinLimit = false
@@ -1662,7 +1681,7 @@ class DeskSchedule{
     this.shifts.concat(this.annotationEvents)
 
     //Merge duplicate shifts
-    let displayShifts = []
+    let displayShifts:Shift[] = []
     let duplicateSets:Shift[][] = []
     let filteredShifts = this.shifts.filter(shift=>!shift.stationTimeline.every(station=>[this.defaultStations.off.name, /*this.defaultStations.undefined.name,*/ this.defaultStations.off.name, this.defaultStations.offFloorStation.name].includes(station.name)))
     filteredShifts.forEach(shift=>{
@@ -1717,7 +1736,7 @@ class DeskSchedule{
           // ?.setValues(floorShifts.map(s=>[this.getPositionHierarchyIndex(s.position) >= this.getPositionHierarchyIndex(this.getPositionByName("Associate Library Specialist").id) ? 'X':''])))
       this.displayCells.getAllByNameColumn('shiftName', '', floorShifts.length)[i]
         // ?.setValues(floorShifts.map(s=>[this.shortenFullName(s.name)]))
-        ?.setValues(floorShifts.map(s=>[this.shortenFullName(s.name)+(s.tags.includes("Genealogy")?"ᴳ":"")+([11534158, 11534159].includes(s.position)?"*":"")]))
+        ?.setValues(floorShifts.map(s=>[this.shortenFullName(s.name)+(s.tags.includes("Genealogy")?'ᴳ':'')+([11534158, 11534159].includes(s.position)?'*':'')/*+(s.tags.includes("Do Space")?'ᵀ':'')*/]))
       this.displayCells.getAllByNameColumn('shiftTime', '', floorShifts.length)[i]
         ?.setValues(floorShifts.map(s=>[ //start-end as hh:mm-hh:mm
         (s.startTime?.getTime()-s.endTime?.getTime()==0 || s.startTime==undefined || s.endTime==undefined)?
