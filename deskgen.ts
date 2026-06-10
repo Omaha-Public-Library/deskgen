@@ -243,8 +243,8 @@ function buildDeskSchedule(deskSchedDate){
 
   //central only
   if (settings.locationID == 5786790){
-    deskSchedule.timelineAddStations(deskSchedule.stations.filter(station=>station.name=="Building PIC" /*|| station.name==deskSchedule.defaultStations.available.name*/), deskSchedule.shifts, false, false)
-                                                    performanceLog("timeline add building PIC")
+    deskSchedule.timelineAddStations(deskSchedule.stations.filter(station=>station.name=="HOP" /*|| station.name==deskSchedule.defaultStations.available.name*/), deskSchedule.shifts, false, false)
+                                                    performanceLog("timeline add HOP")
     //initial floor balance
     let dayLength = (deskSchedule.settings.closeTime(deskSchedule.date).getTime() - deskSchedule.settings.openTime(deskSchedule.date).getTime())/3600000
     let midDay = new Date(deskSchedule.settings.closeTime(deskSchedule.date).getTime()/2 + deskSchedule.settings.openTime(deskSchedule.date).getTime()/2)
@@ -267,7 +267,7 @@ function buildDeskSchedule(deskSchedDate){
 
   }
 
-  deskSchedule.timelineAddStations(deskSchedule.stations.filter(station=>station.name!="Building PIC"), deskSchedule.shifts);
+  deskSchedule.timelineAddStations(deskSchedule.stations.filter(station=>station.name!="HOP"), deskSchedule.shifts);
                                                     performanceLog("timeline add stations")
   deskSchedule.timelineAssignPics();                performanceLog("timeline assign PICs")
 
@@ -525,10 +525,10 @@ class DeskSchedule{
         ))
       }
     })
-
+    // this.ui.alert(wiwData.users.map(user=>`${user.first_name} ${user.last_name} - ${typeof settings.locationID}, ${user.locations.includes(settings.locationID)}, ${user.locations.map(l=>typeof l).join(',')}, ${typeof user.id}, ${typeof user.role}`).join('\n'))
     wiwData.users/*.concat(annotationUser)*/.forEach(u=>{
       if(settings.alwaysShowAllStaff || (settings.alwaysShowBranchManager && u.role == 1) || (settings.alwaysShowAssistantBranchManager && u.role ==2)){
-        if(u.locations.includes(settings.locationID)){ //if user is assigned to this location...
+        if(u.locations.includes(Number(settings.locationID))){ //if user is assigned to this location...
           if(wiwData.shifts/*.concat(annotationShifts)*/.filter(shift=>{return shift.user_id == u.id}).length==0){ //and doesn't appear in todays shifts...
             this.shifts.push(new Shift(
               this,
@@ -611,7 +611,8 @@ class DeskSchedule{
       nonScheduledStaffShift.endTime = oneoclock
       this.shifts.push(nonScheduledStaffShift)
     }
-  // log('shifts:\n'+ JSON.stringify(this.shifts))
+    // log('shifts:\n'+ JSON.stringify(this.shifts, circularReplacer()))
+    // this.ui.alert('shifts:\n' + JSON.stringify(this.shifts, circularReplacer()))
   }
 
   AssignCentralFloors(){
@@ -636,6 +637,7 @@ class DeskSchedule{
     // nonGenAsrsShifts.sort((a: Shift, b: Shift)=>a.positionGroup?.localeCompare(b.positionGroup))
     // log(nonGenAsrsShifts.map(shift=>`${shift.positionGroup} - ${shift.name}`).join('\n'))
     nonGenAsrsShifts.sort((a: Shift, b: Shift)=>this.getPositionHierarchyIndex(a.position) - this.getPositionHierarchyIndex(b.position))
+    nonGenAsrsShifts.sort((a: Shift, b: Shift)=> (a.isPIC?-1:0) - (b.isPIC?-1:0))
     // log(nonGenAsrsShifts.map(shift=>`${this.getPositionById(shift.position)} - ${shift.name}`).join('\n'))
 
     //put in training at end
@@ -644,7 +646,7 @@ class DeskSchedule{
       let b = bShift.tags.includes("In training (do not assign to stations)")
       return (a===b)? 0 : a? 1 : -1
     })
-    // this.ui.alert(nonGenAsrsShifts.map(shift=>`${shift.tags.join(',')} - ${shift.name}`).join('\n'))
+    // this.ui.alert(nonGenAsrsShifts.map(shift=>`${shift.isPIC} - ${shift.name}`).join('\n'))
 
     //sort by 1-2 stagger (123456 => 1 4, 2 5, 3 6)
     let twoarrs = [[],[]]
@@ -652,7 +654,19 @@ class DeskSchedule{
       twoarrs[i%2].push(shift)
     })
     nonGenAsrsShifts = twoarrs.flat()
-    // this.ui.alert(nonGenAsrsShifts.map(shift=>`${shift.tags.join(',')} - ${shift.name}`).join('\n'))
+
+    nonGenAsrsShifts.sort((shiftA, shiftB)=>{
+      let bVal = shiftB.tags.includes("Do Space") ? -1 : 0
+      let aVal = shiftA.tags.includes("Do Space") ? -1 : 0
+      return aVal-bVal
+    })
+    // this.ui.alert(nonGenAsrsShifts.map(shift=>`${shift.isPIC} - ${shift.name}, ${shift.tags.includes("Do Space")}`).join('\n'))
+    nonGenAsrsShifts.sort((shiftA, shiftB)=>{
+      let aVal = shiftA.tags.includes("Only Assign 2nd Floor") ? -1 : 0
+      let bVal = shiftB.tags.includes("Only Assign 2nd Floor") ? -1 : 0
+      return aVal-bVal
+    })
+    // this.ui.alert(nonGenAsrsShifts.map(shift=>`${shift.tags.join(',')} - ${shift.name}, ${shift.tags.includes("Only Assign 2nd Floor")}`).join('\n'))
 
     // log('after stagger by 2s\n'+nonGenAsrsShifts.map(shift=>`${shift.startTime.getTimeStringHHMM12()} - ${shift.positionGroup} - ${shift.name}`).join('\n'))
 
@@ -932,12 +946,12 @@ class DeskSchedule{
       let floorShiftsDuringMealBlock = floorShifts.filter(shift=>mealAssignmentTimeStart <= shift.idealMealTime && shift.idealMealTime < mealAssignmentTimeEnd)
 
       //for each shift...
-      // this.ui.alert(time.toLocaleTimeString()+'\n'+floorShiftsDuringMealBlock.map(shift=>shift.name).join('\n'))
+      // this.ui.alert(time.toLocaleTimeString()+'\n'+floorShiftsDuringMealBlock.map(shift=>`${shift.name} - ${shift.idealMealTime.getTimeStringHHMM24()}`).join('\n'))
       for (const shift of floorShiftsDuringMealBlock){
-        if(!shift.idealMealTime) break //idealMealTime will be undefined if <8hr shift
+        if(!shift.idealMealTime) continue //idealMealTime will be undefined if <8hr shift
         //break if already been assigned meal on another floor
-        if(this.shifts.some(dupShift=>dupShift.name==shift.name && dupShift.stationTimeline.some(station=>station.name==this.defaultStations.mealBreak.name))) break
-        // this.ui.alert('finding meal time for: ' + shift.name)
+        if(this.shifts.some(dupShift=>dupShift.name==shift.name && dupShift.stationTimeline.some(station=>station.name==this.defaultStations.mealBreak.name))) continue
+        // this.ui.alert('finding meal time for: ' + shift.name +' at ' + time.toLocaleTimeString())
         let highestAvailabilityTimes: {time:Date, availabilityTotal:number}[] = []
         //in 30 minute increments, step alternating forward/back (0, 30, -30, 60, -60) to possible start times, in decreasing proximity to ideal
         for(let startMinutes = 0; startMinutes<=this.settings.idealMealTimePlusMinusHours*60; startMinutes = startMinutes>0 ? startMinutes*-1 : startMinutes*-1+30){
@@ -1053,6 +1067,11 @@ class DeskSchedule{
             // console.log(`${balanceTimeStart.toLocaleTimeString()} - ${balanceTimeEnd.toLocaleTimeString()} ${givingFloor.name} to ${takingFloor.name}\n\n${shiftA.name}: ${aNumOfLowTimesAvailable}\n\n${shiftB.name}: ${bNumOfLowTimesAvailable}`)
             return bNumOfLowTimesAvailable - aNumOfLowTimesAvailable
           })
+          givingFloorShifts.sort((shiftA, shiftB)=>{
+            let aVal = shiftA.tags.includes("Only Assign 2nd Floor") ? 1 : 0
+            let bVal = shiftB.tags.includes("Only Assign 2nd Floor") ? 1 : 0
+            return aVal - bVal
+          })
           // console.log(`${balanceTimeStart.toLocaleTimeString()} - ${balanceTimeEnd.toLocaleTimeString()} ${givingFloor.name}\ngivingFloorShifts after sorting by coverage of lowTimes:\n${givingFloorShifts.map(shift=>shift.name).join('\n')}`)
           
           for (const givingShift of givingFloorShifts){
@@ -1101,6 +1120,7 @@ class DeskSchedule{
       shift=>shift.floor.name != shiftToSplit.floor.name
       // && this.getPositionHierarchyIndex(shift.position) >= this.getPositionHierarchyIndex(this.getPositionByName(highestPosition).id)
       && (shift.startTime.getTime() == shiftToSplit.startTime.getTime() || shift.endTime.getTime() == shiftToSplit.endTime.getTime())
+      && shift.countTotalTimeAtStation(this.defaultStations.offFloorStation.name) < 4 //exclude shifts that have already been split
       // && (shift.endTime.getTime()-shift.startTime.getTime())/3600000==4
     )
     // this.ui.alert(`swapping ${shiftToSplit.name}, ${shiftToSplit.startTime.getTimeStringHHMM24()}-${shiftToSplit.endTime.getTimeStringHHMM24()} with:\n${shiftsToSwapWith.map(s=>`${s.name}: ${s.startTime.getTimeStringHHMM24()}-${s.endTime.getTimeStringHHMM24()}`).join('\n')}`)
@@ -1129,6 +1149,11 @@ class DeskSchedule{
       shiftsToSwapWith.sort((shiftA:Shift, shiftB:Shift)=>
         (shiftB.endTime.getTime() - shiftB.startTime.getTime()) - (shiftA.endTime.getTime() - shiftA.startTime.getTime())
       )
+      shiftsToSwapWith.sort((shiftA:Shift,shiftB:Shift)=>{
+        let aVal = shiftA.tags.includes("Only Assign 2nd Floor") ? 1 : 0
+        let bVal = shiftB.tags.includes("Only Assign 2nd Floor") ? 1 : 0
+        return aVal - bVal
+      })
       let oldFloor = this.getFloor(shiftToSplit.floor.name)
       let shiftToSwapWith = shiftsToSwapWith[0]
       if (shiftToSwapWith.endTime.getTime()-shiftToSwapWith.startTime.getTime() > shiftToSplit.endTime.getTime()-shiftToSplit.startTime.getTime()){
@@ -1202,7 +1227,7 @@ class DeskSchedule{
 
       this.floors.forEach(floor=>{
         let floorShifts = shifts.filter(shift=>shift.floor?.name == floor.name)
-        if (stations.some(station=>station.name=="Building PIC")) floorShifts = shifts
+        if (stations.some(station=>station.name=="HOP")) floorShifts = shifts
         let floorStations = stations.filter(station=>(station.floor == floor.name || station.floor == undefined))
   
         //prepass
@@ -1371,7 +1396,7 @@ class DeskSchedule{
             return aVal-bVal
           })
   
-          // if (station.name=="Building PIC") console.log(`if on this station and over max, move to end:\n${time.getTimeStringHHMM12()}, ${station.name}: ${floorShifts.map(s=>s.name).join('\n')}`)
+          // if (station.name=="HOP") console.log(`if on this station and over max, move to end:\n${time.getTimeStringHHMM12()}, ${station.name}: ${floorShifts.map(s=>s.name).join('\n')}`)
           
           //if on this station and not over max, move to front
           floorShifts.sort((shiftA, shiftB)=>{
@@ -1387,7 +1412,7 @@ class DeskSchedule{
             return aVal-bVal
           })
   
-          // if (station.name=="Building PIC") console.log(`if on this station and not over max, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${floorShifts.map(s=>s.name).join('\n')}`)
+          // if (station.name=="HOP") console.log(`if on this station and not over max, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${floorShifts.map(s=>s.name).join('\n')}`)
           
           //if changeOnTheHour AND on this station AND not more than half an hour over, move to front
           if(this.settings.changeOnTheHour && time.getMinutes()!=0){
@@ -1401,7 +1426,7 @@ class DeskSchedule{
               return aVal-bVal
             })
           }
-          // if (station.name=="Building PIC") console.log(`if changeonthehour and not over max, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}:\n${floorShifts.map(s=>s.name).join('\n')}`)
+          // if (station.name=="HOP") console.log(`if changeonthehour and not over max, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}:\n${floorShifts.map(s=>s.name).join('\n')}`)
           
           // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if changeonthehour and on this station and not more than half an hour over, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${floorShifts.map(s=>s.name).join('\n')}`)
           
@@ -1419,9 +1444,15 @@ class DeskSchedule{
           // })
           // console.log(time.getTimeStringHHMM24()+' '+station.name+'\n', floorShifts.map(shift=>shift.name.substring(0,3)+': '+shift.countTotalTimeAtStation(station.name, prevTime)+', '+Math.round(shift.countTotalTimeAtStation(station.name, prevTime)/shift.durationInHours*100)+'%').join('\n'))
 
+          //prefer do space trained staff for 2nd Floor
+          if (this.settings.locationID == 5786790 && station.name.includes("Do Space")) floorShifts.sort((shiftA, shiftB)=>{
+            let bVal = shiftB.tags.includes("Do Space") ? -1 : 0
+            let aVal = shiftA.tags.includes("Do Space") ? -1 : 0
+            return aVal-bVal
+          })
           //put managers who have had <50% of their off desk time at bottom of queue for other stations
-          if (station.name != this.defaultStations.available.name && station.name != "Building PIC"){
-            // this.ui.alert(`${station.name} being sorted by need for off desk time ${station.name != this.defaultStations.available.name} ${station.name != "Building PIC"}`)
+          if (station.name != this.defaultStations.available.name && station.name != "HOP"){
+            // this.ui.alert(`${station.name} being sorted by need for off desk time ${station.name != this.defaultStations.available.name} ${station.name != "HOP"}`)
             floorShifts.sort((shiftA, shiftB)=>{
               let offDeskRatioA = this.positionHierarchy.find(pos=>pos.id==shiftA.position).offDeskRatio
               let shiftLengthA = (shiftA.endTime.getTime() - shiftA.startTime.getTime())/3600000
@@ -1579,11 +1610,11 @@ class DeskSchedule{
   timelineAssignPics(){
     if(!this.settings.generatePicAssignments) return
 
-    if(this.stations.map(station=>station.name).includes("Building PIC")){ //alt pic timeline generation for central
+    if(this.stations.map(station=>station.name).includes("HOP")){ //alt pic timeline generation for central
       for(let time = new Date(this.dayStartTime); time < this.dayEndTime; time.addTime(0, 30)){
-        //get person on Building PIC station
+        //get person on HOP station
         for (let shift of this.shifts){
-          if (shift.getStationAtTime(time).name == "Building PIC"){
+          if (shift.getStationAtTime(time).name == "HOP"){
             shift.setPicStatusAtTime(true, time)
             break
           }
@@ -1683,7 +1714,9 @@ class DeskSchedule{
     //Merge duplicate shifts
     let displayShifts:Shift[] = []
     let duplicateSets:Shift[][] = []
-    let filteredShifts = this.shifts.filter(shift=>!shift.stationTimeline.every(station=>[this.defaultStations.off.name, /*this.defaultStations.undefined.name,*/ this.defaultStations.off.name, this.defaultStations.offFloorStation.name].includes(station.name)))
+    let filteredShifts = undefined
+    if (this.settings.alwaysShowAllStaff || this.settings.alwaysShowBranchManager || this.settings.alwaysShowAssistantBranchManager) filteredShifts = this.shifts
+    else filteredShifts = this.shifts.filter(shift=>!shift.stationTimeline.every(station=>[this.defaultStations.off.name, /*this.defaultStations.undefined.name,*/ this.defaultStations.off.name, this.defaultStations.offFloorStation.name].includes(station.name)))
     filteredShifts.forEach(shift=>{
       let duplicates = filteredShifts.filter(s=>s.name==shift.name && s.floor.name==shift.floor.name)
       if (duplicates.length == 1)
@@ -1736,7 +1769,11 @@ class DeskSchedule{
           // ?.setValues(floorShifts.map(s=>[this.getPositionHierarchyIndex(s.position) >= this.getPositionHierarchyIndex(this.getPositionByName("Associate Library Specialist").id) ? 'X':''])))
       this.displayCells.getAllByNameColumn('shiftName', '', floorShifts.length)[i]
         // ?.setValues(floorShifts.map(s=>[this.shortenFullName(s.name)]))
-        ?.setValues(floorShifts.map(s=>[this.shortenFullName(s.name)+(s.tags.includes("Genealogy")?'ᴳ':'')+([11534158, 11534159].includes(s.position)?'*':'')/*+(s.tags.includes("Do Space")?'ᵀ':'')*/]))
+        ?.setValues(floorShifts.map(s=>[this.shortenFullName(s.name)
+          +(s.tags.includes("Genealogy")?'ᴳ':'')
+          // +(s.tags.includes("Do Space")?'ᴰ':'')
+          +([11534158, 11534159].includes(s.position)?'*':'')
+        ]))
       this.displayCells.getAllByNameColumn('shiftTime', '', floorShifts.length)[i]
         ?.setValues(floorShifts.map(s=>[ //start-end as hh:mm-hh:mm
         (s.startTime?.getTime()-s.endTime?.getTime()==0 || s.startTime==undefined || s.endTime==undefined)?
@@ -1783,7 +1820,7 @@ class DeskSchedule{
       let stationsFilteredForDisplay = this
         .removeDuplicateStations(this.stations.filter(s=>s.name!='undefined' && (s.floor==undefined || s.floor == floor.name)))
         //don't show off, or off floor unless we're at central
-        .filter(s=>s.name != this.defaultStations.off.name && (this.settings.locationID == 5786790 || s.name != this.defaultStations.offFloorStation.name))
+        .filter(s=>![this.defaultStations.off.name, "Service Desk (Do Space)"].includes(s.name) && (this.settings.locationID == 5786790 || s.name != this.defaultStations.offFloorStation.name))
 
       displayCells.getAllByNameColumn('stationColor', '', stationsFilteredForDisplay.length)[i]
         .setBackgrounds(stationsFilteredForDisplay.map(s=>[s.color]))
@@ -1838,9 +1875,9 @@ class DeskSchedule{
 
         for(let time = new Date(dutyList.startTime); time < dutyList.endTime; time.addTime(0, 30)){
           this.shifts.forEach(shift=>{
-            // console.log(`${dutyList.title}: ${shift.name}\n${shift.getStationAtTime(time)?.name}: ${![this.defaultStations.mealBreak.name, this.defaultStations.off.name, this.defaultStations.programMeeting.name, this.defaultStations.offFloorStation.name, "Building PIC"].includes(shift.getStationAtTime(time)?.name)}\n${!shift.tags.includes("In training (do not assign to stations)")}\n${shift.getStationAtTime(time)?.floor}: ${shift.getStationAtTime(time)?.floor == dutyList.floor}, ${shift.getStationAtTime(time)?.floor == "undefined"}, ${shift.getStationAtTime(time)?.floor == undefined}`)
+            // console.log(`${dutyList.title}: ${shift.name}\n${shift.getStationAtTime(time)?.name}: ${![this.defaultStations.mealBreak.name, this.defaultStations.off.name, this.defaultStations.programMeeting.name, this.defaultStations.offFloorStation.name, "HOP"].includes(shift.getStationAtTime(time)?.name)}\n${!shift.tags.includes("In training (do not assign to stations)")}\n${shift.getStationAtTime(time)?.floor}: ${shift.getStationAtTime(time)?.floor == dutyList.floor}, ${shift.getStationAtTime(time)?.floor == "undefined"}, ${shift.getStationAtTime(time)?.floor == undefined}`)
             if (
-                ![this.defaultStations.mealBreak.name, this.defaultStations.off.name, this.defaultStations.programMeeting.name, this.defaultStations.offFloorStation.name, "Building PIC"]
+                ![this.defaultStations.mealBreak.name, this.defaultStations.off.name, this.defaultStations.programMeeting.name, this.defaultStations.offFloorStation.name, "HOP"]
                   .includes(shift.getStationAtTime(time)?.name)
                 && !shift.tags.includes("In training (do not assign to stations)")
                 && (shift.getStationAtTime(time)?.floor == dutyList.floor || this.floors.length <= 1)
@@ -2658,7 +2695,7 @@ function mergeConsecutiveInColumn(range:GoogleAppsScript.Spreadsheet.Range){
           row-startRow+1,
           1)
         .mergeVertically()
-        if (row-startRow<3) r.setValue(r.getValue().substring(0,3))
+        if (row-startRow<3 && r.getValue().length > 3) r.setValue(r.getValue().substring(0,3))
       }else{ //if not consecutive, don't merge and shorten to single letter (Clerk=>C)
         let r = range.getSheet().getRange(
           range.getRow()+startRow,

@@ -353,3 +353,5 @@ and adjust the position-distributor sorting step to factor in how much of a shif
 QUESTIONS   
     Right now, if no one on floor is eligible for opening duty it isn't assigned. What do you want to do in this situation - leave unassigned and alert, pull from another floor, relax qualifications to include building PIC/ anyone?
     answered - alert
+
+Add formula to archive sheet to show links to all dates, organized
