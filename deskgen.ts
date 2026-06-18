@@ -1451,7 +1451,7 @@ class DeskSchedule{
             return aVal-bVal
           })
           //put managers who have had <50% of their off desk time at bottom of queue for other stations
-          if (station.name != this.defaultStations.available.name && station.name != "HOP"){
+          if (this.settings.strictPrioritizeManagerOffDeskTime && station.name != this.defaultStations.available.name && station.name != "HOP"){
             // this.ui.alert(`${station.name} being sorted by need for off desk time ${station.name != this.defaultStations.available.name} ${station.name != "HOP"}`)
             floorShifts.sort((shiftA, shiftB)=>{
               let offDeskRatioA = this.positionHierarchy.find(pos=>pos.id==shiftA.position).offDeskRatio
@@ -2687,22 +2687,18 @@ function mergeConsecutiveInColumn(range:GoogleAppsScript.Spreadsheet.Range){
     if(values[row][0] == (values[row+1]||[undefined])[0]){}
     else{
       // console.log('row and row+1 not equal')
+      let r = range.getSheet().getRange(
+        range.getRow()+startRow,
+        range.getColumn(),
+        row-startRow+1,
+        1)
+      let rval = r.getValue()
       if(startRow < row){
         // console.log('startRow < row, ',startRow, row, ' merging range: ', range.getRow(), range.getRow()+startRow, 1, row-startRow+1)
-        let r = range.getSheet().getRange(
-          range.getRow()+startRow,
-          range.getColumn(),
-          row-startRow+1,
-          1)
-        .mergeVertically()
-        if (row-startRow<3 && r.getValue().length > 3) r.setValue(r.getValue().substring(0,3))
+        r.mergeVertically()
+        if (row-startRow<3 && r.getValue().length > 3) r.setValue(rval == "Aide" ? rval : rval.substring(0,3))
       }else{ //if not consecutive, don't merge and shorten to single letter (Clerk=>C)
-        let r = range.getSheet().getRange(
-          range.getRow()+startRow,
-          range.getColumn(),
-          row-startRow+1,
-          1)
-        r.setValue(r.getValue().substring(0,1))
+        r.setValue(rval.substring(0,1))
       }
       startRow = row+1
       // console.log('startRow increment, ', startRow, row)
