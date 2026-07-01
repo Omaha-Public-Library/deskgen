@@ -8,6 +8,9 @@
         see doc
     CEN
         deprioritize gen staff for splits, see cen 6/13
+        Adrian moved to ASRS 6/18
+        coverage is moving people off ASRS to leave 0 when all floors can't hit minimum
+        min swap loop goes through full count when one floor below minimum and all others at minimum
 
 ================ BUGS/TO TEST ========
     check how gcal linking to recurring events works https://mail.google.com/mail/u/0/#inbox/FMfcgzQfBkSGVPNhcqfDJTZzxDnbMKDt

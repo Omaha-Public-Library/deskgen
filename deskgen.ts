@@ -996,7 +996,7 @@ class DeskSchedule{
     this.logDeskData('after adding meal breaks ' + mealAssignmentTimeStart.toLocaleTimeString() +'-'+ mealAssignmentTimeEnd.toLocaleTimeString())
   }
 
-  updateFloorOverstaffCount(timeStart:Date, timeEnd:Date, useLowMinimums:boolean=true){
+  updateFloorOverstaffCount(timeStart:Date, timeEnd:Date, useLowMinimums:boolean=true, halfHourGrace:boolean=true){
     // let overstaffCounts = this.floors.map(floor=>0)
     this.floors.forEach((floor)=>{
       let target = useLowMinimums ? floor.minimumStaff : floor.preferredStaff
@@ -1007,11 +1007,15 @@ class DeskSchedule{
         availableCountsForEachTime.push({time:new Date(time), availableCount:availableCount - target})
       }
       let lowestAvailableCount = Math.min(...availableCountsForEachTime.map(obj=>obj.availableCount))
-
+      let lowTimes = availableCountsForEachTime.filter(count=>count.availableCount==lowestAvailableCount).map(obj=>obj.time)
+      if (halfHourGrace && !useLowMinimums && lowTimes.length == 1){ //TODO: OR if length is < 4 and non adjacent (min difference between elements in array)
+        //if 
+        lowestAvailableCount++
+      }
       // this.ui.alert(`${timeStart.toLocaleTimeString()}-${timeEnd.toLocaleTimeString()}\nfloor.name: ${floor.name}\navailableCountsForEachTime: ${availableCountsForEachTime.join(', ')}\nlowestAvailableCount: ${lowestAvailableCount}`)
       floor.overstaffMin = lowestAvailableCount
       floor.overstaffCounts = availableCountsForEachTime
-      floor.lowTimes =  availableCountsForEachTime.filter(count=>count.availableCount==lowestAvailableCount).map(obj=>obj.time)
+      floor.lowTimes =  lowTimes
     })
     // console.log(`after updateFloorOverstaffCount\n\n${this.floors.map(floor=>`${floor.name}\n${floor.overstaffCounts.map(obj=>obj.time.toLocaleTimeString() +' - '+obj.availableCount).join('\n')}`).join('\n\n')}`)
   }
@@ -1025,7 +1029,9 @@ class DeskSchedule{
     //do rebalancing pass 20 times, or until no floors are disproportionately overstaffed above ideal counts AND any remainder is not on ASRS, or until no floors are below their minimums
     for(let i=0; i<20 &&
       (!useLowMinimums && (maxDifference(this.floors.map(floor=>floor.overstaffMin)) > 1)
-      || (!useLowMinimums && this.floors.some(floor=>floor.overstaffMin<this.getFloor("ASRS").overstaffMin))
+      // || (!useLowMinimums && this.floors.some(floor=>floor.overstaffMin<this.getFloor("ASRS").overstaffMin))
+      || (!useLowMinimums && this.getFloor("ASRS").overstaffMin+this.getFloor("Genealogy").overstaffMin > this.getFloor("1st Floor").overstaffMin+this.getFloor("2nd Floor").overstaffMin)
+      // || (!useLowMinimums && ([this.getFloor("1st Floor"),this.getFloor("2nd Floor")].some(highPriorityFloor=>(highPriorityFloor.overstaffMin<this.getFloor("ASRS").overstaffMin || highPriorityFloor.overstaffMin<this.getFloor("Genealogy").overstaffMin))))
       || (useLowMinimums && this.floors.some(floor=>floor.overstaffMin<0))
       ); i++)
       { //or if ASRS is > other stations?
@@ -1054,6 +1060,7 @@ class DeskSchedule{
           })
           // console.log(`long ${longCount}, short ${shortCount}, sorted ${longCount<=shortCount?"asc":"desc"}\n${givingFloorShifts.map(shift=>shift.name).join('\n')}`)
 
+          //TODO: sort shifts by how many of their givingfloor's lowTimes they cover, asc?
           //sort shifts by how many of the low points in this balance timespan which they can cover
           givingFloorShifts.sort((shiftA, shiftB)=>{
             let aNumOfLowTimesAvailable = 0
@@ -1079,6 +1086,7 @@ class DeskSchedule{
               (!useLowMinimums && givingFloor.overstaffMin - takingFloor.overstaffMin > 1)
               || (useLowMinimums && takingFloor.overstaffMin < 0 && givingFloor.overstaffMin > 0)
               || (givingFloor.name == "ASRS" && takingFloor.overstaffMin < givingFloor.overstaffMin)
+              || (givingFloor.name == "Genealogy" && takingFloor.name != "ASRS" && takingFloor.overstaffMin < givingFloor.overstaffMin)
             ){
               // this.ui.alert((useLowMinimums?"balancing by minimum count":"balancing by preferred count")+'\n'+balanceTimeStart.toLocaleString() + " - maxdif:"+ maxDifference(this.floors.map(floor=>floor.overstaffMin)) +'\n'+this.floors.map((floor)=>`${floor.name.padEnd(9,'-')}---${useLowMinimums?'min:'+floor.minimumStaff:'pref:'+floor.preferredStaff}, actual:${this.getStationCountAtTime(this.shifts, this.defaultStations.undefined, balanceTimeStart, floor.name) + this.getStationCountAtTime(this.shifts, this.defaultStations.available, balanceTimeStart, floor.name)}, overstaff count:${floor.overstaffMin}`).join('\n')+`\n\nmoving ${givingShift.name} from ${givingFloor.name} to ${takingFloor.name}`)
               this.logDeskData((useLowMinimums?"balancing by minimum count":"balancing by preferred count")+'<br><br>'+balanceTimeStart.toLocaleTimeString() + " - " + balanceTimeEnd.toLocaleTimeString() + " maxdif:"+ maxDifference(this.floors.map(floor=>(floor.overstaffMin))) +'<br><br>'+this.floors.map((floor)=>`${floor.name.padEnd(9,'-')}---${useLowMinimums?'min:'+floor.minimumStaff:'pref:'+floor.preferredStaff}, actl:${floor.overstaffMin}, over:${floor.overstaffMin}, mins --- ${floor.lowTimes.map(t=>t.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}).replace(" AM","").replace(" PM","")).join(', ')}`).join('<br><br>')+`<br><br><br><br>moving ${givingShift.name} from ${givingFloor.name} to ${takingFloor.name}`)
@@ -1105,10 +1113,46 @@ class DeskSchedule{
   }
 
   timelineBreakUpASRS(){
-    let longAsrsShifts = this.shifts.filter(shift=>shift.floor.name=="ASRS" && (shift.endTime.getTime()-shift.startTime.getTime())/3600000>=8)
+    let longAsrsShifts = this.shifts.filter(shift=>shift.floor.name=="ASRS" && (shift.endTime.getTime()-shift.startTime.getTime())/3600000>=6)
 
     longAsrsShifts.forEach(shiftToSplit=>{
-      if (this.trySwap(shiftToSplit, this.shifts.filter(shift=>this.getPositionHierarchyIndex(shift.position) >= this.getPositionHierarchyIndex(this.getPositionByName("Associate Library Specialist").id)))){}
+      //if front/back half of shift would better balance minimums by moving to other floor, move it to other floor...
+      let midShift = new Date((shiftToSplit.endTime.getTime() + shiftToSplit.startTime.getTime())/2)
+      midShift.setMinutes(Math.round(midShift.getMinutes() / 30) * 30)
+      let moveFirstHalf = false
+      let moveLastHalf = false
+
+      this.updateFloorOverstaffCount(midShift, shiftToSplit.endTime, false, false)
+      if (this.floors.some(floor=>shiftToSplit.floor.overstaffMin - floor.overstaffMin > 1)
+        || (shiftToSplit.floor.name=="ASRS" && this.floors.some(floor=>shiftToSplit.floor.overstaffMin - floor.overstaffMin > 0)))
+        moveLastHalf = true
+
+      this.updateFloorOverstaffCount(shiftToSplit.startTime, midShift, false, false)
+      if (this.floors.some(floor=>shiftToSplit.floor.overstaffMin - floor.overstaffMin > 1)
+        || (shiftToSplit.floor.name=="ASRS" && this.floors.some(floor=>shiftToSplit.floor.overstaffMin - floor.overstaffMin > 0)))
+        moveFirstHalf = true
+
+      if (moveFirstHalf || moveLastHalf){
+        if (moveFirstHalf){
+          this.floors.sort((a,b)=>a.reassignStaffPriority-b.reassignStaffPriority)
+          this.floors.sort((a,b)=>a.overstaffMin - b.overstaffMin) //still using previous updateFloorOverstaffCount timeframe
+          let needyFloor = this.floors[0]
+          let originalFloor = shiftToSplit.floor
+          shiftToSplit.moveToFloor(needyFloor, shiftToSplit.startTime)
+          if (!moveLastHalf)
+            shiftToSplit.moveToFloor(originalFloor, midShift)
+        }
+        else{ //must be !moveFirstHalf && moveLastHalf
+          this.updateFloorOverstaffCount(midShift, shiftToSplit.endTime, false, false)
+          this.floors.sort((a,b)=>a.reassignStaffPriority-b.reassignStaffPriority)
+          this.floors.sort((a,b)=>a.overstaffMin - b.overstaffMin)
+          let needyFloor = this.floors[0]
+          shiftToSplit.moveToFloor(needyFloor, midShift)
+        }
+        this.logDeskData(`moved split shift ${shiftToSplit.name}`)
+      }
+      //if moving half of shift isn't need to balance floors, try to swap with another shift that needs splitting
+      else if (this.trySwap(shiftToSplit, this.shifts.filter(shift=>this.getPositionHierarchyIndex(shift.position) >= this.getPositionHierarchyIndex(this.getPositionByName("Associate Library Specialist").id)))){}
       else if (this.trySwap(shiftToSplit, this.shifts.filter(shift=>!shift.isPIC))){}
       else if (this.trySwap(shiftToSplit, this.shifts.filter(shift=>this.getPositionHierarchyIndex(shift.position) >= this.getPositionHierarchyIndex(this.getPositionByName("Library Specialist").id)))){}
       else console.log(shiftToSplit.name + ": can't find any shifts up to Specialists to swap with")
