@@ -1042,7 +1042,7 @@ class DeskSchedule {
         let shiftsToSwapWith = shiftsToSwap.filter(shift => shift.floor.name != shiftToSplit.floor.name
             // && this.getPositionHierarchyIndex(shift.position) >= this.getPositionHierarchyIndex(this.getPositionByName(highestPosition).id)
             && (shift.startTime.getTime() == shiftToSplit.startTime.getTime() || shift.endTime.getTime() == shiftToSplit.endTime.getTime())
-            && shift.countTotalTimeAtStation(this.defaultStations.offFloorStation.name) < 4 //exclude shifts that have already been split
+            && shift.countTotalTimeAtStation(this.defaultStations.offFloorStation.name) < 2 //exclude shifts that have already been split
         // && (shift.endTime.getTime()-shift.startTime.getTime())/3600000==4
         );
         // this.ui.alert(`swapping ${shiftToSplit.name}, ${shiftToSplit.startTime.getTimeStringHHMM24()}-${shiftToSplit.endTime.getTimeStringHHMM24()} with:\n${shiftsToSwapWith.map(s=>`${s.name}: ${s.startTime.getTimeStringHHMM24()}-${s.endTime.getTimeStringHHMM24()}`).join('\n')}`)
@@ -1074,30 +1074,35 @@ class DeskSchedule {
             });
             let oldFloor = this.getFloor(shiftToSplit.floor.name);
             let shiftToSwapWith = shiftsToSwapWith[0];
-            if (shiftToSwapWith.endTime.getTime() - shiftToSwapWith.startTime.getTime() > shiftToSplit.endTime.getTime() - shiftToSplit.startTime.getTime()) {
-                //need to handle shifts > 8.5hrs, right now just ignore becuase they're rare
-            }
-            else if (shiftToSwapWith.startTime.getTime() == shiftToSplit.startTime.getTime() && shiftToSwapWith.endTime.getTime() == shiftToSplit.endTime.getTime()) {
-                let midShift = new Date((shiftToSplit.endTime.getTime() + shiftToSplit.startTime.getTime()) / 2);
-                midShift.setMinutes(Math.round(midShift.getMinutes() / 30) * 30);
+            let midShift = new Date((shiftToSplit.endTime.getTime() + shiftToSplit.startTime.getTime()) / 2);
+            midShift.setMinutes(Math.round(midShift.getMinutes() / 30) * 30);
+            // if (shiftToSwapWith.endTime.getTime()-shiftToSwapWith.startTime.getTime() > shiftToSplit.endTime.getTime()-shiftToSplit.startTime.getTime()){ //if shift to split is shorter than shift to swap with
+            //   //need to handle shifts > 8.5hrs, right now just ignore becuase they're rare
+            //   this.ui.alert("its happening, " + shiftToSplit.name +" and "+shiftToSwapWith.name)
+            // }
+            // else
+            if (shiftToSwapWith.startTime.getTime() == shiftToSplit.startTime.getTime() && shiftToSwapWith.endTime.getTime() == shiftToSplit.endTime.getTime()) {
                 shiftToSplit.moveToFloor(shiftToSwapWith.floor, midShift);
                 shiftToSwapWith.moveToFloor(oldFloor, midShift);
-                this.logDeskData(`split ${shiftToSplit.name} and swapped with ${shiftToSwapWith.name}`);
+                this.logDeskData(`start and end time match. split ${shiftToSplit.name} and swapped with ${shiftToSwapWith.name}`);
                 return true;
             }
-            else if (shiftToSwapWith.startTime.getTime() == shiftToSplit.startTime.getTime()) {
-                shiftToSplit.moveToFloor(shiftToSwapWith.floor, shiftToSplit.startTime);
-                shiftToSplit.moveToFloor(oldFloor, shiftToSwapWith.endTime);
-                shiftToSwapWith.moveToFloor(oldFloor, shiftToSplit.startTime);
-                this.logDeskData(`split ${shiftToSplit.name} and swapped with ${shiftToSwapWith.name}`);
+            else if (shiftToSwapWith.startTime.getTime() == shiftToSplit.startTime.getTime()) { //start times match
+                //check if midshift is > 1hr from shiftToSwapWith start time
+                let splitTime = (shiftToSwapWith.endTime.getTime() - midShift.getTime()) / 3600000 > 1 ? midShift : shiftToSplit.endTime;
+                shiftToSplit.moveToFloor(shiftToSwapWith.floor, splitTime);
+                shiftToSwapWith.moveToFloor(oldFloor, splitTime);
+                this.logDeskData(`start time match. split ${shiftToSplit.name} and swapped with ${shiftToSwapWith.name}`);
                 return true;
             }
-            else { //end times match
-                shiftToSplit.moveToFloor(shiftToSwapWith.floor, shiftToSwapWith.startTime);
-                shiftToSwapWith.moveToFloor(oldFloor, shiftToSplit.startTime);
-                this.logDeskData(`split ${shiftToSplit.name} and swapped with ${shiftToSwapWith.name}`);
+            else if (shiftToSwapWith.endTime.getTime() == shiftToSplit.endTime.getTime()) { //end times match
+                let splitTime = (midShift.getTime() - shiftToSwapWith.startTime.getTime()) / 3600000 > 1 ? midShift : shiftToSwapWith.startTime;
+                shiftToSplit.moveToFloor(shiftToSwapWith.floor, splitTime);
+                shiftToSwapWith.moveToFloor(oldFloor, splitTime);
+                this.logDeskData(`end time match. split ${shiftToSplit.name} and swapped with ${shiftToSwapWith.name}`);
                 return true;
             }
+            //else if neither start/end time match?
         }
         return false;
     }
