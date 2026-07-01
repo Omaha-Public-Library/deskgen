@@ -1089,7 +1089,7 @@ class DeskSchedule {
             }
             else if (shiftToSwapWith.startTime.getTime() == shiftToSplit.startTime.getTime()) { //start times match
                 //check if midshift is > 1hr from shiftToSwapWith start time
-                let splitTime = (shiftToSwapWith.endTime.getTime() - midShift.getTime()) / 3600000 > 1 ? midShift : shiftToSplit.endTime;
+                let splitTime = (shiftToSwapWith.endTime.getTime() - midShift.getTime()) / 3600000 > 1 ? midShift : shiftToSwapWith.endTime;
                 shiftToSplit.moveToFloor(shiftToSwapWith.floor, splitTime);
                 shiftToSwapWith.moveToFloor(oldFloor, splitTime);
                 this.logDeskData(`start time match. split ${shiftToSplit.name} and swapped with ${shiftToSwapWith.name}`);
