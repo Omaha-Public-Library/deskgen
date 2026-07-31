@@ -11,6 +11,8 @@
         Adrian moved to ASRS 6/18
         coverage is moving people off ASRS to leave 0 when all floors can't hit minimum
         min swap loop goes through full count when one floor below minimum and all others at minimum
+        half hour grace period shouldn't apply when only one person is on floor!
+        don't split shifts if one half is all events/unavailable
 
 ================ BUGS/TO TEST ========
     check how gcal linking to recurring events works https://mail.google.com/mail/u/0/#inbox/FMfcgzQfBkSGVPNhcqfDJTZzxDnbMKDt
@@ -27,6 +29,7 @@
     Regenerate from current time
     Half hour grace before rebalancing staff based on minimums - if not >1 below minimum and not zero
     Add formula to archive sheet to show links to all dates, organized
+    in training assignment prompt - when generating, choose another staff or a floor to have training staff shadow
 
 ================ OPTIMIZATION ================
     at start of station assignment step, check for available count and skip if there's no space left to assign
