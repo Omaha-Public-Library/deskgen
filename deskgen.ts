@@ -893,6 +893,7 @@ class DeskSchedule{
         shift.stationTimeline.push(this.defaultStations.undefined)
         shift.noteTimeline.push("")
         shift.picTimeline.push(false)
+        shift.stationTimelineRatings.push("")
       }
     })
     this.logDeskData("initialized empty")
@@ -1091,7 +1092,7 @@ class DeskSchedule{
               || (givingFloor.name == "Genealogy" && takingFloor.name != "ASRS" && takingFloor.overstaffMin < givingFloor.overstaffMin)
             ){
               // this.ui.alert((useLowMinimums?"balancing by minimum count":"balancing by preferred count")+'\n'+balanceTimeStart.toLocaleString() + " - maxdif:"+ maxDifference(this.floors.map(floor=>floor.overstaffMin)) +'\n'+this.floors.map((floor)=>`${floor.name.padEnd(9,'-')}---${useLowMinimums?'min:'+floor.minimumStaff:'pref:'+floor.preferredStaff}, actual:${this.getStationCountAtTime(this.shifts, this.defaultStations.undefined, balanceTimeStart, floor.name) + this.getStationCountAtTime(this.shifts, this.defaultStations.available, balanceTimeStart, floor.name)}, overstaff count:${floor.overstaffMin}`).join('\n')+`\n\nmoving ${givingShift.name} from ${givingFloor.name} to ${takingFloor.name}`)
-              this.logDeskData((useLowMinimums?"balancing by minimum count":"balancing by preferred count")+'<br><br>'+balanceTimeStart.toLocaleTimeString() + " - " + balanceTimeEnd.toLocaleTimeString() + " maxdif:"+ maxDifference(this.floors.map(floor=>(floor.overstaffMin))) +'<br><br>'+this.floors.map((floor)=>`${floor.name.padEnd(9,'-')}---${useLowMinimums?'min:'+floor.minimumStaff:'pref:'+floor.preferredStaff}, actl:${floor.overstaffMin}, over:${floor.overstaffMin}, mins --- ${floor.lowTimes.map(t=>t.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}).replace(" AM","").replace(" PM","")).join(', ')}`).join('<br><br>')+`<br><br><br><br>moving ${givingShift.name} from ${givingFloor.name} to ${takingFloor.name}`)
+              this.logDeskData((useLowMinimums?"balancing by minimum count":"balancing by preferred count")+'--'+balanceTimeStart.toLocaleTimeString() + " - " + balanceTimeEnd.toLocaleTimeString() + " maxdif:"+ maxDifference(this.floors.map(floor=>(floor.overstaffMin))), this.floors.map((floor)=>`${floor.name.padEnd(9,'-')}---${useLowMinimums?'min:'+floor.minimumStaff:'pref:'+floor.preferredStaff}, actl:${floor.overstaffMin}, over:${floor.overstaffMin}, mins --- ${floor.lowTimes.map(t=>t.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}).replace(" AM","").replace(" PM","")).join(', ')}`).join('<br><br>')+`<br><br><br><br>moving ${givingShift.name} from ${givingFloor.name} to ${takingFloor.name}`)
               
               if (initialBalance /*|| givingShift.startTime == time.getTime()*/) givingShift.floor = takingFloor
               else{
@@ -1106,7 +1107,7 @@ class DeskSchedule{
           }
         }
       }
-      this.logDeskData((useLowMinimums?"balancing by minimum count":"balancing by preferred count")+'<br><br>'+balanceTimeStart.toLocaleTimeString() + " - " + balanceTimeEnd.toLocaleTimeString() + " maxdif:"+ maxDifference(this.floors.map(floor=>(floor.overstaffMin))) +'<br><br>'+this.floors.map((floor)=>`${floor.name.padEnd(9,'-')}---${useLowMinimums?'min:'+floor.minimumStaff:'pref:'+floor.preferredStaff}, actl:${floor.overstaffMin}, over:${floor.overstaffMin}, mins --- ${floor.lowTimes.map(t=>t.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}).replace(" AM","").replace(" PM","")).join(', ')}`).join('<br><br>')+`<br><br><br><br>balancing end results`)
+      this.logDeskData((useLowMinimums?"balancing by minimum count":"balancing by preferred count")+'--'+balanceTimeStart.toLocaleTimeString() + " - " + balanceTimeEnd.toLocaleTimeString() + " maxdif:"+ maxDifference(this.floors.map(floor=>(floor.overstaffMin))), this.floors.map((floor)=>`${floor.name.padEnd(9,'-')}---${useLowMinimums?'min:'+floor.minimumStaff:'pref:'+floor.preferredStaff}, actl:${floor.overstaffMin}, over:${floor.overstaffMin}, mins --- ${floor.lowTimes.map(t=>t.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}).replace(" AM","").replace(" PM","")).join(', ')}`).join('<br><br>')+`<br><br><br><br>balancing end results`)
       //sort by furthest below preferred staffing count to highest above 
       this.updateFloorOverstaffCount(balanceTimeStart, balanceTimeEnd, useLowMinimums)
       this.floors.sort((a,b)=>a.reassignStaffPriority-b.reassignStaffPriority)
@@ -1288,12 +1289,23 @@ class DeskSchedule{
 
         //array of floorStations, each floorStation element is array of ratings for each
         let ratingMatrix = floorShifts.map(shift=>floorStations.map(stations=>0))
-        let ratingMatrixLog = floorShifts.map(shift=>floorStations.map(stations=>[]))
+        let ratingMatrixLog = floorShifts.map(shift=>({
+            shiftName:shift.name,
+            stations:floorStations.map(station=>({
+              assigned:false,
+              finalRating:0,
+              stationName:station.name,
+              logEntries:[]
+            }))
+          }))
+        floorStations.forEach(fs=>fs.ratings=[])
 
         const adjustRating = (shiftIndex:number, stationIndex:number, description:string, value:number) => {
           ratingMatrix[shiftIndex][stationIndex]-=value
           if(this.settings.verboseLog)
-            ratingMatrixLog[shiftIndex][stationIndex].push(`${description}: ${value}`)
+            ratingMatrixLog[shiftIndex].stations[stationIndex].finalRating = -ratingMatrix[shiftIndex][stationIndex]
+            ratingMatrixLog[shiftIndex].stations[stationIndex].logEntries.push(`${description}: ${value}`)
+            floorStations[stationIndex].ratings.push(`${floorShifts[shiftIndex].name} -- ${description}: ${value}`)
         }
 
         for (const [shiftIndex, shift] of floorShifts.entries()){
@@ -1315,23 +1327,23 @@ class DeskSchedule{
             adjustRating(shiftIndex, stationIndex, "priority adjustment", (floorStations.length-stationIndex)*1000)
 
             if(prevStation.name == station.name && timeOnCurrentStation < prevStation.duration)
-              adjustRating(shiftIndex, stationIndex, "currently assigned to this station and under duration", 1)
+              adjustRating(shiftIndex, stationIndex, `currently assigned to this station and under duration (${station.duration})`, 2)
 
             if(prevStation.name == station.name && timeOnCurrentStation == 0.5 && timeOnCurrentStation < prevStation.duration)
-              adjustRating(shiftIndex, stationIndex, "currently assigned to this station and under duration and only been on half hour", 1)
+              adjustRating(shiftIndex, stationIndex, "currently assigned to this station and under duration and only been on half hour", 3)
 
             if(prevStation.name != station.name && timeOnCurrentStation >= prevStation.duration && prevStation.duration>0)
-              adjustRating(shiftIndex, stationIndex, "not on this station and at/over duration" +timeOnCurrentStation+' < '+prevStation.duration, 1)
+              adjustRating(shiftIndex, stationIndex, "not on this station and at/over duration " +timeOnCurrentStation+' &#60; '+prevStation.duration, 1)
 
             if(timeOnCurrentStation >= prevStation.duration)
-              adjustRating(shiftIndex, stationIndex, "on this station and at/over duration" +timeOnCurrentStation+' >= '+prevStation.duration, 1)
+              adjustRating(shiftIndex, stationIndex, "on this station and at/over duration " +timeOnCurrentStation+'&#62;='+prevStation.duration, -1)
 
             if(timeOnCurrentStation - prevStation.duration >= 1)
-              adjustRating(shiftIndex, stationIndex, "on this station and 1hr+ over duration" +timeOnCurrentStation+' >= '+prevStation.duration, 1)
+              adjustRating(shiftIndex, stationIndex, "on this station and 1hr+ over duration " +timeOnCurrentStation+'&#62;='+prevStation.duration, -3)
 
             if(this.settings.changeOnTheHour && time.getMinutes()!=0){
               if(prevStation.name == station.name)
-                adjustRating(shiftIndex, stationIndex, "changeOnTheHour extra weight to stay on current", 1)
+                adjustRating(shiftIndex, stationIndex, "changeOnTheHour setting is on, avoid changing station in middle of hour", -1)
             }
 
             if(currentStation.name==this.defaultStations.undefined.name && nextStation.name==this.defaultStations.undefined.name) //first check redundant
@@ -1349,7 +1361,7 @@ class DeskSchedule{
               // let ratio = (shift.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)/offDeskRatio) / (shiftLength) / shiftCompletionRatio
               let offDeskTimeRelativeToTarget = targetOffDeskTimeAtTimeInShift - totalTimeOffDesk
               let finalRatio = offDeskTimeRelativeToTarget / targetOffDeskTimeTotal
-              adjustRating(shiftIndex, stationIndex, `off desk time relative to target (${targetOffDeskTimeAtTimeInShift} - ${totalTimeOffDesk}) / ${targetOffDeskTimeTotal}`, finalRatio * 2)
+              adjustRating(shiftIndex, stationIndex, `off desk time relative to target (${roundToTenth(targetOffDeskTimeAtTimeInShift)} - ${roundToTenth(totalTimeOffDesk)}) / ${roundToTenth(targetOffDeskTimeTotal)}`, roundToTenth(finalRatio * 2))
             }
             else{
               if (totalTimeOnPossibleStation <= 0)
@@ -1362,7 +1374,7 @@ class DeskSchedule{
             if (this.settings.locationID == 5786790 && station.name.includes("Do Space") && shift.tags.includes("Do Space"))
               adjustRating(shiftIndex, stationIndex, "dospace tag required and present", 100)
 
-            
+            // station.ratings.push()
           }
         }
 
@@ -1370,8 +1382,8 @@ class DeskSchedule{
         for (let i=floorStations.length-1; i>0; i--){
           while (floorStations.filter(station=>station.name==floorStations[i].name).length < Math.min(floorShifts.length, floorStations[i].numOfStaff)){
             floorStations.splice(i, 0, floorStations[i])
-            ratingMatrix.forEach(stations=>stations.splice(i, 0, stations[i]))
-            ratingMatrixLog.forEach(stations=>stations.splice(i, 0, stations[i]))
+            ratingMatrix.forEach(shift=>shift.splice(i, 0, JSON.parse(JSON.stringify(shift[i]))))
+            ratingMatrixLog.forEach(shift=>shift.stations.splice(i, 0, JSON.parse(JSON.stringify(shift.stations[i]))))
           }
         }
 
@@ -1390,7 +1402,14 @@ class DeskSchedule{
         //   +`\n\n${munkresPicks.map((xy)=>`${floorShifts[xy[0]].name} - ${floorStations[xy[1]].name} : ${-ratingMatrix[xy[0]][xy[1]]}`).join('\n')}`)
 
         munkresPicks.forEach(xy=>{
-          floorShifts[xy[0]].setStationAtTime(floorStations[xy[1]], time)
+          let shiftIndex = xy[0]
+          let stationIndex = xy[1]
+          if (floorShifts[shiftIndex].getStationAtTime(time).name == this.defaultStations.undefined.name && ratingMatrix[shiftIndex][stationIndex]<900000){
+            floorShifts[shiftIndex].setStationAtTime(floorStations[stationIndex], time)
+            if (verboseLog){
+              ratingMatrixLog[shiftIndex].stations[stationIndex].assigned = true
+            }
+          }
         })
   
 /*
@@ -1675,7 +1694,50 @@ class DeskSchedule{
           })
         })
 */
-        this.logDeskData('stations on ' +floor.name+ ' pass at ' + time.getTimeStringHHMM24())
+        // this.logDeskData('stations on ' +floor.name+ ' pass at ' + time.getTimeStringHHMM24(), `${time.getTimeStringHHMM12()} ${floor.name}`+'<br>'+ratingMatrix.map((shiftRow,i)=>floorShifts[i].name.substring(0,9).padEnd(10,'.') +'<br>'+ shiftRow.map((n,j)=>` - ${floorStations[j].name.padEnd(30,'.')} ${-1*n}${ratingMatrixLog[i][j].map(e=>'<br>'+' .... '+e)}`).join('<br>')).join('<br>'))
+
+        let table = []
+
+        //make header row
+        // let header = []
+        // header.push('x')
+        // for(const shift of ratingMatrixLog){
+        //   header.push(shift.shiftName)
+        // }
+        // table.push(header)
+
+        //make each row
+        for(const shift of ratingMatrixLog){
+          let row = []
+          row.push("<b>"+this.shortenFullName(shift.shiftName)+"</b>")
+          for (const station of shift.stations){
+            row.push(`<div class="opp" title="${station.logEntries.join('\n')}" style="${station.assigned?'background: #ffd350"':''}"><span>${station.stationName.replace("Service", "Svc").replace("Children", "Chld").substring(0,14)}  </span><span>  ${(station.finalRating<0?0:station.finalRating).toString().padStart(4,' ')}</span>`)
+          }
+          table.push(row)
+        }
+
+        function makeTableHTML(myArray:[][], cssclass:string='') {
+          var result = `<table border=2 class="${cssclass}">`
+          for(var i=0; i<myArray.length; i++) {
+              result += (i>0?"<tr>":`<tr class="mrtableth">`)
+              for(var j=0; j<myArray[i].length; j++){
+                  result += (i>0?"<td>":"<th>")+myArray[i][j]+(i>0?"</td>":"</th>")
+              }
+              result += (i>0?"</tr>":"</tr>")
+          }
+          result += "</table>"
+
+          return result;
+        }
+
+        function transpose(matrix) {
+          return matrix[0].map((col, i) => matrix.map(row => row[i]));
+        }
+
+        let tableHTML = makeTableHTML(transpose(table),"mrtable")
+        this.logDeskData('stations on ' +floor.name+ ' pass at ' + time.getTimeStringHHMM24(), `<br>${time.getTimeStringHHMM12()} ${floor.name} station ratings:`+'<br><br>'+tableHTML
+        // +'<br><br>'+JSON.stringify(ratingMatrixLog)
+        )
       }
     }
     // this.ui.alert(this.shiftsSplitAcrossFloors.map(shift=>shift.name).join('\n'))
@@ -2207,24 +2269,60 @@ class DeskSchedule{
     }
   }
   
-  logDeskData(description:string){
+  logDeskData(description:string, description2:string=" "){
     this.sortShiftsForDisplay(this.shifts)
     if (!this.settings.verboseLog) return
-    let s = this.shifts.map(shift =>shift.floor.index+'-'+shift.name.substring(0, 8).replaceAll(' ','.') + ' ' + shift.stationTimeline.map((station, i)=>{
+    let s = this.shifts.map((shift, shiftI) =>shift.floor.index+'-'+shift.name.replace('📣', 'Announce').substring(0, 8).padEnd(9,'.').replaceAll(' ','.') + ' ' + shift.stationTimeline.map((station, stationI)=>{
+      let time = new Date(this.dayStartTime.getTime()+stationI*1000*60*30)
+      // let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.dayStartTime.getTime())/1000/60/60*2)
+      // let rating = shift.getRatingsAtTime(time)
+      let rating = station.ratings.join('\n')
+      // if(ratingMatrixLog){
+      //   console.log(JSON.stringify(ratingMatrixLog))
+      //   console.log(shiftI, stationI)
+      //   console.log(JSON.stringify(ratingMatrixLog[shiftI]))
+      //   console.log(JSON.stringify(ratingMatrixLog[shiftI][stationI]))
+      // }
       return `<span class="outline" title="${
-      new Date(this.dayStartTime.getTime()+i*1000*60*30).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    }&#10${station.name}\n${station.floor}"; style="color:${station.color}">◼</span>`
+      time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    }&#10${station.name}\n${station.floor}\n${rating}"; style="color:${station.color}">◼</span>`
     }).join(''))
     for (let i = s.length-1; i>0; i--){
       if (s[i][0] != s[Math.min(s.length-1, i+1)][0]) s[i]+="<br><br>"
     }
-    this.logDeskDataRecord.push('     ' + description + '<br><br>' + s.join('<br>'))
+    this.logDeskDataRecord.push(description +"///"+ s.join('<br>') +"///"+ description2)
+    // this.logDeskDataRecord.push('     ' + description + '<br><br>' + s.join('<br>') )
   }
   
   popupDeskDataLog(){
     if(this.settings.verboseLog){
       var htmlTemplate = HtmlService.createTemplate(
         `<style>
+        .mrtable {
+          border-collapse: collapse;
+          font-size: 12px;
+          text-align: center;
+        }
+        .mrtableth{
+          background: #5f5f5f;
+          color: white; height: 28px;
+        }
+        .mrtable span{
+          padding: 4px 8px;
+        }
+        .mrtable td:hover{
+          background: #f3edda;
+          border: 1px solid #ffd350;
+          cursor: help;
+        }
+        .opp{
+          display: flex;
+          justify-content: space-between;
+        }
+        .opp span:nth-of-type(2){
+          color: midnightblue;
+          background: linear-gradient(0deg, #939b5e5e, transparent);
+        }
         .outline {
           color: white;
           text-shadow: -1px -1px 0 #393939, 1px -1px 0 #393939, -1px 1px 0 #393939, 1px 1px 0 #393939;
@@ -2235,25 +2333,37 @@ class DeskSchedule{
           text-shadow: -3px -3px 0 #ff0000, 3px -3px 0 #ff0000, -3px 3px 0 #ff0000, 3px 3px 0 #ff0000;
           z-index: 99;
           position: relative;
+          cursor: help;
         }
-        </style><div id="animDisplay" style="font-family: monospace; font-size: large; line-height: 0.6">
-        loading...
-        </div>
+        </style>
+        <div id="heading" style="font-family: monospace; font-size: large">loading...</div>
+        <br>
+        <div id="timelineDisplay" style="font-family: monospace; font-size: large; line-height: 0.5">loading...</div>
         <br>
         <input type="range" id="animSlider" name="step" min="0" max="10" style="width: 550px;"/>
+        <br>
+        <div id="description" style="font-family: monospace; font-size: large">loading...</div>
         <script>
         var logDeskDataRecord = <?!= JSON.stringify(logDeskDataRecord) ?>;
         function initialize(){
           logDeskDataRecord = logDeskDataRecord.map(s=>s.replaceAll('&lt;','<').replaceAll('&gt;','>'))
-          let animDisplay = document.getElementById("animDisplay")
+          let timelineDisplay = document.getElementById("timelineDisplay")
+          let heading = document.getElementById("heading")
+          let description = document.getElementById("description")
           let animSlider = document.getElementById("animSlider")
           animSlider.min = 0
           animSlider.max = logDeskDataRecord.length-1
           animSlider.value = logDeskDataRecord.length-1
-          animDisplay.innerText = "initializing"
-          animDisplay.innerHTML = logDeskDataRecord[logDeskDataRecord.length-1]
+          heading.innerText = "initializing"
+          timelineDisplay.innerText = "initializing"
+          description.innerText = "initializing"
+          heading.innerHTML = logDeskDataRecord[logDeskDataRecord.length-1].split("///")[0]
+          timelineDisplay.innerHTML = logDeskDataRecord[logDeskDataRecord.length-1].split("///")[1]
+          description.innerHTML = logDeskDataRecord[logDeskDataRecord.length-1].split("///")[2]
           animSlider.addEventListener("input", (e) =>{
-            animDisplay.innerHTML = logDeskDataRecord[animSlider.value]
+            heading.innerHTML = logDeskDataRecord[animSlider.value].split("///")[0]
+            timelineDisplay.innerHTML = logDeskDataRecord[animSlider.value].split("///")[1]
+            description.innerHTML = logDeskDataRecord[animSlider.value].split("///")[2]
             console.log()
           })
         }
@@ -2323,6 +2433,7 @@ class Station{
   limitToStartTime: Date
   limitToEndTime: Date
   numOfStaff: number
+  ratings:string[]
   
   constructor(
     color: ColorHex = "#ffffff",
@@ -2331,12 +2442,13 @@ class Station{
     floor: string = undefined,
     positionPriority: PositionPriority[] = [],
     durationType: DurationType = DurationType.Alwayswhileopen,
-    duration: number = 0,
+    duration: number = 100,
     limitType: LimitType = LimitType.SpecificTime,
     limitXHours: number = undefined,
     limitYHours: number = undefined,
     limitToStartTime: Date = undefined,
     limitToEndTime: Date = undefined,
+    ratings:string[] = []
   ){
     this.color = color
     this.name = name
@@ -2350,6 +2462,7 @@ class Station{
     this.limitToStartTime = limitToStartTime
     this.limitToEndTime = limitToEndTime
     this.numOfStaff = numOfStaff
+    this.ratings = ratings
   }
 }
 
@@ -2394,6 +2507,7 @@ class Shift{
   positionGroup: string
   tags: string[]
   stationTimeline:Station[]
+  stationTimelineRatings:string[]
   noteTimeline:string[]
   picTimeline:boolean[]
   floor: Floor
@@ -2413,7 +2527,8 @@ class Shift{
     tags: string[] = [],
     stationTimeline: Station[] = [],
     noteTimeline:string[] = [],
-    picTimeline: boolean[] = []
+    picTimeline: boolean[] = [],
+    stationTimelineRatings: string[] = []
   ){
     this.deskSchedule = deskSchedule
     this.user_id = user_id
@@ -2431,6 +2546,7 @@ class Shift{
     this.noteTimeline = noteTimeline
     this.picTimeline = picTimeline
     this.floor = deskSchedule.floors[0]
+    this.stationTimelineRatings = stationTimelineRatings
   }
 
   get isPIC():boolean{
@@ -2446,7 +2562,11 @@ class Shift{
     if (halfHoursSinceDayStartTime < 0 ) return this.deskSchedule.defaultStations.off
     return this.stationTimeline[halfHoursSinceDayStartTime]
   }
-
+  getRatingsAtTime(time:Date){
+    let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime())/1000/60/60*2)
+    if (halfHoursSinceDayStartTime < 0 ) return undefined
+    return this.stationTimelineRatings[halfHoursSinceDayStartTime]
+  }
   getPicStatusAtTime(time:Date):boolean{
     let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime())/1000/60/60*2)
     if (halfHoursSinceDayStartTime < 0 ) return undefined
@@ -2461,6 +2581,11 @@ class Shift{
   setNoteAtTime(note:string, time:Date){
     let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime())/1000/60/60*2)
     if (halfHoursSinceDayStartTime >= 0 ) this.noteTimeline[halfHoursSinceDayStartTime] = note
+    else console.error("cannont setStationAtTime", time, "is before dayStartTime", this.deskSchedule.dayStartTime)
+  }
+  setRatingsAtTime(ratings:string, time:Date){
+    let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime())/1000/60/60*2)
+    if (halfHoursSinceDayStartTime >= 0 ) this.stationTimelineRatings[halfHoursSinceDayStartTime] = ratings
     else console.error("cannont setStationAtTime", time, "is before dayStartTime", this.deskSchedule.dayStartTime)
   }
 
@@ -3112,6 +3237,10 @@ function isNumeric(str: string) { //https://stackoverflow.com/questions/175739/h
 
 function inRange(x, rangeStart, rangeEnd) { //check if input is between two numbers, regardless of which number is greater than the other
     return ((x-rangeStart)*(x-rangeEnd) <= 0);
+}
+
+function roundToTenth(number:number):number{
+  return Math.round(number*10)/10
 }
 
 //performance log - when func is called, outputs amount of time since it was last called
