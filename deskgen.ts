@@ -893,7 +893,6 @@ class DeskSchedule{
         shift.stationTimeline.push(this.defaultStations.undefined)
         shift.noteTimeline.push("")
         shift.picTimeline.push(false)
-        shift.stationTimelineRatings.push("")
       }
     })
     this.logDeskData("initialized empty")
@@ -1698,14 +1697,6 @@ class DeskSchedule{
 
         let table = []
 
-        //make header row
-        // let header = []
-        // header.push('x')
-        // for(const shift of ratingMatrixLog){
-        //   header.push(shift.shiftName)
-        // }
-        // table.push(header)
-
         //make each row
         for(const shift of ratingMatrixLog){
           let row = []
@@ -2274,15 +2265,8 @@ class DeskSchedule{
     if (!this.settings.verboseLog) return
     let s = this.shifts.map((shift, shiftI) =>shift.floor.index+'-'+shift.name.replace('📣', 'Announce').substring(0, 8).padEnd(9,'.').replaceAll(' ','.') + ' ' + shift.stationTimeline.map((station, stationI)=>{
       let time = new Date(this.dayStartTime.getTime()+stationI*1000*60*30)
-      // let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.dayStartTime.getTime())/1000/60/60*2)
-      // let rating = shift.getRatingsAtTime(time)
       let rating = station.ratings.join('\n')
-      // if(ratingMatrixLog){
-      //   console.log(JSON.stringify(ratingMatrixLog))
-      //   console.log(shiftI, stationI)
-      //   console.log(JSON.stringify(ratingMatrixLog[shiftI]))
-      //   console.log(JSON.stringify(ratingMatrixLog[shiftI][stationI]))
-      // }
+
       return `<span class="outline" title="${
       time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
     }&#10${station.name}\n${station.floor}\n${rating}"; style="color:${station.color}">◼</span>`
@@ -2507,7 +2491,6 @@ class Shift{
   positionGroup: string
   tags: string[]
   stationTimeline:Station[]
-  stationTimelineRatings:string[]
   noteTimeline:string[]
   picTimeline:boolean[]
   floor: Floor
@@ -2528,7 +2511,6 @@ class Shift{
     stationTimeline: Station[] = [],
     noteTimeline:string[] = [],
     picTimeline: boolean[] = [],
-    stationTimelineRatings: string[] = []
   ){
     this.deskSchedule = deskSchedule
     this.user_id = user_id
@@ -2546,7 +2528,6 @@ class Shift{
     this.noteTimeline = noteTimeline
     this.picTimeline = picTimeline
     this.floor = deskSchedule.floors[0]
-    this.stationTimelineRatings = stationTimelineRatings
   }
 
   get isPIC():boolean{
@@ -2562,17 +2543,11 @@ class Shift{
     if (halfHoursSinceDayStartTime < 0 ) return this.deskSchedule.defaultStations.off
     return this.stationTimeline[halfHoursSinceDayStartTime]
   }
-  getRatingsAtTime(time:Date){
-    let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime())/1000/60/60*2)
-    if (halfHoursSinceDayStartTime < 0 ) return undefined
-    return this.stationTimelineRatings[halfHoursSinceDayStartTime]
-  }
   getPicStatusAtTime(time:Date):boolean{
     let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime())/1000/60/60*2)
     if (halfHoursSinceDayStartTime < 0 ) return undefined
     return this.picTimeline[halfHoursSinceDayStartTime]
   }
-  
   setStationAtTime(station:Station, time:Date){
     let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime())/1000/60/60*2)
     if (halfHoursSinceDayStartTime >= 0 ) this.stationTimeline[halfHoursSinceDayStartTime] = station
@@ -2583,18 +2558,11 @@ class Shift{
     if (halfHoursSinceDayStartTime >= 0 ) this.noteTimeline[halfHoursSinceDayStartTime] = note
     else console.error("cannont setStationAtTime", time, "is before dayStartTime", this.deskSchedule.dayStartTime)
   }
-  setRatingsAtTime(ratings:string, time:Date){
-    let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime())/1000/60/60*2)
-    if (halfHoursSinceDayStartTime >= 0 ) this.stationTimelineRatings[halfHoursSinceDayStartTime] = ratings
-    else console.error("cannont setStationAtTime", time, "is before dayStartTime", this.deskSchedule.dayStartTime)
-  }
-
   setStationDuringTimeRange(station:Station, startTime:Date, endTime:Date){
     for(let time = new Date(startTime); time < endTime; time.addTime(0,30)){
       this.setStationAtTime(station, time)
     }
   }
-
   setPicStatusAtTime(status:boolean, time:Date){
     let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime())/1000/60/60*2)
     if (halfHoursSinceDayStartTime >= 0 ) this.picTimeline[halfHoursSinceDayStartTime] = status

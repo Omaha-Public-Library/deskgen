@@ -786,7 +786,6 @@ class DeskSchedule {
                 shift.stationTimeline.push(this.defaultStations.undefined);
                 shift.noteTimeline.push("");
                 shift.picTimeline.push(false);
-                shift.stationTimelineRatings.push("");
             }
         });
         this.logDeskData("initialized empty");
@@ -2062,15 +2061,7 @@ class DeskSchedule {
             return;
         let s = this.shifts.map((shift, shiftI) => shift.floor.index + '-' + shift.name.replace('📣', 'Announce').substring(0, 8).padEnd(9, '.').replaceAll(' ', '.') + ' ' + shift.stationTimeline.map((station, stationI) => {
             let time = new Date(this.dayStartTime.getTime() + stationI * 1000 * 60 * 30);
-            // let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.dayStartTime.getTime())/1000/60/60*2)
-            // let rating = shift.getRatingsAtTime(time)
             let rating = station.ratings.join('\n');
-            // if(ratingMatrixLog){
-            //   console.log(JSON.stringify(ratingMatrixLog))
-            //   console.log(shiftI, stationI)
-            //   console.log(JSON.stringify(ratingMatrixLog[shiftI]))
-            //   console.log(JSON.stringify(ratingMatrixLog[shiftI][stationI]))
-            // }
             return `<span class="outline" title="${time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}&#10${station.name}\n${station.floor}\n${rating}"; style="color:${station.color}">◼</span>`;
         }).join(''));
         for (let i = s.length - 1; i > 0; i--) {
@@ -2224,7 +2215,7 @@ class ShiftEvent {
     }
 }
 class Shift {
-    constructor(deskSchedule, user_id, name, email = undefined, startTime = undefined, endTime = undefined, events = [], idealMealTime = undefined, assignedPic = false, position = undefined, positionGroup = undefined, tags = [], stationTimeline = [], noteTimeline = [], picTimeline = [], stationTimelineRatings = []) {
+    constructor(deskSchedule, user_id, name, email = undefined, startTime = undefined, endTime = undefined, events = [], idealMealTime = undefined, assignedPic = false, position = undefined, positionGroup = undefined, tags = [], stationTimeline = [], noteTimeline = [], picTimeline = []) {
         this.deskSchedule = deskSchedule;
         this.user_id = user_id;
         this.name = name;
@@ -2241,7 +2232,6 @@ class Shift {
         this.noteTimeline = noteTimeline;
         this.picTimeline = picTimeline;
         this.floor = deskSchedule.floors[0];
-        this.stationTimelineRatings = stationTimelineRatings;
     }
     get isPIC() {
         return this.tags.includes('PIC');
@@ -2254,12 +2244,6 @@ class Shift {
         if (halfHoursSinceDayStartTime < 0)
             return this.deskSchedule.defaultStations.off;
         return this.stationTimeline[halfHoursSinceDayStartTime];
-    }
-    getRatingsAtTime(time) {
-        let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
-        if (halfHoursSinceDayStartTime < 0)
-            return undefined;
-        return this.stationTimelineRatings[halfHoursSinceDayStartTime];
     }
     getPicStatusAtTime(time) {
         let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
@@ -2278,13 +2262,6 @@ class Shift {
         let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
         if (halfHoursSinceDayStartTime >= 0)
             this.noteTimeline[halfHoursSinceDayStartTime] = note;
-        else
-            console.error("cannont setStationAtTime", time, "is before dayStartTime", this.deskSchedule.dayStartTime);
-    }
-    setRatingsAtTime(ratings, time) {
-        let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime()) / 1000 / 60 / 60 * 2);
-        if (halfHoursSinceDayStartTime >= 0)
-            this.stationTimelineRatings[halfHoursSinceDayStartTime] = ratings;
         else
             console.error("cannont setStationAtTime", time, "is before dayStartTime", this.deskSchedule.dayStartTime);
     }
