@@ -6,7 +6,7 @@ function onOpen(){
   .addItem('→ New schedule for following date', 'buildDeskScheduleTomorrow')
   .addItem('＋ New schedule for other date...', 'buildDeskScheduleInputDate')
   .addItem('⛭ Settings', 'popupSettings')
-  .addItem(' ⧖ Open archive', 'openArchive')
+  .addItem('⧖ Open archive', 'openArchive')
   .addToUi()
   // if(Session.getActiveUser().getEmail() === "candroski@omahalibrary.org")
   //   SpreadsheetApp.getUi().createMenu('Generator Admin')
@@ -776,10 +776,10 @@ class DeskSchedule{
     displayCells.update(this.deskSheet)
     performanceLog("display events - add rows, update DCs")
 
-    happeningTodayRichTextArray.forEach((rt,i)=>{
-      this.deskSheet.getRange(htDisplayCell.getRow()+i, htDisplayCell.getColumn(), 1, this.deskSheet.getDataRange().getNumColumns()-(htDisplayCell.getColumn()-1))
-      .merge()
-    })
+    // happeningTodayRichTextArray.forEach((rt,i)=>{
+    //   this.deskSheet.getRange(htDisplayCell.getRow()+i, htDisplayCell.getColumn(), 1, this.deskSheet.getDataRange().getNumColumns()-(htDisplayCell.getColumn()-1))
+    //   .merge()
+    // })
     performanceLog("display events - merge RTVs")
 
     this.deskSheet.getRange(htDisplayCell.getRow(), htDisplayCell.getColumn(), happeningTodayRichTextArray.length)
@@ -1239,14 +1239,12 @@ class DeskSchedule{
     if(!this.settings.assignStations || this.shifts.length < 1) return
     log("running timelineAddStations")
     
-    let startTime = this.dayStartTime
-    let endTime = this.dayEndTime
-    for(let time = new Date(startTime); time < endTime; time.addTime(0, 30)){      
-      let prevTime = new Date(time).addTime(0,-30).clamp(startTime, new Date(endTime).addTime(0,-30))
-      let nextTime = new Date(time).addTime(0,30).clamp(startTime, new Date(endTime).addTime(0,-30))
+    for(let time = new Date(this.dayStartTime); time < this.dayEndTime; time.addTime(0, 30)){      
+      let prevTime = new Date(time).addTime(0,-30)//.clamp(this.dayStartTime, new Date(this.dayEndTime).addTime(0,-30))
+      let nextTime = new Date(time).addTime(0,30)//.clamp(this.dayStartTime, new Date(this.dayEndTime).addTime(0,-30))
       // console.log("prevTime, time, nextTime", prevTime, time, nextTime)
 
-      //TODO: rotate staff sort by day!!!
+      this.sortShiftsByFairRotation(this.shifts)
 
       //if reached start of mealtime block, add meals for that block
       if (assignMeals) this.timelineAddMeals(time)
@@ -1297,14 +1295,12 @@ class DeskSchedule{
               logEntries:[]
             }))
           }))
-        floorStations.forEach(fs=>fs.ratings=[])
 
         const adjustRating = (shiftIndex:number, stationIndex:number, description:string, value:number) => {
           ratingMatrix[shiftIndex][stationIndex]-=value
           if(this.settings.verboseLog)
             ratingMatrixLog[shiftIndex].stations[stationIndex].finalRating = -ratingMatrix[shiftIndex][stationIndex]
             ratingMatrixLog[shiftIndex].stations[stationIndex].logEntries.push(`${description}: ${value}`)
-            floorStations[stationIndex].ratings.push(`${floorShifts[shiftIndex].name} -- ${description}: ${value}`)
         }
 
         for (const [shiftIndex, shift] of floorShifts.entries()){
@@ -1313,7 +1309,6 @@ class DeskSchedule{
             continue
           }
   
-          let currentStation = shift.getStationAtTime(time)
           let prevStation = shift.getStationAtTime(prevTime)
           let timeOnCurrentStation = shift.countHowLongAtStation(prevStation.name, prevTime)
           let nextStation = shift.getStationAtTime(nextTime)
@@ -1323,6 +1318,7 @@ class DeskSchedule{
               adjustRating(shiftIndex, stationIndex, "not eligible", -1000000)
               continue
             }
+
             adjustRating(shiftIndex, stationIndex, "priority adjustment", (floorStations.length-stationIndex)*1000)
 
             if(prevStation.name == station.name && timeOnCurrentStation < prevStation.duration)
@@ -1334,40 +1330,53 @@ class DeskSchedule{
             if(prevStation.name != station.name && timeOnCurrentStation >= prevStation.duration && prevStation.duration>0)
               adjustRating(shiftIndex, stationIndex, "not on this station and at/over duration " +timeOnCurrentStation+' &#60; '+prevStation.duration, 1)
 
-            if(timeOnCurrentStation >= prevStation.duration)
+            if(prevStation.name == station.name && timeOnCurrentStation >= prevStation.duration)
               adjustRating(shiftIndex, stationIndex, "on this station and at/over duration " +timeOnCurrentStation+'&#62;='+prevStation.duration, -1)
 
-            if(timeOnCurrentStation - prevStation.duration >= 1)
-              adjustRating(shiftIndex, stationIndex, "on this station and 1hr+ over duration " +timeOnCurrentStation+'&#62;='+prevStation.duration, -3)
+            if(prevStation.name == station.name && timeOnCurrentStation - prevStation.duration >= 1)
+              adjustRating(shiftIndex, stationIndex, "on this station and 1hr+ over duration " +timeOnCurrentStation+'&#62;='+prevStation.duration, -2)
 
-            if(this.settings.changeOnTheHour && time.getMinutes()!=0){
-              if(prevStation.name == station.name)
-                adjustRating(shiftIndex, stationIndex, "changeOnTheHour setting is on, avoid changing station in middle of hour", -1)
-            }
+            if(this.settings.changeOnTheHour && time.getMinutes()!=0 && prevStation.name == station.name)
+                adjustRating(shiftIndex, stationIndex, "changeOnTheHour setting is on, try to stay on current station at :30", 1)
 
-            if(currentStation.name==this.defaultStations.undefined.name && nextStation.name==this.defaultStations.undefined.name) //first check redundant
+            if(prevStation.name == station.name &&
+              (nextTime.getTime() == this.settings.closeTime(this.date).getTime() || !this.stationIsWithinTimeLimits(station, nextTime)))
+                adjustRating(shiftIndex, stationIndex, "try to stay on current station for last half hour of day/station assignment", 1)
+
+            if(nextStation.name==this.defaultStations.undefined.name)
               adjustRating(shiftIndex, stationIndex, "avaible for this and following half hour", 1)
 
-            let offDeskRatio = this.positionHierarchy.find(pos=>pos.id==shift.position).offDeskRatio
-            let shiftLength = (shift.endTime.getTime() - shift.startTime.getTime())/3600000
-            let targetOffDeskTimeTotal = shiftLength * offDeskRatio
-            let shiftCompletionRatio = (time.getTime() - shift.startTime.getTime())/shiftLength/3600000
-            let targetOffDeskTimeAtTimeInShift = targetOffDeskTimeTotal * shiftCompletionRatio
-            let totalTimeOffDesk = shift.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)
+            let timeOnProposedStation = prevStation.name == station.name ? timeOnCurrentStation : 0
+            let upcomingAvailability = shift.countAvailabilityLength(time, shift.endTime)
+            if(timeOnProposedStation + upcomingAvailability >= station.duration)
+              adjustRating(shiftIndex, stationIndex, `avaible for full/remaining length of station (${timeOnProposedStation}+${upcomingAvailability})`, 1)
+
+            let position = this.positionHierarchy.find(pos=>pos.id==shift.position)
             let totalTimeOnPossibleStation = shift.countTotalTimeAtStation(station.name, time)
+            
             if (station.name == this.defaultStations.available.name){
-              //ratio of position's off desk quota which they've been assigned, 0 to 1
-              // let ratio = (shift.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)/offDeskRatio) / (shiftLength) / shiftCompletionRatio
-              let offDeskTimeRelativeToTarget = targetOffDeskTimeAtTimeInShift - totalTimeOffDesk
-              let finalRatio = offDeskTimeRelativeToTarget / targetOffDeskTimeTotal
-              adjustRating(shiftIndex, stationIndex, `off desk time relative to target (${roundToTenth(targetOffDeskTimeAtTimeInShift)} - ${roundToTenth(totalTimeOffDesk)}) / ${roundToTenth(targetOffDeskTimeTotal)}`, roundToTenth(finalRatio * 2))
+              if (position.offDeskRatio <= 0)
+                adjustRating(shiftIndex, stationIndex, "position not assigned off desk time", -1000000)
+              else{
+                //overcomplicating this? could it just be odtHoursNeeded / undefinedHoursLeft?
+                let offDeskRatio = position.offDeskRatio
+                let shiftLength = (shift.endTime.getTime() - shift.startTime.getTime())/3600000
+                let targetOffDeskTimeTotal = shiftLength * offDeskRatio
+                let totalTimeOffDesk = shift.countTotalTimeAtStation(this.defaultStations.available.name, nextTime, this.settings.openTime(time))
+
+
+                let odtHoursStillNeeded = targetOffDeskTimeTotal - totalTimeOffDesk
+                let undefinedHoursLeft = shift.countTotalTimeAtStation(this.defaultStations.undefined.name, shift.endTime, time)
+                let ratio = odtHoursStillNeeded / undefinedHoursLeft
+                adjustRating(shiftIndex, stationIndex, `off desk time relative to target (${roundToTenth(odtHoursStillNeeded)} / ${roundToTenth(undefinedHoursLeft)}}`, roundToTenth(ratio / 0.5)) //think of the divisor as scaling all other ratings: when 0.5, all other ratings are half as important as this off desk time ratio
+              }
             }
             else{
               if (totalTimeOnPossibleStation <= 0)
                 adjustRating(shiftIndex, stationIndex, "hasn't been on this station yet", 1)
             }
 
-            //use positionpriority
+            //use positionpriority... or rethink it entirely? do we really need a granular descending list, or would just checking preferred/eligible/not eligible be better? nooo my fancy sorted list
 
             //Central Specific
             if (this.settings.locationID == 5786790 && station.name.includes("Do Space") && shift.tags.includes("Do Space"))
@@ -1378,7 +1387,7 @@ class DeskSchedule{
         }
 
         //duplicate floorStations to have enough count
-        for (let i=floorStations.length-1; i>0; i--){
+        for (let i=floorStations.length-1; i>=0; i--){
           while (floorStations.filter(station=>station.name==floorStations[i].name).length < Math.min(floorShifts.length, floorStations[i].numOfStaff)){
             floorStations.splice(i, 0, floorStations[i])
             ratingMatrix.forEach(shift=>shift.splice(i, 0, JSON.parse(JSON.stringify(shift[i]))))
@@ -1386,19 +1395,8 @@ class DeskSchedule{
           }
         }
 
-        // if(floorStations.length>1)
-        // if(time.getTimeStringHHMM24() == "18:00")
-        //   this.ui.alert(floorStations.map(fs=>fs.name).join('\n'))
 
         let munkresPicks = computeMunkres(ratingMatrix, {padValue:10000000000})
-
-        // if(floorStations.length>1)
-        // if(time.getTimeStringHHMM24() == "18:00")
-        //   //log final ratings
-        //   // this.ui.alert(`${time.getTimeStringHHMM12()} ${floor.name}`+'\n'+ratingMatrix.map((shiftRow,i)=>floorShifts[i].name.substring(0,9).padEnd(10,'.') +'\n'+ shiftRow.map((n,i)=>`----${floorStations[i].name.padEnd(30,'.')} ${-1*n}`).join('\n')).join('\n'))
-        //   //log ratings with all adjustments
-          // this.ui.alert(`\n\n\n${time.getTimeStringHHMM12()} ${floor.name}`+'\n'+ratingMatrix.map((shiftRow,i)=>floorShifts[i].name.substring(0,9).padEnd(10,'.') +'\n'+ shiftRow.map((n,j)=>` - ${floorStations[j].name.padEnd(30,'.')} ${-1*n}${ratingMatrixLog[i][j].map(e=>'\n'+' .... '+e)}`).join('\n')).join('\n'))
-        //   +`\n\n${munkresPicks.map((xy)=>`${floorShifts[xy[0]].name} - ${floorStations[xy[1]].name} : ${-ratingMatrix[xy[0]][xy[1]]}`).join('\n')}`)
 
         munkresPicks.forEach(xy=>{
           let shiftIndex = xy[0]
@@ -1726,9 +1724,7 @@ class DeskSchedule{
         }
 
         let tableHTML = makeTableHTML(transpose(table),"mrtable")
-        this.logDeskData('stations on ' +floor.name+ ' pass at ' + time.getTimeStringHHMM24(), `<br>${time.getTimeStringHHMM12()} ${floor.name} station ratings:`+'<br><br>'+tableHTML
-        // +'<br><br>'+JSON.stringify(ratingMatrixLog)
-        )
+        this.logDeskData('stations on ' +floor.name+ ' pass at ' + time.getTimeStringHHMM24(), `<br>${time.getTimeStringHHMM12()} ${floor.name} station ratings:`+'<br><br>'+tableHTML)
       }
     }
     // this.ui.alert(this.shiftsSplitAcrossFloors.map(shift=>shift.name).join('\n'))
@@ -1794,7 +1790,6 @@ class DeskSchedule{
     let endTimeFromClose = new Date(this.settings.closeTime(this.date))
     startTimeFromClose.addTime(0, -Math.abs(station.limitXHours*60))
     endTimeFromClose.addTime(0, -Math.abs(station.limitYHours*60))
-
     if (
       (station.limitType == LimitType.XtoYhoursbeforeclose || station.limitType == undefined)
       && (time >= startTimeFromClose || !station.limitXHours)
@@ -1936,8 +1931,8 @@ class DeskSchedule{
 
     for(let time = new Date(this.dayStartTime); time < this.dayEndTime; time.addTime(0, 30)){ 
 
-      let prevTime = new Date(time).addTime(0,-30).clamp(this.dayStartTime, new Date(this.dayEndTime).addTime(0,-30))
-      let nextTime = new Date(time).addTime(0,30).clamp(this.dayStartTime, new Date(this.dayEndTime).addTime(0,-30))
+      let prevTime = new Date(time).addTime(0,-30)//.clamp(this.dayStartTime, new Date(this.dayEndTime).addTime(0,-30))
+      let nextTime = new Date(time).addTime(0,30)//.clamp(this.dayStartTime, new Date(this.dayEndTime).addTime(0,-30))
 
       if(!this.settings.changeOnTheHour || time.getMinutes()==0){
 
@@ -2265,11 +2260,7 @@ class DeskSchedule{
     if (!this.settings.verboseLog) return
     let s = this.shifts.map((shift, shiftI) =>shift.floor.index+'-'+shift.name.replace('📣', 'Announce').substring(0, 8).padEnd(9,'.').replaceAll(' ','.') + ' ' + shift.stationTimeline.map((station, stationI)=>{
       let time = new Date(this.dayStartTime.getTime()+stationI*1000*60*30)
-      let rating = station.ratings.join('\n')
-
-      return `<span class="outline" title="${
-      time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    }&#10${station.name}\n${station.floor}\n${rating}"; style="color:${station.color}">◼</span>`
+      return `<span class="outline" title="${time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}&#10${station.name}\n${station.floor}"; style="color:${station.color}">◼</span>`
     }).join(''))
     for (let i = s.length-1; i>0; i--){
       if (s[i][0] != s[Math.min(s.length-1, i+1)][0]) s[i]+="<br><br>"
@@ -2417,7 +2408,6 @@ class Station{
   limitToStartTime: Date
   limitToEndTime: Date
   numOfStaff: number
-  ratings:string[]
   
   constructor(
     color: ColorHex = "#ffffff",
@@ -2432,7 +2422,6 @@ class Station{
     limitYHours: number = undefined,
     limitToStartTime: Date = undefined,
     limitToEndTime: Date = undefined,
-    ratings:string[] = []
   ){
     this.color = color
     this.name = name
@@ -2446,7 +2435,6 @@ class Station{
     this.limitToStartTime = limitToStartTime
     this.limitToEndTime = limitToEndTime
     this.numOfStaff = numOfStaff
-    this.ratings = ratings
   }
 }
 
@@ -2540,23 +2528,25 @@ class Shift{
   
   getStationAtTime(time:Date):Station{
     let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime())/1000/60/60*2)
-    if (halfHoursSinceDayStartTime < 0 ) return this.deskSchedule.defaultStations.off
+    if (halfHoursSinceDayStartTime < 0 || halfHoursSinceDayStartTime >= this.stationTimeline.length) return this.deskSchedule.defaultStations.off
     return this.stationTimeline[halfHoursSinceDayStartTime]
   }
   getPicStatusAtTime(time:Date):boolean{
     let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime())/1000/60/60*2)
-    if (halfHoursSinceDayStartTime < 0 ) return undefined
+    if (halfHoursSinceDayStartTime < 0  || halfHoursSinceDayStartTime >= this.stationTimeline.length) return undefined
     return this.picTimeline[halfHoursSinceDayStartTime]
   }
   setStationAtTime(station:Station, time:Date){
     let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime())/1000/60/60*2)
-    if (halfHoursSinceDayStartTime >= 0 ) this.stationTimeline[halfHoursSinceDayStartTime] = station
-    else console.error("cannont setStationAtTime", time, "is before dayStartTime", this.deskSchedule.dayStartTime)
+    if (halfHoursSinceDayStartTime < 0  || halfHoursSinceDayStartTime >= this.stationTimeline.length)
+      console.error("cannont setStationAtTime", time, "is before dayStartTime", this.deskSchedule.dayStartTime, "or after dayEndTime", this.deskSchedule.dayStartTime)
+    else this.stationTimeline[halfHoursSinceDayStartTime] = station
   }
   setNoteAtTime(note:string, time:Date){
     let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime())/1000/60/60*2)
-    if (halfHoursSinceDayStartTime >= 0 ) this.noteTimeline[halfHoursSinceDayStartTime] = note
-    else console.error("cannont setStationAtTime", time, "is before dayStartTime", this.deskSchedule.dayStartTime)
+    if (halfHoursSinceDayStartTime < 0  || halfHoursSinceDayStartTime >= this.stationTimeline.length)
+      console.error("cannont setStationAtTime", time, "is before dayStartTime", this.deskSchedule.dayStartTime, "or after dayEndTime", this.deskSchedule.dayStartTime)
+    else this.noteTimeline[halfHoursSinceDayStartTime] = note
   }
   setStationDuringTimeRange(station:Station, startTime:Date, endTime:Date){
     for(let time = new Date(startTime); time < endTime; time.addTime(0,30)){
@@ -2565,8 +2555,9 @@ class Shift{
   }
   setPicStatusAtTime(status:boolean, time:Date){
     let halfHoursSinceDayStartTime = Math.round((time.getTime() - this.deskSchedule.dayStartTime.getTime())/1000/60/60*2)
-    if (halfHoursSinceDayStartTime >= 0 ) this.picTimeline[halfHoursSinceDayStartTime] = status
-    else console.error("cannont setStationAtTime", time, "is before dayStartTime", this.deskSchedule.dayStartTime)
+    if (halfHoursSinceDayStartTime < 0  || halfHoursSinceDayStartTime >= this.stationTimeline.length)
+      console.error("cannont setStationAtTime", time, "is before dayStartTime", this.deskSchedule.dayStartTime, "or after dayEndTime", this.deskSchedule.dayStartTime)
+    else this.picTimeline[halfHoursSinceDayStartTime] = status
   }
   
   countHowLongAtStation(stationName: string, time:Date):number{

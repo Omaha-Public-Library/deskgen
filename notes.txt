@@ -16,6 +16,7 @@
 
 ================ BUGS/TO TEST ========
     check how gcal linking to recurring events works https://mail.google.com/mail/u/0/#inbox/FMfcgzQfBkSGVPNhcqfDJTZzxDnbMKDt
+    split shifts incorrectly count upcoming undefined slots across splits, leading them to be really highly prioritized right before split. Need to get count for all shifts with same name, add?
 
 ================ FEATURE WISHLIST ================
     duties - assign two people, limit to days of week
@@ -30,6 +31,14 @@
     Half hour grace before rebalancing staff based on minimums - if not >1 below minimum and not zero
     Add formula to archive sheet to show links to all dates, organized
     in training assignment prompt - when generating, choose another staff or a floor to have training staff shadow
+    better predict available time to better distribute off desk time (like when staff aren't available last half of shift)
+        this could mean using prevUndefinedTotal/UpcomingUndefinedTotal instead of hoursPassed/hoursUpcoming to decide how much off desk to assign
+        or, could do a prepass step that figures out # of staff that can be available each half hour... then how would that be used?
+            another munkres to pre-assign off desk time? would require prediction to be perfect, basicly double station assignment expense
+            use to create better ratio target - less naive, instead of counting undefined where off desk assignment may be possible, uses times it's very likely
+    fallback or warning when staff isn't available for any of the meal range
+    prioritize GEN staff when moving staff for coverage, don't move staff when it brings floor count to zero (CEN 8.12)
+        or, should the swap staffing count range always expand to cover the length of the shift of the staff being considered for swap?
 
 ================ OPTIMIZATION ================
     at start of station assignment step, check for available count and skip if there's no space left to assign
