@@ -1367,7 +1367,7 @@ class DeskSchedule{
 
                 let odtHoursStillNeeded = targetOffDeskTimeTotal - totalTimeOffDesk
                 let undefinedHoursLeft = shift.countTotalTimeAtStation(this.defaultStations.undefined.name, shift.endTime, time)
-                let ratio = odtHoursStillNeeded / undefinedHoursLeft
+                let ratio = undefinedHoursLeft == 0 ? 100000 : odtHoursStillNeeded / undefinedHoursLeft //if there are no 
                 adjustRating(shiftIndex, stationIndex, `off desk time relative to target (${roundToTenth(odtHoursStillNeeded)} / ${roundToTenth(undefinedHoursLeft)}}`, roundToTenth(ratio / 0.5)) //think of the divisor as scaling all other ratings: when 0.5, all other ratings are half as important as this off desk time ratio
               }
             }
@@ -1395,7 +1395,6 @@ class DeskSchedule{
           }
         }
 
-
         let munkresPicks = computeMunkres(ratingMatrix, {padValue:10000000000})
 
         munkresPicks.forEach(xy=>{
@@ -1408,323 +1407,41 @@ class DeskSchedule{
             }
           }
         })
-  
-/*
-        //prepass
-        if (this.settings.defragPrePass){
-          floorStations.forEach((station, stationIndex)=>{
-            //skip default stations EXCEPT available, the rest are handled in timelineAddAvailabilityAndEvents and timelineAddMeals
-            if(Object.values(this.defaultStations).map(s=>s.name).includes(station.name) && station.name != this.defaultStations.available.name) return
-    
-            //assign
-            floorShifts.forEach(shift=> {
-              if (station.positionPriority.length<1 || station.positionPriority.some(pos=>
-                pos.enabled && pos.title == this.getPositionById(shift.position)?.name
-              )){ //if staff is assigned to this station in positionpriority
-                // let currentStation = shift.getStationAtTime(time) //unused
-                let nextStation = shift.getStationAtTime(nextTime)
-                let prevStation = shift.getStationAtTime(prevTime)
-                let undefinedCount = this.getStationCountAtTime(floorShifts, this.defaultStations.undefined, time, floor.name)
-                let staffNeededToCoverMainStations = floorStations.slice(0,stationIndex).filter(station=>station.name!=this.defaultStations.available.name).map(station=>station.numOfStaff).reduce((acc, cur)=>acc+cur, 0)
-                // this.ui.alert('undefined at '+time.toLocaleTimeString()+' '+undefinedCount)
-                if(
-                  this.assignmentEligibilityCheck(shift, station, time)
-                  //extra qualifications for prepass:
-                  && !(this.settings.strictPrioritizeManagerOffDeskTime && [11534158, 11534159].includes(shift.position))
-                  && prevStation.name == station.name //if already on the station being considered for assignment
-                  && station.name != this.defaultStations.available.name //don't extend available so that it rotates more and half hour before open isn't extended
-                  && (nextStation.name != this.defaultStations.undefined.name //if unavailable in half an hour
-                    || time.getTime() == new Date(this.dayEndTime).addTime(0,-30).getTime() //if it's the last half hour of the day
-                    || shift.countHowLongAtStation(station.name, prevTime) == 0.5) //if staff has only been on station for half an hour
-                  && undefinedCount > staffNeededToCoverMainStations //if there's enough availability to assign this and all higher priority stations
-                ){
-                  shift.setStationAtTime(station, time)
-                  // currentStation = shift.getStationAtTime(time)
-                  // let timeOnCurrStation = shift.countHowLongAtStation(currentStation.name, time)
-                  // console.log(`After assigning to ${currentStation} at ${time.getTimeStringHHMM24()}, ${shift.name} has been ${currentStation} for ${timeOnCurrStation}hours.`)
-                }
-              }
-            })
-          })
-          this.logDeskData('stations on ' +floor.name+ ' defrag pre pass at ' + time.getTimeStringHHMM24())
-        }
-  
-        //main pass
-        floorStations.forEach((station,stationIndex)=>{
-          //skip default stations EXCEPT available, the rest are handled in timelineAddAvailabilityAndEvents and timelineAddMeals
-          if(Object.values(this.defaultStations).map(s=>s.name).includes(station.name) && station.name != this.defaultStations.available.name) return
-          
-          // log(`${time.getTimeStringHHMM12()}, ${station.name}: sort shifts into priority order for assignment, if none given in settings defulats to sortShiftsByPositionHiearchyDesc:\n${shifts.map(s=>s.name).join('\n')}`)
-          if (this.settings.locationID == 5786790)
-            this.sortShiftsByFairRotation(floorShifts)
-          else
-            this.sortShiftsByUserPositionPriority(floorShifts, station.positionPriority)
-  
-          // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`sort by stationpriority:\n${time.getTimeStringHHMM12()}, ${station.name}: ${shifts.map(s=>s.name+", "+station.positionPriority.map(p=>this.getPositionByName(p.title).id).indexOf(s.position)).join('\n')}`)
-          
-          //if on this station, move to front
-          floorShifts.sort((shiftA, shiftB)=>{
-            let aVal = shiftA.getStationAtTime(prevTime).name == station.name ? 0:1
-            let bVal = shiftB.getStationAtTime(prevTime).name == station.name ? 0:1
-            // console.log(`${time.getTimeStringHHMM12()} - ${station.name}\n${shiftA.name.substring(0,9)} is on ${shiftA.getStationAtTime(prevTime)}, ${aVal}\n${shiftB.name.substring(0,9)} is on ${shiftB.getStationAtTime(prevTime)}, ${bVal}\n${aVal-bVal}`)
-            return aVal-bVal
-          })
-  
-          // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if on station move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${floorShifts.map(s=>s.name).join('\n')}`)
-          
-          //if not on this station and over max, move to front
-          floorShifts.sort((shiftA, shiftB)=>{
-            let aStationPrev = shiftA.getStationAtTime(prevTime)
-            let bStationPrev = shiftB.getStationAtTime(prevTime)
-            
-            let aVal = aStationPrev.name !== station.name
-            && shiftA.countHowLongAtStation(aStationPrev.name, prevTime) >= aStationPrev.duration
-            ? 0:1
-            let bVal = bStationPrev.name !== station.name
-            && shiftB.countHowLongAtStation(bStationPrev.name, prevTime) >= bStationPrev.duration
-            ? 0:1
-            return aVal-bVal
-          })
-          // if (time.getTimeStringHHMM24()=="14:00" && station.name=="1st childrens'") console.log(`if not on station and over max move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${floorShifts.map(s=>s.name).join('\n')}`)
 
-          //sort by percentage of shift which has been spent at this station weighted by off desk time goals, asc 
-          if (station.name == this.defaultStations.available.name) floorShifts.sort((shiftA, shiftB)=>{
-            let offDeskRatioA = this.positionHierarchy.find(pos=>pos.id==shiftA.position).offDeskRatio
-            let shiftLengthA = (shiftA.endTime.getTime() - shiftA.startTime.getTime())/3600000
-            let shiftCompletionA = (time.getTime() - shiftA.startTime.getTime())/shiftLengthA/3600000
-            let offDeskRatioB = this.positionHierarchy.find(pos=>pos.id==shiftB.position).offDeskRatio
-            let shiftLengthB = (shiftB.endTime.getTime() - shiftB.startTime.getTime())/3600000
-            let shiftCompletionB = (time.getTime() - shiftB.startTime.getTime())/shiftLengthB/3600000
-            //ratio of position's off desk quota which they've been given, 0 to 1
-            let aVal = (shiftA.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)/offDeskRatioA) / (shiftLengthA) / shiftCompletionA
-            let bVal = (shiftB.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)/offDeskRatioB) / (shiftLengthB) / shiftCompletionB
-            // if (time.getTimeStringHHMM24()=="14:00" && station.name=="Available") console.log(`${station.name}:${floor.name}${time.toLocaleTimeString()}
-              // ${shiftA.name}--offDeskRatioA:${offDeskRatioA}, totalTime:${shiftA.countTotalTimeAtStation(station.name, nextTime)}, shiftLengthA:${shiftLengthA}, aVal:${aVal}
-              // ${shiftB.name}--offDeskRatioB:${offDeskRatioB}, totalTime:${shiftB.countTotalTimeAtStation(station.name, nextTime)}, shiftLengthB:${shiftLengthB}, bVal:${bVal}
-              // ${aVal-bVal}, manager priority: ${(aVal - ([11534158, 11534159].includes(shiftA.position) ? 0.2 : 0)) - (bVal - ([11534158, 11534159].includes(shiftB.position) ? 0.2 : 0))}
-              // `)
-            //tiebreaker slightly prioritizes managers
-            aVal -= ([11534158, 11534159].includes(shiftA.position) ? 0.2 : 0)
-            bVal -= ([11534158, 11534159].includes(shiftB.position) ? 0.2 : 0)
-            return aVal - bVal
-          })
-          //sort by percentage of shift which has been spent at this station, asc
-          else floorShifts.sort((shiftA, shiftB)=>{
-            let shiftLengthA = (shiftA.endTime.getTime() - shiftA.startTime.getTime())/3600000
-            let shiftCompletionA = (time.getTime() - shiftA.startTime.getTime())/shiftLengthA/3600000
-            let shiftLengthB = (shiftB.endTime.getTime() - shiftB.startTime.getTime())/3600000
-            let shiftCompletionB = (time.getTime() - shiftB.startTime.getTime())/shiftLengthB/3600000
-            let aVal = (shiftA.countTotalTimeAtStation(station.name, nextTime)) / (shiftLengthA) / shiftCompletionA
-            let bVal = (shiftB.countTotalTimeAtStation(station.name, nextTime)) / (shiftLengthB) / shiftCompletionB
-            return aVal - bVal
-          })
-          // if (time.getTimeStringHHMM24()=="14:00" && station.name=="1st childrens'") console.log(`sort by perc of shift on station weighted by off desk time goals if assigning available, else sort by percentage of shift which has been sent at this station, asc:\n${time.getTimeStringHHMM12()}, ${station.name}:\n${floorShifts.map(s=>s.name).join('\n')}`)
-          
-          //if available for this time and following half hour, move to top
-          floorShifts.sort((shiftA, shiftB)=>{
-            let aStation = shiftA.getStationAtTime(time)
-            let aStationNext = shiftA.getStationAtTime(nextTime)
-            let bStation = shiftB.getStationAtTime(time)
-            let bStationNext = shiftB.getStationAtTime(nextTime)
-            
-            let aVal = aStation.name==this.defaultStations.undefined.name && aStationNext.name==this.defaultStations.undefined.name
-            ? 0:1
-            let bVal = bStation.name==this.defaultStations.undefined.name && bStationNext.name==this.defaultStations.undefined.name
-            ? 0:1
-            return aVal-bVal
-          })
-  
-          // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if available for this time and following half hour, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${floorShifts.map(s=>`${s.name}, now:${s.getStationAtTime(time).name}, next:${s.getStationAtTime(nextTime).name}, ${s.getStationAtTime(time).name==this.defaultStations.undefined}, ${s.getStationAtTime(nextTime).name==this.defaultStations.undefined}`).join('\n')}`)
-          
-          //if on this station and over max, move to end
-          floorShifts.sort((shiftA, shiftB)=>{
-            let aStationPrev = shiftA.getStationAtTime(prevTime)
-            let bStationPrev = shiftB.getStationAtTime(prevTime)
-            
-            let aVal = aStationPrev.name == station.name
-            && shiftA.countHowLongAtStation(aStationPrev.name, prevTime) >= aStationPrev.duration
-            ? 1:0
-            let bVal = bStationPrev.name == station.name
-            && shiftB.countHowLongAtStation(bStationPrev.name, prevTime) >= bStationPrev.duration
-            ? 1:0
-            // console.log(time.getTimeStringHHMM12(),
-            //   shiftA.name,
-            //   'ASSIGING:',
-            //   station.name,
-            //   'PREV:',
-            //   aStationPrev.name,
-            //   aStationPrev.name == station.name,
-            //   'TIMEON:',
-            //   shiftA.countHowLongAtStation(aStationPrev.name, prevTime),
-            //   'OVERMAX:',
-            //   shiftA.countHowLongAtStation(aStationPrev.name, prevTime) >= aStationPrev.duration-0.5,
-            //   aVal
-            // )
-            // console.log(time.getTimeStringHHMM12(),
-            //   shiftB.name,
-            //   'ASSIGING:',
-            //   station.name,
-            //   'PREV:',
-            //   bStationPrev.name,
-            //   bStationPrev.name == station.name,
-            //   'TIMEON:',
-            //   shiftB.countHowLongAtStation(bStationPrev.name, prevTime),
-            //   'OVERMAX:',
-            //   shiftB.countHowLongAtStation(bStationPrev.name, prevTime) >= bStationPrev.duration-0.5,
-            //   bVal
-            // )
-            return aVal-bVal
-          })
-  
-          // if (station.name=="HOP") console.log(`if on this station and over max, move to end:\n${time.getTimeStringHHMM12()}, ${station.name}: ${floorShifts.map(s=>s.name).join('\n')}`)
-          
-          //if on this station and not over max, move to front
-          floorShifts.sort((shiftA, shiftB)=>{
-            let aStationPrev = shiftA.getStationAtTime(prevTime)
-            let bStationPrev = shiftB.getStationAtTime(prevTime)
-            
-            let aVal = (shiftA.getStationAtTime(prevTime).name == station.name
-            && !(shiftA.countHowLongAtStation(aStationPrev.name, prevTime) >= aStationPrev.duration))
-            ? 0:1
-            let bVal = (shiftB.getStationAtTime(prevTime).name == station.name
-            && !(shiftB.countHowLongAtStation(bStationPrev.name, prevTime) >= bStationPrev.duration))
-            ? 0:1
-            return aVal-bVal
-          })
-  
-          // if (station.name=="HOP") console.log(`if on this station and not over max, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${floorShifts.map(s=>s.name).join('\n')}`)
-          
-          //if changeOnTheHour AND on this station AND not more than half an hour over, move to front
-          if(this.settings.changeOnTheHour && time.getMinutes()!=0){
-            floorShifts.sort((shiftA, shiftB)=>{
-              let aStationPrev = shiftA.getStationAtTime(prevTime)
-              let bStationPrev = shiftB.getStationAtTime(prevTime)
-              
-              let aVal = shiftA.getStationAtTime(prevTime).name == station.name && !(shiftA.countHowLongAtStation(aStationPrev.name, prevTime) >= aStationPrev.duration + 0.5) ? 0:1
-              let bVal = shiftB.getStationAtTime(prevTime).name == station.name && !(shiftB.countHowLongAtStation(bStationPrev.name, prevTime) >= bStationPrev.duration + 0.5) ? 0:1
-              // console.log(`${time.getTimeStringHHMM12()} - ${station.name}\n${shiftA.name.substring(0,9)} is on ${shiftA.getStationAtTime(prevTime)}, ${aVal}\n${shiftB.name.substring(0,9)} is on ${shiftB.getStationAtTime(prevTime)}, ${bVal}\n${aVal-bVal}`)
-              return aVal-bVal
-            })
-          }
-          // if (station.name=="HOP") console.log(`if changeonthehour and not over max, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}:\n${floorShifts.map(s=>s.name).join('\n')}`)
-          
-          // if (time.getTimeStringHHMM24()=="13:00" && station.name=="Phones") console.log(`if changeonthehour and on this station and not more than half an hour over, move to front:\n${time.getTimeStringHHMM12()}, ${station.name}: ${floorShifts.map(s=>s.name).join('\n')}`)
-          
-          // log("sort by amount of time total at station, as ratio of shift length")
-          // floorShifts.sort((shiftA, shiftB)=>{
-          //   let aTotalStationTime = shiftA.countTotalTimeAtStation(station.name, prevTime)
-          // let aRatioOfShiftAtStation = aTotalStationTime/shiftA.durationInHours
-            
-          //   let bTotalStationTime = shiftB.countTotalTimeAtStation(station.name, prevTime)
-          //   let bRatioOfShiftAtStation = bTotalStationTime/shiftB.durationInHours
-          
-          //   // console.log(`at ${time.getTimeStringHHMM24()}, ${shiftA.name} has been ${station.name} for ${aTotalStationTime} hours and ${aRatioOfShiftAtStation} of shift.`)
-          
-          //   return aRatioOfShiftAtStation - bRatioOfShiftAtStation
-          // })
-          // console.log(time.getTimeStringHHMM24()+' '+station.name+'\n', floorShifts.map(shift=>shift.name.substring(0,3)+': '+shift.countTotalTimeAtStation(station.name, prevTime)+', '+Math.round(shift.countTotalTimeAtStation(station.name, prevTime)/shift.durationInHours*100)+'%').join('\n'))
+        if (verboseLog){
+          let table = []
 
-          //prefer do space trained staff for 2nd Floor
-          if (this.settings.locationID == 5786790 && station.name.includes("Do Space")) floorShifts.sort((shiftA, shiftB)=>{
-            let bVal = shiftB.tags.includes("Do Space") ? -1 : 0
-            let aVal = shiftA.tags.includes("Do Space") ? -1 : 0
-            return aVal-bVal
-          })
-          //put managers who have had <50% of their off desk time at bottom of queue for other stations
-          if (this.settings.strictPrioritizeManagerOffDeskTime && station.name != this.defaultStations.available.name && station.name != "HOP"){
-            // this.ui.alert(`${station.name} being sorted by need for off desk time ${station.name != this.defaultStations.available.name} ${station.name != "HOP"}`)
-            floorShifts.sort((shiftA, shiftB)=>{
-              let offDeskRatioA = this.positionHierarchy.find(pos=>pos.id==shiftA.position).offDeskRatio
-              let shiftLengthA = (shiftA.endTime.getTime() - shiftA.startTime.getTime())/3600000
-              let shiftCompletionA = (time.getTime() - shiftA.startTime.getTime())/shiftLengthA/3600000
-              let offDeskRatioB = this.positionHierarchy.find(pos=>pos.id==shiftB.position).offDeskRatio
-              let shiftLengthB = (shiftB.endTime.getTime() - shiftB.startTime.getTime())/3600000
-              let shiftCompletionB = (time.getTime() - shiftB.startTime.getTime())/shiftLengthB/3600000
-              //ratio of position's off desk quota which they've been given, 0 to 1
-              let aVal = (shiftA.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)/offDeskRatioA) / (shiftLengthA) / shiftCompletionA
-              let bVal = (shiftB.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)/offDeskRatioB) / (shiftLengthB) / shiftCompletionB
-              //value to sort by, considering position
-              let aValM = 0
-              let bValM = 0
-              //if manager and less than .5 of quota, move to start of queue
-              if (this.settings.strictPrioritizeManagerOffDeskTime){
-                aValM = ([11534158, 11534159].includes(shiftA.position) && aVal < 0.5 ? 0 : 10)
-                bValM = ([11534158, 11534159].includes(shiftB.position) && bVal < 0.5 ? 0 : 10)
-              }
-              // if not manager and over quota, move to end of queue
-              if (![11534158, 11534159].includes(shiftA.position) && aVal >= 1) aValM = 100
-              if (![11534158, 11534159].includes(shiftB.position) && bVal >= 1) bValM = 100
-
-              // if (time.getTimeStringHHMM24()=="14:00" && station.name!="Available") console.log(`${station.name}:${floor.name} - ${time.toLocaleTimeString()}
-              //   ${shiftA.name}--offDeskRatioA:${offDeskRatioA}, totalTime:${shiftA.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)}, shiftLengthA:${shiftLengthA}, aVal:${aVal}, aValM:${(aValM)}
-              //   ${shiftB.name}--offDeskRatioB:${offDeskRatioB}, totalTime:${shiftB.countTotalTimeAtStation(this.defaultStations.available.name, nextTime)}, shiftLengthB:${shiftLengthB}, bVal:${bVal}, bValM:${(bValM)}
-              //   bVal-aVal: ${bVal - aVal}, bValM - aValM: ${(bValM) - (aValM)}
-              //   `)
-              return bValM - aValM
-            })
-          }
-          // if (station.name=="Available") console.log(`put managers who have had <50% of their off desk time at bottom of queue for other stations:\n${time.getTimeStringHHMM12()}, ${station.name}:\n${floorShifts.map(s=>s.name).join('\n')}`)
-          
-          //assign
-          floorShifts.forEach(shift=> {
-            if (station.positionPriority.length<1 || station.positionPriority.some(pos=>
-              pos.enabled && pos.title == this.getPositionById(shift.position).name
-            )){ //if staff is assigned to this station
-              // let currentStation = shift.getStationAtTime(time)
-              // let prevStation = shift.getStationAtTime(prevTime)
-              // let timeOnPrevStation = shift.countHowLongAtStation(prevStation.name, new Date(time).addTime(0,-30))
-              // console.log(`at ${time.getTimeStringHHMM24()}, ${shift.name} has been ${prevStation} for ${timeOnPrevStation}hours.`, currentStation, currentStation == this.defaultStations.undefined, stationCount<station.numOfStaff)
-              // let undefinedCount = this.getStationCountAtTime(shifts, this.defaultStations.undefined, time, floor.name)
-              // this.ui.alert(`${this.stations.filter(station=>(station.floor == floor.name)).map(s=>s.name+', '+s.numOfStaff).join('\n')}\n\n${this.stations.filter(station=>(station.floor == floor.name)).slice(0,stationIndex).join('\n')}\n\n${this.stations.filter(station=>(station.floor == floor.name)).slice(0,stationIndex).filter(station=>station.name!=this.defaultStations.available.name).map(station=>station.numOfStaff).join('\n')}`)
-              // let staffNeededToCoverMainStations = this.stations.filter(station=>(station.floor == floor.name)).slice(0,stationIndex).filter(station=>station.name!=this.defaultStations.available.name).map(station=>station.numOfStaff).reduce((acc, cur)=>acc+cur, 0)
-              // this.ui.alert(`${time.toLocaleTimeString()} ${floor.name} ${station.name}\nundefinedCount:${undefinedCount}\nstaffNeededToCoverMainStations${staffNeededToCoverMainStations}`)
-              if(
-                this.assignmentEligibilityCheck(shift, station, time)
-                // && (!availablePrePass || undefinedCount > staffNeededToCoverMainStations)
-              ){
-                shift.setStationAtTime(station, time)
-                // currentStation = shift.getStationAtTime(time)
-                // let timeOnCurrStation = shift.countHowLongAtStation(currentStation.name, time)
-                // console.log(`After assigning to ${currentStation} at ${time.getTimeStringHHMM24()}, ${shift.name} has been ${currentStation} for ${timeOnCurrStation}hours.`)
-              }
+          //make each row
+          for(const shift of ratingMatrixLog){
+            let row = []
+            row.push("<b>"+this.shortenFullName(shift.shiftName)+"</b>")
+            for (const station of shift.stations){
+              row.push(`<div class="opp" title="${station.logEntries.join('\n')}" style="${station.assigned?'background: #ffd350"':''}"><span>${station.stationName.replace("Service", "Svc").replace("Children", "Chld").substring(0,14)}  </span><span>  ${(station.finalRating<0?0:station.finalRating).toString().padStart(4,' ')}</span>`)
             }
-          })
-        })
-*/
-        // this.logDeskData('stations on ' +floor.name+ ' pass at ' + time.getTimeStringHHMM24(), `${time.getTimeStringHHMM12()} ${floor.name}`+'<br>'+ratingMatrix.map((shiftRow,i)=>floorShifts[i].name.substring(0,9).padEnd(10,'.') +'<br>'+ shiftRow.map((n,j)=>` - ${floorStations[j].name.padEnd(30,'.')} ${-1*n}${ratingMatrixLog[i][j].map(e=>'<br>'+' .... '+e)}`).join('<br>')).join('<br>'))
-
-        let table = []
-
-        //make each row
-        for(const shift of ratingMatrixLog){
-          let row = []
-          row.push("<b>"+this.shortenFullName(shift.shiftName)+"</b>")
-          for (const station of shift.stations){
-            row.push(`<div class="opp" title="${station.logEntries.join('\n')}" style="${station.assigned?'background: #ffd350"':''}"><span>${station.stationName.replace("Service", "Svc").replace("Children", "Chld").substring(0,14)}  </span><span>  ${(station.finalRating<0?0:station.finalRating).toString().padStart(4,' ')}</span>`)
+            table.push(row)
           }
-          table.push(row)
-        }
 
-        function makeTableHTML(myArray:[][], cssclass:string='') {
-          var result = `<table border=2 class="${cssclass}">`
-          for(var i=0; i<myArray.length; i++) {
-              result += (i>0?"<tr>":`<tr class="mrtableth">`)
-              for(var j=0; j<myArray[i].length; j++){
-                  result += (i>0?"<td>":"<th>")+myArray[i][j]+(i>0?"</td>":"</th>")
-              }
-              result += (i>0?"</tr>":"</tr>")
+          function makeTableHTML(myArray:[][], cssclass:string='') {
+            var result = `<table border=2 class="${cssclass}">`
+            for(var i=0; i<myArray.length; i++) {
+                result += (i>0?"<tr>":`<tr class="mrtableth">`)
+                for(var j=0; j<myArray[i].length; j++){
+                    result += (i>0?"<td>":"<th>")+myArray[i][j]+(i>0?"</td>":"</th>")
+                }
+                result += (i>0?"</tr>":"</tr>")
+            }
+            result += "</table>"
+
+            return result;
           }
-          result += "</table>"
 
-          return result;
+          function transpose(matrix) {
+            return matrix[0].map((col, i) => matrix.map(row => row[i]));
+          }
+
+          let tableHTML = makeTableHTML(transpose(table),"mrtable")
+          this.logDeskData('stations on ' +floor.name+ ' pass at ' + time.getTimeStringHHMM24(), `<br>${time.getTimeStringHHMM12()} ${floor.name} station ratings:`+'<br><br>'+tableHTML)
         }
-
-        function transpose(matrix) {
-          return matrix[0].map((col, i) => matrix.map(row => row[i]));
-        }
-
-        let tableHTML = makeTableHTML(transpose(table),"mrtable")
-        this.logDeskData('stations on ' +floor.name+ ' pass at ' + time.getTimeStringHHMM24(), `<br>${time.getTimeStringHHMM12()} ${floor.name} station ratings:`+'<br><br>'+tableHTML)
       }
     }
     // this.ui.alert(this.shiftsSplitAcrossFloors.map(shift=>shift.name).join('\n'))
