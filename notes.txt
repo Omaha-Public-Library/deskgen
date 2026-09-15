@@ -3,7 +3,6 @@
         clerks can do circ but not reference
         dt phones need reference, and PIC each floor
         associates are trained to do desk stuff long before
-
     AB
         see doc
     CEN
@@ -13,22 +12,25 @@
         min swap loop goes through full count when one floor below minimum and all others at minimum
         half hour grace period shouldn't apply when only one person is on floor!
         don't split shifts if one half is all events/unavailable
+        Friday morning DoSpace closure, change staffing count for different days of week
+    ON
+        Natalie believes names lower in alphabet are prioritized for off desk time
+        lunches at 11 or 1130 is too early
 
 ================ BUGS/TO TEST ========
     check how gcal linking to recurring events works https://mail.google.com/mail/u/0/#inbox/FMfcgzQfBkSGVPNhcqfDJTZzxDnbMKDt
-    split shifts incorrectly count upcoming undefined slots across splits, leading them to be really highly prioritized right before split. Need to get count for all shifts with same name, add?
+    floor split shifts incorrectly count upcoming undefined slots across splits, leading them to be really highly prioritized right before split. Need to get count for all shifts with same name, add?
 
 ================ FEATURE WISHLIST ================
     duties - assign two people, limit to days of week
-    warnings - no meal, no PIC on floor/in building, way under time off desk, no one eligible for duty
+    warnings - no meal, no Manager/ABM on floor/in building, way under time off desk, no one eligible for duty - 
     auto hide settings+template, below floor minimums
     longterm archive management, better failsafes, delete archived sheets at certain age?
     better display of overlapping events not assigned to specific staff - stagger across multiple rows
     gcal description display over events
     "dream list next generation thing" - reporting tool - how many hours on desk, how many off
     do space handled by two on 2nd service desk, no need to designate further
-    Regenerate from current time
-    Half hour grace before rebalancing staff based on minimums - if not >1 below minimum and not zero
+    Regenerate from current time (https://stackoverflow.com/questions/52315147/json-to-javascript-class)
     Add formula to archive sheet to show links to all dates, organized
     in training assignment prompt - when generating, choose another staff or a floor to have training staff shadow
     better predict available time to better distribute off desk time (like when staff aren't available last half of shift)
@@ -93,3 +95,5 @@
     aides shouldn't be on desk more than an hour or so, important they're not covering service desk shifts
     service desk covering aides? aides not important for staffing mins, but we do want aides to be able to find coverage - down the road
     comfortable with staff handling programming shift swaps/drops without manager approval
+
+    Central, Swanson, AVS,

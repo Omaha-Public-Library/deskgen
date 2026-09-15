@@ -1230,7 +1230,6 @@ class DeskSchedule {
                         //Central Specific
                         if (this.settings.locationID == 5786790 && station.name.includes("Do Space") && shift.tags.includes("Do Space"))
                             adjustRating(shiftIndex, stationIndex, "dospace tag required and present", 100);
-                        // station.ratings.push()
                     }
                 }
                 //duplicate floorStations to have enough count
@@ -1542,7 +1541,7 @@ class DeskSchedule {
         else
             filteredShifts = this.shifts.filter(shift => !shift.stationTimeline.every(station => [this.defaultStations.off.name, /*this.defaultStations.undefined.name,*/ this.defaultStations.off.name, this.defaultStations.offFloorStation.name].includes(station.name)));
         filteredShifts.forEach(shift => {
-            let duplicates = filteredShifts.filter(s => s.name == shift.name && s.floor.name == shift.floor.name);
+            let duplicates = filteredShifts.filter(s => s.name == shift.name && s.floor.name == shift.floor.name && s.startTime.getTime() == shift.startTime.getTime());
             if (duplicates.length == 1)
                 displayShifts.push(duplicates[0]);
             else if (duplicates.length > 1 && !duplicateSets.some(set => set[0]?.name == shift.name))

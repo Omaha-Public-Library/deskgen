@@ -337,9 +337,9 @@ class DeskSchedule{
 
     if (this.settings.locationID == 5786790){
       this.floors = [
-         {
+        {
           index: 1,
-          reassignStaffPriority:3,
+          reassignStaffPriority: 3,
           name: "Genealogy",
           preferredTag: "Genealogy",
           minimumStaff: 1,
@@ -351,7 +351,7 @@ class DeskSchedule{
         },
         {
           index: 2,
-          reassignStaffPriority:1,
+          reassignStaffPriority: 2,
           name: "2nd Floor",
           preferredTag: "Service Desk",
           minimumStaff: 3,
@@ -363,10 +363,10 @@ class DeskSchedule{
         },
         {
           index: 3,
-          reassignStaffPriority:2,
+          reassignStaffPriority: 1,
           name: "1st Floor",
           preferredTag: "Service Desk",
-          minimumStaff: 3,
+          minimumStaff: 2,
           preferredStaff: 4,
           overstaffMin: 0,
           overstaffCounts: [],
@@ -375,11 +375,11 @@ class DeskSchedule{
         },
         {
           index: 4,
-          reassignStaffPriority:4,
+          reassignStaffPriority: 4,
           name: "ASRS",
           preferredTag: null,
-          minimumStaff: 1,
-          preferredStaff: 3,
+          minimumStaff: 2,
+          preferredStaff: 2,
           overstaffMin: 0,
           overstaffCounts: [],
           lowTimes: [],
@@ -1379,10 +1379,8 @@ class DeskSchedule{
             //use positionpriority... or rethink it entirely? do we really need a granular descending list, or would just checking preferred/eligible/not eligible be better? nooo my fancy sorted list
 
             //Central Specific
-            if (this.settings.locationID == 5786790 && station.name.includes("Do Space") && shift.tags.includes("Do Space"))
+            if (this.settings.locationID == 5786790 && station.name.startsWith("Do Space") && shift.tags.includes("Do Space"))
               adjustRating(shiftIndex, stationIndex, "dospace tag required and present", 100)
-
-            // station.ratings.push()
           }
         }
 
@@ -1561,7 +1559,7 @@ class DeskSchedule{
       && !shift.tags.includes("In training (do not assign to stations)")
       && stationCount<station.numOfStaff
       && (shift.floor.name == station.floor || station.floor == undefined)
-      && !(station.name == "Tech Desk" && !shift.tags.includes("Do Space"))
+      && !(station.name.startsWith("Do Space") && !shift.tags.includes("Do Space"))
     ){/*continue*/} else return false
 
     let withinLimit = false
@@ -1738,7 +1736,7 @@ class DeskSchedule{
     if (this.settings.alwaysShowAllStaff || this.settings.alwaysShowBranchManager || this.settings.alwaysShowAssistantBranchManager) filteredShifts = this.shifts
     else filteredShifts = this.shifts.filter(shift=>!shift.stationTimeline.every(station=>[this.defaultStations.off.name, /*this.defaultStations.undefined.name,*/ this.defaultStations.off.name, this.defaultStations.offFloorStation.name].includes(station.name)))
     filteredShifts.forEach(shift=>{
-      let duplicates = filteredShifts.filter(s=>s.name==shift.name && s.floor.name==shift.floor.name)
+      let duplicates = filteredShifts.filter(s=>s.name==shift.name && s.floor.name==shift.floor.name && s.startTime.getTime()==shift.startTime.getTime())
       if (duplicates.length == 1)
         displayShifts.push(duplicates[0])
       else if (duplicates.length > 1 && !duplicateSets.some(set=>set[0]?.name == shift.name))
@@ -1791,7 +1789,7 @@ class DeskSchedule{
         // ?.setValues(floorShifts.map(s=>[this.shortenFullName(s.name)]))
         ?.setValues(floorShifts.map(s=>[this.shortenFullName(s.name)
           +(s.tags.includes("Genealogy")?'ᴳ':'')
-          // +(s.tags.includes("Do Space")?'ᴰ':'')
+          +(s.tags.includes("Do Space")?'ᴰ':'')
           +([11534158, 11534159].includes(s.position)?'*':'')
         ]))
       this.displayCells.getAllByNameColumn('shiftTime', '', floorShifts.length)[i]
