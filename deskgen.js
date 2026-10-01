@@ -111,15 +111,28 @@ function buildDeskScheduleTomorrow() {
     }
 }
 function popupSettings() {
-    let settings = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS").getRange('A1').getValue();
+    let settings = getSettingsJSON();
     // SpreadsheetApp.getUi().alert(settings)
     var htmlTemplate = HtmlService.createTemplateFromFile("settings.html");
     htmlTemplate.settings = settings;
-    var htmlOutput = htmlTemplate.evaluate().setWidth(2000).setHeight(1000);
+    var htmlOutput = htmlTemplate.evaluate().setWidth(1000).setHeight(1000);
     SpreadsheetApp.getUi().showModelessDialog(htmlOutput, "Settings");
 }
-function saveSettings(settings) {
-    SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS").getRange('A1').setValue(settings);
+function getSettingsJSON() {
+    let ui = SpreadsheetApp.getUi();
+    if (!SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS")) {
+        ui.alert("No SETTINGS sheet found.");
+        return null;
+    }
+    let settings = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS").getRange("A1").getValue();
+    if (settings == "") {
+        ui.alert("No settings data found in A1 cell of SETTINGS sheet.");
+        return null;
+    }
+    return settings;
+}
+function saveSettings(json) {
+    SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS").getRange('A1').setValue(json);
 }
 function buildDeskScheduleInputDate() {
     var dateInputWindow = HtmlService.createHtmlOutput(`
@@ -170,7 +183,6 @@ function buildDeskSchedule(deskSchedDate) {
         return;
     }
     var token = null;
-    // ui.alert("🚧🏗️🦤🚧\nCorson is doing a little maintenance and the generator might not run correctly!\nIf it doesn't run, check back in a little while.\nIf it does, double check the results!");
     deskSheet = ss.getActiveSheet();
     var newSheetName = sheetNameFromDate(deskSchedDate);
     log(`setting up sheet:${deskSchedDate}, ${newSheetName}, ${ /*ss.getSheetByName(newSheetName)*/'removed lookup for perf'}`);
@@ -282,19 +294,6 @@ class DeskSchedule {
         this.annotationShifts = [];
         this.annotationUser = [];
         this.logDeskDataRecord = [];
-        this.defaultStations = {
-            undefined: new Station("#cccccc", "undefined"),
-            // undefined: new Station("#222222", "undefined"),
-            // undefined: new Station("#ffffff", "undefined"),
-            programMeeting: new Station("#ffd966", "Program/Meeting"),
-            available: new Station("#ffffff", "Available", 99),
-            training: new Station("#d7bda8", "In Training", 99),
-            off: new Station("#666666", "Off"),
-            mealBreak: new Station("#e69138", "Meal/Break"),
-            offFloorStation: new Station('#403d6b', "Covering Other Floor")
-        };
-        this.durationTypes = DurationType.Alwayswhileopen;
-        this.limitTypes = LimitType.SpecificTime;
         this.settings = settings;
         this.deskSheet = deskSheet;
         this.displayCells = displayCells;
@@ -306,7 +305,9 @@ class DeskSchedule {
         this.shifts = [];
         this.eventsErrorLog = [];
         this.logDeskDataRecord = [];
-        this.stations = settings.stations;
+        this.stations = settings.stations.map(station => {
+            return new Station(station.id, station.color, station.name, station.numOfStaff, station.floor, station.positionPriority, station.duration, station.hourLimit, station.hourLimitType, station.assignDuring, station.limitXHours, station.limitYHours, station.limitToStartTime ? station.limitToStartTime.HHMM24toDate(this.date) : null, station.limitToEndTime ? station.limitToEndTime.HHMM24toDate(this.date) : null, station.days);
+        });
         if (this.settings.locationID == 5786790) {
             this.floors = [
                 {
@@ -323,7 +324,7 @@ class DeskSchedule {
                 },
                 {
                     index: 2,
-                    reassignStaffPriority: 1,
+                    reassignStaffPriority: 2,
                     name: "2nd Floor",
                     preferredTag: "Service Desk",
                     minimumStaff: 3,
@@ -335,10 +336,10 @@ class DeskSchedule {
                 },
                 {
                     index: 3,
-                    reassignStaffPriority: 2,
+                    reassignStaffPriority: 1,
                     name: "1st Floor",
                     preferredTag: "Service Desk",
-                    minimumStaff: 3,
+                    minimumStaff: 2,
                     preferredStaff: 4,
                     overstaffMin: 0,
                     overstaffCounts: [],
@@ -350,8 +351,8 @@ class DeskSchedule {
                     reassignStaffPriority: 4,
                     name: "ASRS",
                     preferredTag: null,
-                    minimumStaff: 1,
-                    preferredStaff: 3,
+                    minimumStaff: 2,
+                    preferredStaff: 2,
                     overstaffMin: 0,
                     overstaffCounts: [],
                     lowTimes: [],
@@ -378,6 +379,17 @@ class DeskSchedule {
         this.settings.stations.forEach(s => {
             s.duration = !s.duration || Number.isNaN(s.duration) ? settings.assignmentLength : s.duration;
         });
+        this.defaultStations = {
+            undefined: new Station(NewUID(this.stations), "#cccccc", "undefined"),
+            // undefined: new Station("#222222", "undefined"),
+            // undefined: new Station("#ffffff", "undefined"),
+            programMeeting: new Station(NewUID(this.stations), "#ffd966", "Program/Meeting"),
+            available: new Station(NewUID(this.stations), "#ffffff", "Available", 99),
+            training: new Station(NewUID(this.stations), "#d7bda8", "In Training", 99),
+            off: new Station(NewUID(this.stations), "#666666", "Off"),
+            mealBreak: new Station(NewUID(this.stations), "#e69138", "Meal/Break"),
+            offFloorStation: new Station(NewUID(this.stations), "#403d6b", "Covering Other Floor")
+        };
         //add required stations if they don't already exist
         for (const property in this.defaultStations) {
             let requiredStation = this.defaultStations[property];
@@ -458,8 +470,8 @@ class DeskSchedule {
                 let idealMealTime = undefined;
                 //if working 8+ hours, assign whichever mealtime is closest to midpoint of shift
                 if (endTime.getHours() - startTime.getHours() >= 8) {
-                    let timeToEarlyMeal = Math.abs((endTime.getTime() + startTime.getTime()) / 2 - settings.idealEarlyMealHour.getTime());
-                    let timeToLateMeal = Math.abs((endTime.getTime() + startTime.getTime()) / 2 - settings.idealLateMealHour.getTime());
+                    let timeToEarlyMeal = Math.abs((endTime.getTime() + startTime.getTime()) / 2 - settings.idealEarlyMealHour.HHMM24toDate(this.date).getTime());
+                    let timeToLateMeal = Math.abs((endTime.getTime() + startTime.getTime()) / 2 - settings.idealLateMealHour.HHMM24toDate(this.date).getTime());
                     idealMealTime = new Date(timeToEarlyMeal < timeToLateMeal ? settings.idealEarlyMealHour : settings.idealLateMealHour);
                 }
                 let tags = wiwTags.map(tagObj => tagObj.name);
@@ -510,8 +522,8 @@ class DeskSchedule {
                     }
                 });
             }
-            if (settings.earliestDisplayTime > this.dayStartTime)
-                this.dayStartTime = settings.earliestDisplayTime;
+            if (settings.earliestDisplayTime.HHMM24toDate(this.date) > this.dayStartTime)
+                this.dayStartTime = settings.earliestDisplayTime.HHMM24toDate(this.date);
         });
         if (this.settings.locationID == 5786790)
             this.AssignCentralFloors();
@@ -622,7 +634,8 @@ class DeskSchedule {
             if (shift.getStationAtTime(time).name == station.name) { //does station name match?
                 if (station.floor == shift.floor.name
                     || floorName == shift.floor.name
-                    || floorName == undefined && station.floor == undefined)
+                    || (floorName == undefined || floorName == "") && (station.floor == undefined || station.floor == "") // undef || ""
+                )
                     count += 1; //or does the floorName arg match the currently assigned floor?
             }
         });
@@ -816,9 +829,11 @@ class DeskSchedule {
             return;
         let mealAssignmentTimeStart = this.dayStartTime;
         let mealAssignmentTimeEnd = this.dayEndTime;
+        let idealEarlyMealHour = this.settings.idealEarlyMealHour.HHMM24toDate(this.date);
+        let idealLateMealHour = this.settings.idealLateMealHour.HHMM24toDate(this.date);
         if (time != undefined) {
-            let nearestMealTime = Math.abs(this.settings.idealEarlyMealHour.getTime() - time.getTime()) < Math.abs(this.settings.idealLateMealHour.getTime() - time.getTime())
-                ? this.settings.idealEarlyMealHour : this.settings.idealLateMealHour;
+            let nearestMealTime = Math.abs(idealEarlyMealHour.getTime() - time.getTime()) < Math.abs(idealLateMealHour.getTime() - time.getTime())
+                ? idealEarlyMealHour : idealLateMealHour;
             mealAssignmentTimeStart = new Date(nearestMealTime).addTime(-this.settings.idealMealTimePlusMinusHours);
             if (time.getTime() != mealAssignmentTimeStart.getTime())
                 return; //only assign meals at start of block
@@ -1111,7 +1126,7 @@ class DeskSchedule {
     timelineAddStations(stations, shifts, assignMeals = true, balanceFloors = true) {
         if (!this.settings.assignStations || this.shifts.length < 1)
             return;
-        log("running timelineAddStations");
+        log(`running timelineAddStations for stations:\n${stations.map(station => station.name).join('\n')}`);
         for (let time = new Date(this.dayStartTime); time < this.dayEndTime; time.addTime(0, 30)) {
             let prevTime = new Date(time).addTime(0, -30); //.clamp(this.dayStartTime, new Date(this.dayEndTime).addTime(0,-30))
             let nextTime = new Date(time).addTime(0, 30); //.clamp(this.dayStartTime, new Date(this.dayEndTime).addTime(0,-30))
@@ -1145,7 +1160,7 @@ class DeskSchedule {
                 if (stations.some(station => station.name == "HOP"))
                     floorShifts = shifts;
                 let floorStations = stations.filter(station => {
-                    let onFloor = (station.floor == floor.name || station.floor == undefined);
+                    let onFloor = (station.floor == floor.name || station.floor == undefined || station.floor == "");
                     let notDefault = (!Object.values(this.defaultStations).map(s => s.name).includes(station.name) || station.name == this.defaultStations.available.name);
                     let validTime = this.stationIsWithinTimeLimits(station, time);
                     let notOverStaffLimit = this.getStationCountAtTime(this.shifts, station, time) < station.numOfStaff; //could this break with multiple stations of same name?
@@ -1183,7 +1198,9 @@ class DeskSchedule {
                             adjustRating(shiftIndex, stationIndex, "not eligible", -1000000);
                             continue;
                         }
-                        adjustRating(shiftIndex, stationIndex, "priority adjustment", (floorStations.length - stationIndex) * 1000);
+                        adjustRating(shiftIndex, stationIndex, "floor priority adjustment", (floorStations.length - stationIndex) * 1000);
+                        if (station.positionPriority.find(pp => pp.title == this.getPositionById(shift.position).name).priority > 1)
+                            adjustRating(shiftIndex, stationIndex, `position ${this.getPositionById(shift.position).name} is preferred for this station`, 2);
                         if (prevStation.name == station.name && timeOnCurrentStation < prevStation.duration)
                             adjustRating(shiftIndex, stationIndex, `currently assigned to this station and under duration (${station.duration})`, 2);
                         if (prevStation.name == station.name && timeOnCurrentStation == 0.5 && timeOnCurrentStation < prevStation.duration)
@@ -1226,9 +1243,8 @@ class DeskSchedule {
                             if (totalTimeOnPossibleStation <= 0)
                                 adjustRating(shiftIndex, stationIndex, "hasn't been on this station yet", 1);
                         }
-                        //use positionpriority... or rethink it entirely? do we really need a granular descending list, or would just checking preferred/eligible/not eligible be better? nooo my fancy sorted list
                         //Central Specific
-                        if (this.settings.locationID == 5786790 && station.name.includes("Do Space") && shift.tags.includes("Do Space"))
+                        if (this.settings.locationID == 5786790 && station.name.startsWith("Do Space") && shift.tags.includes("Do Space"))
                             adjustRating(shiftIndex, stationIndex, "dospace tag required and present", 100);
                     }
                 }
@@ -1294,7 +1310,7 @@ class DeskSchedule {
         return date;
     }
     assignmentEligibilityCheckShift(shift, station, time) {
-        if (station.positionPriority.length < 1 || station.positionPriority.some(pos => pos.enabled && pos.title == this.getPositionById(shift.position)?.name)) { /*continue*/ }
+        if (station.positionPriority.length < 1 || station.positionPriority.some(pos => pos.priority > 0 && pos.title == this.getPositionById(shift.position)?.name)) { /*continue*/ }
         else
             return false;
         let currentStation = shift.getStationAtTime(time);
@@ -1314,116 +1330,58 @@ class DeskSchedule {
         else
             return false;
         //ForXhoursperdayforeachstaff
-        if (station.durationType == DurationType.ForXhoursperdayforeachstaff && this.getTotalStationCount(shift, station.name, time) >= station.duration)
+        if (station.hourLimitType == HourLimitType.ForXhoursperdayforeachstaff && this.getTotalStationCount(shift, station.name, time) >= station.duration)
             return false;
         return true;
     }
     stationIsWithinTimeLimits(station, time) {
+        //chack day of week
+        if (station.days[time.getDay()] == 0)
+            return false;
+        //check assignduring
         let withinLimit = false;
-        if (station.limitType == LimitType.SpecificTime
+        if (station.assignDuring == AssignDuring.Alwayswhileopen
+            && this.settings.openTime(this.date).getTime() <= time.getTime()
+            && time.getTime() < this.settings.closeTime(this.date).getTime())
+            withinLimit = true;
+        else if (station.assignDuring == AssignDuring.Always)
+            withinLimit = true;
+        else if (station.assignDuring == AssignDuring.SpecificTime
             && (time >= station.limitToStartTime || !station.limitToStartTime)
             && (time < station.limitToEndTime || !station.limitToEndTime))
             withinLimit = true;
-        let startTimeFromOpen = new Date(this.settings.openTime(this.date));
-        let endTimeFromOpen = new Date(this.settings.openTime(this.date));
-        startTimeFromOpen.addTime(0, station.limitXHours * 60);
-        endTimeFromOpen.addTime(0, station.limitYHours * 60);
-        if ((station.limitType == LimitType.XtoYhoursafteropen || station.limitType == undefined)
-            && (time >= startTimeFromOpen || !station.limitXHours)
-            && (time < endTimeFromOpen || !station.limitYHours))
-            withinLimit = true;
-        let startTimeFromClose = new Date(this.settings.closeTime(this.date));
-        let endTimeFromClose = new Date(this.settings.closeTime(this.date));
-        startTimeFromClose.addTime(0, -Math.abs(station.limitXHours * 60));
-        endTimeFromClose.addTime(0, -Math.abs(station.limitYHours * 60));
-        if ((station.limitType == LimitType.XtoYhoursbeforeclose || station.limitType == undefined)
-            && (time >= startTimeFromClose || !station.limitXHours)
-            && (time < endTimeFromClose || !station.limitYHours))
-            withinLimit = true;
+        else if (station.assignDuring == AssignDuring.XtoYhoursafteropen) {
+            let startTimeFromOpen = new Date(this.settings.openTime(this.date));
+            let endTimeFromOpen = new Date(this.settings.openTime(this.date));
+            startTimeFromOpen.addTime(0, station.limitXHours * 60);
+            endTimeFromOpen.addTime(0, station.limitYHours * 60);
+            if ((time >= startTimeFromOpen || !station.limitXHours) && (time < endTimeFromOpen || !station.limitYHours))
+                withinLimit = true;
+        }
+        else if (station.assignDuring == AssignDuring.XtoYhoursbeforeclose) {
+            let startTimeFromClose = new Date(this.settings.closeTime(this.date));
+            let endTimeFromClose = new Date(this.settings.closeTime(this.date));
+            startTimeFromClose.addTime(0, -Math.abs(station.limitXHours * 60));
+            endTimeFromClose.addTime(0, -Math.abs(station.limitYHours * 60));
+            if ((time >= startTimeFromClose || !station.limitXHours) && (time < endTimeFromClose || !station.limitYHours))
+                withinLimit = true;
+        }
         if (withinLimit) { /*continue*/ }
         else
             return false;
-        //check if within duration
-        if (station.durationType == DurationType.Always)
+        //check hourlimit
+        if (station.hourLimitType == HourLimitType.none || !station.hourLimit)
             return true;
-        if (station.durationType == DurationType.Alwayswhileopen
-            && this.settings.openTime(this.date).getTime() <= time.getTime()
-            && time.getTime() < this.settings.closeTime(this.date).getTime())
-            return true;
-        if (station.durationType == DurationType.ForXhoursperdaytotal
+        if (station.hourLimitType == HourLimitType.ForXhoursperdaytotal
             && this.settings.openTime(this.date).getTime() <= time.getTime()
             && time.getTime() < this.settings.closeTime(this.date).getTime()
             && this.getTotalStationCountAllStaff(station.name, time) < station.duration)
             return true;
-        if (station.durationType == DurationType.ForXhoursperdayforeachstaff
+        if (station.hourLimitType == HourLimitType.ForXhoursperdayforeachstaff
             && this.settings.openTime(this.date).getTime() <= time.getTime()
             && time.getTime() < this.settings.closeTime(this.date).getTime()
             // && this.getTotalStationCount(shift, station.name, time) < station.duration
             && this.shifts.some(shift => this.getTotalStationCount(shift, station.name, time) < station.duration))
-            return true;
-        return false;
-    }
-    assignmentEligibilityCheck(shift, station, time) {
-        //add one second to make inRange checks exclusive at high end
-        // let timePlusOneSec = new Date(time)
-        // timePlusOneSec.setSeconds(1)
-        if (station.positionPriority.length < 1 || station.positionPriority.some(pos => pos.enabled && pos.title == this.getPositionById(shift.position)?.name)) { /*continue*/ }
-        else
-            return false;
-        let stationCount = this.getStationCountAtTime(this.shifts, station, time);
-        let currentStation = shift.getStationAtTime(time);
-        // if(shift.name.includes('Lyn') && time.getTime()==new Date(this.dayStartTime).addTime(4).getTime()) {
-        //   this.ui.alert(`${time.toLocaleTimeString()}, ${shift.name}\nshift.floor.name: ${shift.floor.name}\nstation.floor: ${station.floor}\n==? ${shift.floor.name == station.floor}`)
-        // }
-        if ( //check if unassigned, not in training, under station count, and assigned to this floor
-        currentStation.name == this.defaultStations.undefined.name
-            && !shift.tags.includes("In training (do not assign to stations)")
-            && stationCount < station.numOfStaff
-            && (shift.floor.name == station.floor || station.floor == undefined)
-            && !(station.name == "Tech Desk" && !shift.tags.includes("Do Space"))) { /*continue*/ }
-        else
-            return false;
-        let withinLimit = false;
-        //check if within limit
-        if (station.limitType == LimitType.SpecificTime
-            && (time >= station.limitToStartTime || !station.limitToStartTime)
-            && (time < station.limitToEndTime || !station.limitToEndTime))
-            withinLimit = true;
-        let startTimeFromOpen = new Date(this.settings.openTime(this.date));
-        let endTimeFromOpen = new Date(this.settings.openTime(this.date));
-        startTimeFromOpen.addTime(0, station.limitXHours * 60);
-        endTimeFromOpen.addTime(0, station.limitYHours * 60);
-        if ((station.limitType == LimitType.XtoYhoursafteropen || station.limitType == undefined)
-            && (time >= startTimeFromOpen || !station.limitXHours)
-            && (time < endTimeFromOpen || !station.limitYHours))
-            withinLimit = true;
-        let startTimeFromClose = new Date(this.settings.closeTime(this.date));
-        let endTimeFromClose = new Date(this.settings.closeTime(this.date));
-        startTimeFromClose.addTime(0, -Math.abs(station.limitXHours * 60));
-        endTimeFromClose.addTime(0, -Math.abs(station.limitYHours * 60));
-        if ((station.limitType == LimitType.XtoYhoursbeforeclose || station.limitType == undefined)
-            && (time >= startTimeFromClose || !station.limitXHours)
-            && (time < endTimeFromClose || !station.limitYHours))
-            withinLimit = true;
-        if (withinLimit) { /*continue*/ }
-        else
-            return false;
-        //check if within duration
-        if (station.durationType == DurationType.Always)
-            return true;
-        if (station.durationType == DurationType.Alwayswhileopen
-            && this.settings.openTime(this.date).getTime() <= time.getTime()
-            && time.getTime() < this.settings.closeTime(this.date).getTime())
-            return true;
-        if (station.durationType == DurationType.ForXhoursperdaytotal
-            && this.settings.openTime(this.date).getTime() <= time.getTime()
-            && time.getTime() < this.settings.closeTime(this.date).getTime()
-            && this.getTotalStationCountAllStaff(station.name, time) < station.duration)
-            return true;
-        if (station.durationType == DurationType.ForXhoursperdayforeachstaff
-            && this.settings.openTime(this.date).getTime() <= time.getTime()
-            && time.getTime() < this.settings.closeTime(this.date).getTime()
-            && this.getTotalStationCount(shift, station.name, time) < station.duration)
             return true;
         return false;
     }
@@ -1591,7 +1549,7 @@ class DeskSchedule {
                 // ?.setValues(floorShifts.map(s=>[this.shortenFullName(s.name)]))
                 ?.setValues(floorShifts.map(s => [this.shortenFullName(s.name)
                     + (s.tags.includes("Genealogy") ? 'ᴳ' : '')
-                    // +(s.tags.includes("Do Space")?'ᴰ':'')
+                    + (s.tags.includes("Do Space") ? 'ᴰ' : '')
                     + ([11534158, 11534159].includes(s.position) ? '*' : '')
             ]));
             this.displayCells.getAllByNameColumn('shiftTime', '', floorShifts.length)[i]
@@ -1652,9 +1610,11 @@ class DeskSchedule {
         return filteredArr;
     }
     displayDuties(displayCells) {
-        if (this.settings.dutyLists.length > 0) { //redundant now that theres that min check below?
+        //clone so that we can keep track of inferred start/end time properties without mutating original
+        let filteredDutyLists = JSON.parse(JSON.stringify(this.settings.dutyLists.filter(dutyList => (dutyList.days[this.date.getDay()] != 0))));
+        if (filteredDutyLists.length > 0) { //redundant now that theres that min check below?
             this.sortShiftsByFairRotation(this.shifts);
-            this.settings.dutyLists.forEach(dutyList => {
+            filteredDutyLists.forEach(dutyList => {
                 dutyList.startTime = this.dayStartTime;
                 dutyList.endTime = this.dayEndTime;
                 if (dutyList.limitType == DutyListLimitType.XtoYhoursbeforeopen) {
@@ -1725,7 +1685,7 @@ class DeskSchedule {
             let listDutiesCells = displayCells.getAllByName('dutyTitle');
             let listStaffCells = displayCells.getAllByName('dutyStaff');
             let listCheckCells = displayCells.getAllByName('dutyCheck');
-            let numOfCompleteGroups = Math.min(this.settings.dutyLists.length, listTitleCells.length, listDutiesCells.length, listStaffCells.length, listCheckCells.length);
+            let numOfCompleteGroups = Math.min(filteredDutyLists.length, listTitleCells.length, listDutiesCells.length, listStaffCells.length, listCheckCells.length);
             //add rows for each duty list, only adding length of longest list in same row as others
             let indOfGroupsInRow = [];
             for (let i = 0; i < numOfCompleteGroups - 1; i++) {
@@ -1734,7 +1694,7 @@ class DeskSchedule {
                 if (listDutiesCells[i].getRow() == listDutiesCells[i + 1].getRow())
                     indOfGroupsInRow.push(i + 1);
                 else {
-                    let maxLengthInRow = Math.max(...(indOfGroupsInRow.map(i => this.settings.dutyLists[i] == undefined ? 0 : this.settings.dutyLists[i].duties.length)));
+                    let maxLengthInRow = Math.max(...(indOfGroupsInRow.map(i => filteredDutyLists[i] == undefined ? 0 : filteredDutyLists[i].duties.length)));
                     this.deskSheet.insertRowsAfter(listDutiesCells[indOfGroupsInRow[0]].getRow(), maxLengthInRow);
                     displayCells.update(this.deskSheet);
                     listTitleCells = displayCells.getAllByName('dutyListTitle', '');
@@ -1745,7 +1705,7 @@ class DeskSchedule {
                 }
             }
             for (let i = 0; i < numOfCompleteGroups; i++) {
-                let dutyList = this.settings.dutyLists[i];
+                let dutyList = filteredDutyLists[i];
                 let titleCell = listTitleCells[i];
                 let dutyRange = this.deskSheet.getRange(listDutiesCells[i].getRow(), listDutiesCells[i].getColumn(), dutyList.duties.length, 1);
                 let staffRange = this.deskSheet.getRange(listStaffCells[i].getRow(), listStaffCells[i].getColumn(), dutyList.duties.length, 1);
@@ -1864,19 +1824,20 @@ class DeskSchedule {
         }
     }
 }
-var DurationType;
-(function (DurationType) {
-    DurationType["Alwayswhileopen"] = "While open";
-    DurationType["Always"] = "Always";
-    DurationType["ForXhoursperdaytotal"] = "For X hours per day total";
-    DurationType["ForXhoursperdayforeachstaff"] = "For X hours per day for each staff";
-})(DurationType || (DurationType = {}));
-var LimitType;
-(function (LimitType) {
-    LimitType["SpecificTime"] = "Specific Time";
-    LimitType["XtoYhoursafteropen"] = "X to Y hours after open";
-    LimitType["XtoYhoursbeforeclose"] = "X to Y hours before close";
-})(LimitType || (LimitType = {}));
+var HourLimitType;
+(function (HourLimitType) {
+    HourLimitType["none"] = "None";
+    HourLimitType["ForXhoursperdaytotal"] = "For X hours per day total";
+    HourLimitType["ForXhoursperdayforeachstaff"] = "For X hours per day for each staff";
+})(HourLimitType || (HourLimitType = {}));
+var AssignDuring;
+(function (AssignDuring) {
+    AssignDuring["Alwayswhileopen"] = "While open";
+    AssignDuring["Always"] = "Always";
+    AssignDuring["SpecificTime"] = "Specific Time";
+    AssignDuring["XtoYhoursafteropen"] = "X to Y hours after open";
+    AssignDuring["XtoYhoursbeforeclose"] = "X to Y hours before close";
+})(AssignDuring || (AssignDuring = {}));
 var DutyListLimitType;
 (function (DutyListLimitType) {
     DutyListLimitType["XtoYhoursafteropen"] = "after open";
@@ -1886,20 +1847,25 @@ var DutyListLimitType;
 class Floor {
 }
 class Station {
-    constructor(color = "#ffffff", name, numOfStaff = 1, floor = undefined, positionPriority = [], durationType = DurationType.Alwayswhileopen, duration = 100, limitType = LimitType.SpecificTime, limitXHours = undefined, limitYHours = undefined, limitToStartTime = undefined, limitToEndTime = undefined) {
+    constructor(id = null, color = "#ffffff", name, numOfStaff = 1, floor = null, positionPriority = [], duration = 2, hourLimit = null, hourLimitType = HourLimitType.none, assignDuring = AssignDuring.Alwayswhileopen, limitXHours = 0, limitYHours = 0, limitToStartTime = null, limitToEndTime = null, days = [1, 1, 1, 1, 1, 1, 1]) {
+        this.id = null;
         this.color = color;
         this.name = name;
         this.floor = floor;
         this.positionPriority = positionPriority;
-        this.durationType = durationType;
         this.duration = duration;
-        this.limitType = limitType;
+        this.hourLimit = hourLimit;
+        this.hourLimitType = hourLimitType;
+        this.assignDuring = assignDuring;
         this.limitXHours = limitXHours;
         this.limitYHours = limitYHours;
         this.limitToStartTime = limitToStartTime;
         this.limitToEndTime = limitToEndTime;
         this.numOfStaff = numOfStaff;
+        this.days = days;
     }
+}
+class SettingStation {
 }
 class PositionPriority {
 }
@@ -2223,7 +2189,7 @@ class Settings {
             SpreadsheetApp.getUi().alert("No SETTINGS sheet found.");
             return;
         }
-        let settingsJSON = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS").getRange('A1').getValue();
+        let settingsJSON = getSettingsJSON();
         // console.log("settingsJSON", settingsJSON)
         Object.assign(this, JSON.parse(settingsJSON, dateTimeReviver));
         function dateTimeReviver(key, value) {
@@ -2242,10 +2208,10 @@ class Settings {
         // console.log("loaded settings:", this)
     }
     openTime(date) {
-        return this.openHours[date.getDay()].open;
+        return this.openHours[date.getDay()].open.HHMM24toDate(date);
     }
     closeTime(date) {
-        return this.openHours[date.getDay()].close;
+        return this.openHours[date.getDay()].close.HHMM24toDate(date);
     }
 }
 function sheetNameFromDate(date, includeYear = false) {
@@ -2449,6 +2415,20 @@ Date.prototype.getTimeStringHH12 = function () {
     else
         return this.toLocaleTimeString().split(':').slice(0, 2).join(':');
 };
+String.prototype.HHMM24toDate = function (date = new Date()) {
+    if ((/^\d{1,2}\:?\d{2}$/.test(this)))
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate(), this.split(':')[0], this.split(':')[1]);
+    else
+        console.error(`${this} is not a valid HH:MM time string and can't be converted into a date.`);
+};
+function NewUID(arr) {
+    for (let i = 0; i < 10000; i++) {
+        if (arr.every(el => el.id != i)) {
+            return i;
+        }
+    }
+    return 0;
+}
 function circularReplacer() {
     const seen = new WeakSet(); // object
     return (key, value) => {

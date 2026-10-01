@@ -114,16 +114,30 @@ function buildDeskScheduleTomorrow(){
 }
 
 function  popupSettings(){
-  let settings = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS").getRange('A1').getValue()
+  let settings = getSettingsJSON()
   // SpreadsheetApp.getUi().alert(settings)
   var htmlTemplate = HtmlService.createTemplateFromFile("settings.html")
   htmlTemplate.settings = settings
-  var htmlOutput = htmlTemplate.evaluate().setWidth(2000).setHeight(1000)
+  var htmlOutput = htmlTemplate.evaluate().setWidth(1000).setHeight(1000)
   SpreadsheetApp.getUi().showModelessDialog(htmlOutput, "Settings")
 }
 
-function saveSettings(settings){
-  SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS").getRange('A1').setValue(settings)
+function getSettingsJSON(){
+  let ui = SpreadsheetApp.getUi()
+  if (!SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS")){
+    ui.alert("No SETTINGS sheet found.")
+    return null
+  } 
+  let settings = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS").getRange("A1").getValue()
+  if (settings == "" ){
+    ui.alert("No settings data found in A1 cell of SETTINGS sheet.")
+    return null
+  }
+  return settings
+}
+
+function saveSettings(json){
+  SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS").getRange('A1').setValue(json)
 }
 
 function buildDeskScheduleInputDate(){
@@ -176,8 +190,6 @@ function buildDeskSchedule(deskSchedDate){
     return
   }
   var token: string = null
-
-  // ui.alert("🚧🏗️🦤🚧\nCorson is doing a little maintenance and the generator might not run correctly!\nIf it doesn't run, check back in a little while.\nIf it does, double check the results!");
   
   deskSheet = ss.getActiveSheet()
   
@@ -304,19 +316,17 @@ class DeskSchedule{
   annotationShifts = []
   annotationUser = []
   logDeskDataRecord = []
-  defaultStations = {
-    undefined: new Station("#cccccc", "undefined"),
-    // undefined: new Station("#222222", "undefined"),
-    // undefined: new Station("#ffffff", "undefined"),
-    programMeeting: new Station("#ffd966", "Program/Meeting"),
-    available: new Station("#ffffff", "Available", 99),
-    training: new Station("#d7bda8", "In Training", 99),
-    off: new Station("#666666", "Off"),
-    mealBreak: new Station("#e69138", "Meal/Break"),
-    offFloorStation: new Station('#403d6b', "Covering Other Floor")
+  defaultStations: {
+    undefined: Station,
+    programMeeting: Station,
+    available: Station,
+    training: Station,
+    off: Station,
+    mealBreak: Station,
+    offFloorStation: Station
   }
-  durationTypes:DurationType = DurationType.Alwayswhileopen
-  limitTypes:LimitType = LimitType.SpecificTime
+  // durationTypes:DurationType = DurationType.Alwayswhileopen
+  // limitTypes:LimitType = LimitType.SpecificTime
   positionHierarchy: {id:number, name:string, group?:string, picDurationMax?:number, offDeskRatio?:number}[]
   floors: Floor[]
   allOplNames: string[]
@@ -333,7 +343,25 @@ class DeskSchedule{
     this.shifts=[]
     this.eventsErrorLog=[]
     this.logDeskDataRecord = []
-    this.stations = settings.stations
+    this.stations = settings.stations.map(station=>{
+      return new Station(
+        station.id,
+        station.color,
+        station.name,
+        station.numOfStaff,
+        station.floor,
+        station.positionPriority,
+        station.duration,
+        station.hourLimit,
+        station.hourLimitType,
+        station.assignDuring,
+        station.limitXHours,
+        station.limitYHours,
+        station.limitToStartTime ? station.limitToStartTime.HHMM24toDate(this.date) : null,
+        station.limitToEndTime ? station.limitToEndTime.HHMM24toDate(this.date) : null,
+        station.days
+      )
+    })
 
     if (this.settings.locationID == 5786790){
       this.floors = [
@@ -408,6 +436,17 @@ class DeskSchedule{
         s.duration = !s.duration || Number.isNaN(s.duration) ? settings.assignmentLength : s.duration
     })
 
+    this.defaultStations = {
+      undefined: new Station(NewUID(this.stations), "#cccccc", "undefined"),
+      // undefined: new Station("#222222", "undefined"),
+      // undefined: new Station("#ffffff", "undefined"),
+      programMeeting: new Station(NewUID(this.stations), "#ffd966", "Program/Meeting"),
+      available: new Station(NewUID(this.stations), "#ffffff", "Available", 99),
+      training: new Station(NewUID(this.stations), "#d7bda8", "In Training", 99),
+      off: new Station(NewUID(this.stations), "#666666", "Off"),
+      mealBreak: new Station(NewUID(this.stations), "#e69138", "Meal/Break"),
+      offFloorStation: new Station(NewUID(this.stations), "#403d6b", "Covering Other Floor")
+    }
     //add required stations if they don't already exist
     for (const property in this.defaultStations) {
       let requiredStation: Station = this.defaultStations[property]
@@ -496,8 +535,8 @@ class DeskSchedule{
         let idealMealTime = undefined
         //if working 8+ hours, assign whichever mealtime is closest to midpoint of shift
         if (endTime.getHours()-startTime.getHours()>=8){
-          let timeToEarlyMeal = Math.abs((endTime.getTime()+startTime.getTime())/2-settings.idealEarlyMealHour.getTime())
-          let timeToLateMeal = Math.abs((endTime.getTime()+startTime.getTime())/2-settings.idealLateMealHour.getTime())
+          let timeToEarlyMeal = Math.abs((endTime.getTime()+startTime.getTime())/2-settings.idealEarlyMealHour.HHMM24toDate(this.date).getTime())
+          let timeToLateMeal = Math.abs((endTime.getTime()+startTime.getTime())/2-settings.idealLateMealHour.HHMM24toDate(this.date).getTime())
           idealMealTime = new Date(timeToEarlyMeal < timeToLateMeal ? settings.idealEarlyMealHour : settings.idealLateMealHour)
         }
 
@@ -574,7 +613,7 @@ class DeskSchedule{
           }
         })
       }
-      if(settings.earliestDisplayTime > this.dayStartTime) this.dayStartTime = settings.earliestDisplayTime
+      if(settings.earliestDisplayTime.HHMM24toDate(this.date) > this.dayStartTime) this.dayStartTime = settings.earliestDisplayTime.HHMM24toDate(this.date)
     })
 
     if (this.settings.locationID == 5786790) this.AssignCentralFloors()
@@ -705,7 +744,7 @@ class DeskSchedule{
         if(
           station.floor == shift.floor.name
           || floorName == shift.floor.name
-          || floorName == undefined && station.floor == undefined
+          || (floorName == undefined || floorName == "") && (station.floor == undefined || station.floor == "") // undef || ""
         ) count += 1 //or does the floorName arg match the currently assigned floor?
       }
     })
@@ -925,9 +964,11 @@ class DeskSchedule{
 
     let mealAssignmentTimeStart = this.dayStartTime
     let mealAssignmentTimeEnd = this.dayEndTime
+    let idealEarlyMealHour = this.settings.idealEarlyMealHour.HHMM24toDate(this.date)
+    let idealLateMealHour = this.settings.idealLateMealHour.HHMM24toDate(this.date)
     if (time!=undefined) {
-      let nearestMealTime = Math.abs(this.settings.idealEarlyMealHour.getTime() - time.getTime()) < Math.abs(this.settings.idealLateMealHour.getTime() - time.getTime())
-      ? this.settings.idealEarlyMealHour : this.settings.idealLateMealHour
+      let nearestMealTime: Date = Math.abs(idealEarlyMealHour.getTime() - time.getTime()) < Math.abs(idealLateMealHour.getTime() - time.getTime())
+      ? idealEarlyMealHour : idealLateMealHour
       mealAssignmentTimeStart = new Date(nearestMealTime).addTime(-this.settings.idealMealTimePlusMinusHours)
       if (time.getTime() != mealAssignmentTimeStart.getTime()) return //only assign meals at start of block
       if (mealAssignmentTimeStart.getTime() < time.getTime())
@@ -1237,7 +1278,7 @@ class DeskSchedule{
 
   timelineAddStations(stations:Station[], shifts:Shift[], assignMeals:Boolean = true, balanceFloors:Boolean = true){
     if(!this.settings.assignStations || this.shifts.length < 1) return
-    log("running timelineAddStations")
+    log(`running timelineAddStations for stations:\n${stations.map(station=>station.name).join('\n')}`)
     
     for(let time = new Date(this.dayStartTime); time < this.dayEndTime; time.addTime(0, 30)){      
       let prevTime = new Date(time).addTime(0,-30)//.clamp(this.dayStartTime, new Date(this.dayEndTime).addTime(0,-30))
@@ -1275,7 +1316,7 @@ class DeskSchedule{
         let floorShifts = shifts.filter(shift=>shift.floor?.name == floor.name && shift.getStationAtTime(time).name == this.defaultStations.undefined.name)
         if (stations.some(station=>station.name=="HOP")) floorShifts = shifts
         let floorStations = stations.filter(station=>{
-          let onFloor = (station.floor == floor.name || station.floor == undefined)
+          let onFloor = (station.floor == floor.name || station.floor == undefined || station.floor == "")
           let notDefault = (!Object.values(this.defaultStations).map(s=>s.name).includes(station.name) || station.name == this.defaultStations.available.name)
           let validTime = this.stationIsWithinTimeLimits(station, time)
           let notOverStaffLimit = this.getStationCountAtTime(this.shifts, station, time) < station.numOfStaff //could this break with multiple stations of same name?
@@ -1319,7 +1360,10 @@ class DeskSchedule{
               continue
             }
 
-            adjustRating(shiftIndex, stationIndex, "priority adjustment", (floorStations.length-stationIndex)*1000)
+            adjustRating(shiftIndex, stationIndex, "floor priority adjustment", (floorStations.length-stationIndex)*1000)
+
+            if(station.positionPriority.find(pp=>pp.title == this.getPositionById(shift.position).name).priority > 1)
+              adjustRating(shiftIndex, stationIndex, `position ${this.getPositionById(shift.position).name} is preferred for this station`, 2)
 
             if(prevStation.name == station.name && timeOnCurrentStation < prevStation.duration)
               adjustRating(shiftIndex, stationIndex, `currently assigned to this station and under duration (${station.duration})`, 2)
@@ -1364,7 +1408,6 @@ class DeskSchedule{
                 let targetOffDeskTimeTotal = shiftLength * offDeskRatio
                 let totalTimeOffDesk = shift.countTotalTimeAtStation(this.defaultStations.available.name, nextTime, this.settings.openTime(time))
 
-
                 let odtHoursStillNeeded = targetOffDeskTimeTotal - totalTimeOffDesk
                 let undefinedHoursLeft = shift.countTotalTimeAtStation(this.defaultStations.undefined.name, shift.endTime, time)
                 let ratio = undefinedHoursLeft == 0 ? 100000 : odtHoursStillNeeded / undefinedHoursLeft //if there are no 
@@ -1375,8 +1418,6 @@ class DeskSchedule{
               if (totalTimeOnPossibleStation <= 0)
                 adjustRating(shiftIndex, stationIndex, "hasn't been on this station yet", 1)
             }
-
-            //use positionpriority... or rethink it entirely? do we really need a granular descending list, or would just checking preferred/eligible/not eligible be better? nooo my fancy sorted list
 
             //Central Specific
             if (this.settings.locationID == 5786790 && station.name.startsWith("Do Space") && shift.tags.includes("Do Space"))
@@ -1455,7 +1496,7 @@ class DeskSchedule{
 
   assignmentEligibilityCheckShift(shift: Shift, station: Station, time: Date){
     if (station.positionPriority.length<1 || station.positionPriority.some(pos=>
-      pos.enabled && pos.title == this.getPositionById(shift.position)?.name
+      pos.priority > 0 && pos.title == this.getPositionById(shift.position)?.name
     )){/*continue*/} else return false
 
     let currentStation = shift.getStationAtTime(time)
@@ -1477,143 +1518,70 @@ class DeskSchedule{
     ){/*continue*/} else return false
 
     //ForXhoursperdayforeachstaff
-    if(station.durationType == DurationType.ForXhoursperdayforeachstaff && this.getTotalStationCount(shift, station.name, time) >= station.duration)
+    if(station.hourLimitType == HourLimitType.ForXhoursperdayforeachstaff && this.getTotalStationCount(shift, station.name, time) >= station.duration)
       return false
 
     return true
   }
 
   stationIsWithinTimeLimits(station: Station, time: Date){
+    //chack day of week
+    if (station.days[time.getDay()] == 0)
+      return false
+
+    //check assignduring
     let withinLimit = false
-    if (
-      station.limitType == LimitType.SpecificTime
+
+    if (station.assignDuring == AssignDuring.Alwayswhileopen
+      && this.settings.openTime(this.date).getTime() <= time.getTime()
+      && time.getTime() < this.settings.closeTime(this.date).getTime()
+    ) withinLimit = true
+
+    else if (station.assignDuring == AssignDuring.Always)
+      withinLimit = true
+
+    else if (
+      station.assignDuring == AssignDuring.SpecificTime
       && (time >= station.limitToStartTime || !station.limitToStartTime)
       && (time < station.limitToEndTime || !station.limitToEndTime)
     ) withinLimit = true
 
-    let startTimeFromOpen = new Date(this.settings.openTime(this.date))
-    let endTimeFromOpen = new Date(this.settings.openTime(this.date))
-    startTimeFromOpen.addTime(0, station.limitXHours*60)
-    endTimeFromOpen.addTime(0, station.limitYHours*60)
-    if (
-      (station.limitType == LimitType.XtoYhoursafteropen || station.limitType == undefined)
-      && (time >= startTimeFromOpen || !station.limitXHours)
-      && (time < endTimeFromOpen || !station.limitYHours)
-    ) withinLimit = true
-
-    let startTimeFromClose = new Date(this.settings.closeTime(this.date))
-    let endTimeFromClose = new Date(this.settings.closeTime(this.date))
-    startTimeFromClose.addTime(0, -Math.abs(station.limitXHours*60))
-    endTimeFromClose.addTime(0, -Math.abs(station.limitYHours*60))
-    if (
-      (station.limitType == LimitType.XtoYhoursbeforeclose || station.limitType == undefined)
-      && (time >= startTimeFromClose || !station.limitXHours)
-      && (time < endTimeFromClose || !station.limitYHours)
-    ) withinLimit = true
+    else if (station.assignDuring == AssignDuring.XtoYhoursafteropen){
+      let startTimeFromOpen = new Date(this.settings.openTime(this.date))
+      let endTimeFromOpen = new Date(this.settings.openTime(this.date))
+      startTimeFromOpen.addTime(0, station.limitXHours*60)
+      endTimeFromOpen.addTime(0, station.limitYHours*60)
+      if ((time >= startTimeFromOpen || !station.limitXHours) && (time < endTimeFromOpen || !station.limitYHours))
+        withinLimit = true
+    }
+    
+    else if(station.assignDuring == AssignDuring.XtoYhoursbeforeclose){
+      let startTimeFromClose = new Date(this.settings.closeTime(this.date))
+      let endTimeFromClose = new Date(this.settings.closeTime(this.date))
+      startTimeFromClose.addTime(0, -Math.abs(station.limitXHours*60))
+      endTimeFromClose.addTime(0, -Math.abs(station.limitYHours*60))
+      if ((time >= startTimeFromClose || !station.limitXHours) && (time < endTimeFromClose || !station.limitYHours))
+        withinLimit = true
+    }
 
     if(withinLimit){/*continue*/} else return false
 
-  //check if within duration
-    if (station.durationType == DurationType.Always)
-    return true
-    if (station.durationType == DurationType.Alwayswhileopen
-      && this.settings.openTime(this.date).getTime() <= time.getTime()
-      && time.getTime() < this.settings.closeTime(this.date).getTime()
-    )
-    return true
+    //check hourlimit
+    if (station.hourLimitType == HourLimitType.none || !station.hourLimit)
+      return true
     if (
-      station.durationType == DurationType.ForXhoursperdaytotal
+      station.hourLimitType == HourLimitType.ForXhoursperdaytotal
       && this.settings.openTime(this.date).getTime() <= time.getTime()
       && time.getTime() < this.settings.closeTime(this.date).getTime()
       && this.getTotalStationCountAllStaff(station.name, time) < station.duration
-    )return true
+    ) return true
     if (
-      station.durationType == DurationType.ForXhoursperdayforeachstaff
+      station.hourLimitType == HourLimitType.ForXhoursperdayforeachstaff
       && this.settings.openTime(this.date).getTime() <= time.getTime()
       && time.getTime() < this.settings.closeTime(this.date).getTime()
       // && this.getTotalStationCount(shift, station.name, time) < station.duration
       && this.shifts.some(shift=>this.getTotalStationCount(shift, station.name, time) < station.duration)
-    )return true
-    return false
-  }
-
-
-  assignmentEligibilityCheck(shift: Shift, station: Station, time: Date){
-    //add one second to make inRange checks exclusive at high end
-    // let timePlusOneSec = new Date(time)
-    // timePlusOneSec.setSeconds(1)
-
-    if (station.positionPriority.length<1 || station.positionPriority.some(pos=>
-      pos.enabled && pos.title == this.getPositionById(shift.position)?.name
-    )){/*continue*/} else return false
-
-    let stationCount = this.getStationCountAtTime(this.shifts, station, time)
-    let currentStation = shift.getStationAtTime(time)
-
-    // if(shift.name.includes('Lyn') && time.getTime()==new Date(this.dayStartTime).addTime(4).getTime()) {
-    //   this.ui.alert(`${time.toLocaleTimeString()}, ${shift.name}\nshift.floor.name: ${shift.floor.name}\nstation.floor: ${station.floor}\n==? ${shift.floor.name == station.floor}`)
-    // }
-
-    if (  //check if unassigned, not in training, under station count, and assigned to this floor
-      currentStation.name == this.defaultStations.undefined.name
-      && !shift.tags.includes("In training (do not assign to stations)")
-      && stationCount<station.numOfStaff
-      && (shift.floor.name == station.floor || station.floor == undefined)
-      && !(station.name.startsWith("Do Space") && !shift.tags.includes("Do Space"))
-    ){/*continue*/} else return false
-
-    let withinLimit = false
-
-  //check if within limit
-    if (
-      station.limitType == LimitType.SpecificTime
-      && (time >= station.limitToStartTime || !station.limitToStartTime)
-      && (time < station.limitToEndTime || !station.limitToEndTime)
-    ) withinLimit = true
-
-    let startTimeFromOpen = new Date(this.settings.openTime(this.date))
-    let endTimeFromOpen = new Date(this.settings.openTime(this.date))
-    startTimeFromOpen.addTime(0, station.limitXHours*60)
-    endTimeFromOpen.addTime(0, station.limitYHours*60)
-    if (
-      (station.limitType == LimitType.XtoYhoursafteropen || station.limitType == undefined)
-      && (time >= startTimeFromOpen || !station.limitXHours)
-      && (time < endTimeFromOpen || !station.limitYHours)
-    ) withinLimit = true
-
-    let startTimeFromClose = new Date(this.settings.closeTime(this.date))
-    let endTimeFromClose = new Date(this.settings.closeTime(this.date))
-    startTimeFromClose.addTime(0, -Math.abs(station.limitXHours*60))
-    endTimeFromClose.addTime(0, -Math.abs(station.limitYHours*60))
-
-    if (
-      (station.limitType == LimitType.XtoYhoursbeforeclose || station.limitType == undefined)
-      && (time >= startTimeFromClose || !station.limitXHours)
-      && (time < endTimeFromClose || !station.limitYHours)
-    ) withinLimit = true
-
-    if(withinLimit){/*continue*/} else return false
-
-  //check if within duration
-    if (station.durationType == DurationType.Always)
-    return true
-    if (station.durationType == DurationType.Alwayswhileopen
-      && this.settings.openTime(this.date).getTime() <= time.getTime()
-      && time.getTime() < this.settings.closeTime(this.date).getTime()
-    )
-    return true
-    if (
-      station.durationType == DurationType.ForXhoursperdaytotal
-      && this.settings.openTime(this.date).getTime() <= time.getTime()
-      && time.getTime() < this.settings.closeTime(this.date).getTime()
-      && this.getTotalStationCountAllStaff(station.name, time) < station.duration
-    )return true
-    if (
-      station.durationType == DurationType.ForXhoursperdayforeachstaff
-      && this.settings.openTime(this.date).getTime() <= time.getTime()
-      && time.getTime() < this.settings.closeTime(this.date).getTime()
-      && this.getTotalStationCount(shift, station.name, time) < station.duration
-    )return true
+    ) return true
     return false
   }
 
@@ -1856,11 +1824,14 @@ class DeskSchedule{
   }
 
   displayDuties(displayCells: DisplayCells) {
-    if (this.settings.dutyLists.length>0){ //redundant now that theres that min check below?
+    //clone so that we can keep track of inferred start/end time properties without mutating original
+    let filteredDutyLists = JSON.parse(JSON.stringify(this.settings.dutyLists.filter(dutyList=>(dutyList.days[this.date.getDay()] != 0))))
+
+    if (filteredDutyLists.length>0){ //redundant now that theres that min check below?
 
       this.sortShiftsByFairRotation(this.shifts)
 
-      this.settings.dutyLists.forEach(dutyList => {
+      filteredDutyLists.forEach(dutyList => {
         dutyList.startTime = this.dayStartTime
         dutyList.endTime = this.dayEndTime
         
@@ -1935,7 +1906,7 @@ class DeskSchedule{
       let listDutiesCells = displayCells.getAllByName('dutyTitle')
       let listStaffCells = displayCells.getAllByName('dutyStaff')
       let listCheckCells = displayCells.getAllByName('dutyCheck')
-      let numOfCompleteGroups = Math.min(this.settings.dutyLists.length, listTitleCells.length, listDutiesCells.length, listStaffCells.length, listCheckCells.length)
+      let numOfCompleteGroups = Math.min(filteredDutyLists.length, listTitleCells.length, listDutiesCells.length, listStaffCells.length, listCheckCells.length)
 
       //add rows for each duty list, only adding length of longest list in same row as others
       let indOfGroupsInRow:number[]= []
@@ -1944,7 +1915,7 @@ class DeskSchedule{
         if(listDutiesCells[i].getRow() == listDutiesCells[i+1].getRow())
             indOfGroupsInRow.push(i+1)
         else{
-          let maxLengthInRow = Math.max(...(indOfGroupsInRow.map(i=>this.settings.dutyLists[i]==undefined?0:this.settings.dutyLists[i].duties.length)))
+          let maxLengthInRow = Math.max(...(indOfGroupsInRow.map(i=>filteredDutyLists[i]==undefined?0:filteredDutyLists[i].duties.length)))
           this.deskSheet.insertRowsAfter(listDutiesCells[indOfGroupsInRow[0]].getRow(),maxLengthInRow)
           displayCells.update(this.deskSheet)
           listTitleCells = displayCells.getAllByName('dutyListTitle', '')
@@ -1956,17 +1927,17 @@ class DeskSchedule{
       }
 
       for (let i=0; i<numOfCompleteGroups; i++){
-        let dutyList = this.settings.dutyLists[i]
+        let dutyList = filteredDutyLists[i]
         let titleCell = listTitleCells[i]
         let dutyRange = this.deskSheet.getRange(listDutiesCells[i].getRow(), listDutiesCells[i].getColumn(), dutyList.duties.length, 1)
         let staffRange = this.deskSheet.getRange(listStaffCells[i].getRow(), listStaffCells[i].getColumn(), dutyList.duties.length, 1)
         let checkRange = this.deskSheet.getRange(listCheckCells[i].getRow(), listCheckCells[i].getColumn(), dutyList.duties.length, 1)
-        
         titleCell.setValue(`${dutyList.title} ${dutyList.startTime.toLocaleTimeString('en', {hour: 'numeric', minute:'numeric'}).replace(" AM","").replace(" PM","")} - ${dutyList.endTime.toLocaleTimeString('en', {hour: 'numeric', minute:'numeric'})}`)
         dutyRange.setValues(dutyList.duties.map(duty=>[duty.title]))
         staffRange.setValues(dutyList.duties.map(duty=>[this.shortenFullName(duty.staffName)+(duty.staffName.includes('*')?'*':'')]))
         checkRange.insertCheckboxes()
       }
+
     }
   }
   
@@ -2079,14 +2050,14 @@ class DeskSchedule{
 
 type ColorHex = `#${string}`
 
-enum DurationType {
-  Alwayswhileopen = "While open",
-  Always = "Always",
+enum HourLimitType {
+  none = "None",
   ForXhoursperdaytotal = "For X hours per day total",
   ForXhoursperdayforeachstaff = "For X hours per day for each staff"
-
 }
-enum LimitType {
+enum AssignDuring {
+  Alwayswhileopen = "While open",
+  Always = "Always",
   SpecificTime = "Specific Time",
   XtoYhoursafteropen = "X to Y hours after open",
   XtoYhoursbeforeclose = "X to Y hours before close"
@@ -2111,51 +2082,78 @@ class Floor{
 }
 
 class Station{
+  id: number
   color: ColorHex
   name: string
   floor: string
   positionPriority: PositionPriority[]
-  durationType: DurationType
   duration: number
-  limitType: LimitType
+  hourLimit: number
+  hourLimitType: HourLimitType
+  assignDuring: AssignDuring
   limitXHours: number
   limitYHours: number
   limitToStartTime: Date
   limitToEndTime: Date
   numOfStaff: number
+  days: (1|0)[]
   
   constructor(
+    id: number = null,
     color: ColorHex = "#ffffff",
     name: string,
-    numOfStaff = 1,
-    floor: string = undefined,
+    numOfStaff:number = 1,
+    floor: string = null,
     positionPriority: PositionPriority[] = [],
-    durationType: DurationType = DurationType.Alwayswhileopen,
-    duration: number = 100,
-    limitType: LimitType = LimitType.SpecificTime,
-    limitXHours: number = undefined,
-    limitYHours: number = undefined,
-    limitToStartTime: Date = undefined,
-    limitToEndTime: Date = undefined,
+    duration: number = 2,
+    hourLimit: number = null,
+    hourLimitType: HourLimitType = HourLimitType.none,
+    assignDuring: AssignDuring = AssignDuring.Alwayswhileopen,
+    limitXHours: number = 0,
+    limitYHours: number = 0,
+    limitToStartTime: Date = null,
+    limitToEndTime: Date = null,
+    days: (1|0)[] = [1,1,1,1,1,1,1]
   ){
+    this.id = null
     this.color = color
     this.name = name
     this.floor = floor
     this.positionPriority = positionPriority
-    this.durationType = durationType
     this.duration = duration
-    this.limitType = limitType
+    this.hourLimit = hourLimit
+    this.hourLimitType = hourLimitType
+    this.assignDuring = assignDuring
     this.limitXHours = limitXHours
     this.limitYHours = limitYHours
     this.limitToStartTime = limitToStartTime
     this.limitToEndTime = limitToEndTime
     this.numOfStaff = numOfStaff
+    this.days = days
   }
+}
+
+class SettingStation{
+  id: number
+  color: ColorHex
+  name: string
+  floor: string
+  positionPriority: PositionPriority[]
+  duration: number
+  hourLimit: number
+  hourLimitType: HourLimitType
+  assignDuring: AssignDuring
+  limitXHours: number
+  limitYHours: number
+  limitToStartTime: string
+  limitToEndTime: string
+  numOfStaff: number
+  days: (1|0)[]
 }
 
 class PositionPriority{
   title:string
-  enabled:boolean
+  priority: 0 | 1 | 2
 }
 
 class ShiftEvent{
@@ -2536,6 +2534,7 @@ class DisplayCells{
 }
 
 class Duty{
+  id: number
   title: string
   staffName: string
   staffType: string
@@ -2548,6 +2547,7 @@ function log(arg?:any){
 }
 
 class DutyList {
+  id:number
   title:string
   floor:string
   duties:Duty[]
@@ -2556,6 +2556,7 @@ class DutyList {
   limitType:DutyListLimitType
   startTime:Date
   endTime:Date
+  days:(1|0)[]
 }
 
 class Settings{
@@ -2567,29 +2568,29 @@ class Settings{
   groupPicsAtTop: boolean
   assignmentLength: number
   mealBreakLength: number
-  idealEarlyMealHour: Date
-  idealLateMealHour: Date
+  idealEarlyMealHour: string
+  idealLateMealHour: string
   idealMealTimePlusMinusHours: number
   addNamesToEvents: boolean
   alwaysShowBranchManager: boolean
   alwaysShowAssistantBranchManager: boolean
   alwaysShowAllStaff: boolean
-  earliestDisplayTime: Date
+  earliestDisplayTime: string
   locationID: number
   googleCalendarID: string
   archiveSheetURL: string
   verboseLog: boolean
-  openHours: {day:string,open:Date,close:Date}[]
+  openHours: {day:string,open:string,close:string}[]
   dutyLists: DutyList[]
 
-  stations: Station[]
+  stations: SettingStation[]
 
   constructor(date: Date){
     if (SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS")==null){
       SpreadsheetApp.getUi().alert("No SETTINGS sheet found.")
       return
     }
-    let settingsJSON = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS").getRange('A1').getValue()
+    let settingsJSON = getSettingsJSON()
     // console.log("settingsJSON", settingsJSON)
     Object.assign(this, JSON.parse(settingsJSON, dateTimeReviver))
     
@@ -2611,11 +2612,11 @@ class Settings{
   }
 
   openTime(date:Date): Date{
-    return this.openHours[date.getDay()].open
+    return this.openHours[date.getDay()].open.HHMM24toDate(date)
   }
 
   closeTime(date:Date): Date{
-    return this.openHours[date.getDay()].close
+    return this.openHours[date.getDay()].close.HHMM24toDate(date)
   }
 }
   
@@ -2854,6 +2855,23 @@ Date.prototype.getTimeStringHH12 = function(){
   let min = this.toLocaleTimeString().split(':').slice(0,2)[1]
   if(parseInt(min)===0) return this.toLocaleTimeString().split(':')[0]
   else return this.toLocaleTimeString().split(':').slice(0,2).join(':')
+}
+interface String{
+  HHMM24toDate: (date?:Date)=>Date
+}
+String.prototype.HHMM24toDate = function(date:Date = new Date()): Date {
+  if ((/^\d{1,2}\:?\d{2}$/.test(this)))
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate(), this.split(':')[0], this.split(':')[1])
+  else console.error(`${this} is not a valid HH:MM time string and can't be converted into a date.`)
+}
+
+function NewUID(arr:{id:number}[]){
+  for (let i=0;i<10000;i++){
+      if (arr.every(el=>el.id != i)){
+          return i
+      }
+  }
+  return 0
 }
 
 function circularReplacer() {
