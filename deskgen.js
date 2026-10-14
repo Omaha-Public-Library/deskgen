@@ -1,16 +1,16 @@
 var verboseLog = false;
 function onOpen() {
-    SpreadsheetApp.getUi().createMenu('Generator')
+    SpreadsheetApp.getUi().createMenu('🌱 DeskGen') //🖋️✒️🪺🌱🦆🐣🌻⚡✨
         .addItem('↺ Redo schedule for current date', 'buildDeskScheduleRedo')
         .addItem('→ New schedule for following date', 'buildDeskScheduleTomorrow')
         .addItem('＋ New schedule for other date...', 'buildDeskScheduleInputDate')
-        .addItem('⛭ Settings', 'popupSettings')
+        .addItem('⛭ Settings', 'openSettings')
         .addItem('⧖ Open archive', 'openArchive')
         .addToUi();
-    // if(Session.getActiveUser().getEmail() === "candroski@omahalibrary.org")
-    //   SpreadsheetApp.getUi().createMenu('Generator Admin')
-    //     .addItem('archive past schedules', 'archivePastSchedules')
-    //     .addToUi()
+    if (Session.getActiveUser().getEmail() === "candroski@omahalibrary.org")
+        SpreadsheetApp.getUi().createMenu('🪛 DeskGen Admin')
+            .addItem('archive past schedules', 'archivePastSchedules')
+            .addToUi();
 }
 function openArchive() {
     let settings = new Settings(new Date());
@@ -110,23 +110,20 @@ function buildDeskScheduleTomorrow() {
         buildDeskSchedule(newDate);
     }
 }
-function popupSettings() {
-    let settings = getSettingsJSON();
-    // SpreadsheetApp.getUi().alert(settings)
+function openSettings() {
     var htmlTemplate = HtmlService.createTemplateFromFile("settings.html");
-    htmlTemplate.settings = settings;
+    // htmlTemplate.settings = getSettingsJSON() 
     var htmlOutput = htmlTemplate.evaluate().setWidth(1000).setHeight(1000);
     SpreadsheetApp.getUi().showModelessDialog(htmlOutput, "Settings");
 }
 function getSettingsJSON() {
-    let ui = SpreadsheetApp.getUi();
     if (!SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS")) {
-        ui.alert("No SETTINGS sheet found.");
+        SpreadsheetApp.getUi().alert("No SETTINGS sheet found.");
         return null;
     }
     let settings = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SETTINGS").getRange("A1").getValue();
     if (settings == "") {
-        ui.alert("No settings data found in A1 cell of SETTINGS sheet.");
+        SpreadsheetApp.getUi().alert("No settings data found in A1 cell of SETTINGS sheet.");
         return null;
     }
     return settings;
@@ -247,20 +244,17 @@ function buildDeskSchedule(deskSchedDate) {
         let dayLength = (deskSchedule.settings.closeTime(deskSchedule.date).getTime() - deskSchedule.settings.openTime(deskSchedule.date).getTime()) / 3600000;
         let midDay = new Date(deskSchedule.settings.closeTime(deskSchedule.date).getTime() / 2 + deskSchedule.settings.openTime(deskSchedule.date).getTime() / 2);
         midDay.setMinutes(0, 0, 0);
-        if (dayLength > 8)
-            // deskSchedule.timelineBalanceFloors(deskSchedule.settings.openTime(deskSchedule.date), new Date(deskSchedule.settings.openTime(deskSchedule.date)).addTime(2,30), false);
+        if (dayLength > 8) {
             deskSchedule.timelineBalanceFloors(deskSchedule.settings.openTime(deskSchedule.date), midDay, false);
-        // else deskSchedule.timelineBalanceFloors(deskSchedule.settings.openTime(deskSchedule.date), midDay, false)
+            deskSchedule.timelineBalanceFloors(midDay, deskSchedule.settings.closeTime(deskSchedule.date), false);
+            // deskSchedule.timelineBalanceFloors(deskSchedule.settings.openTime(deskSchedule.date), deskSchedule.settings.closeTime(deskSchedule.date), false)
+            performanceLog("timeline balance floors");
+            deskSchedule.logDeskData('after init floor balance at close');
+        }
         else
             deskSchedule.timelineBalanceFloors(deskSchedule.settings.openTime(deskSchedule.date), deskSchedule.settings.closeTime(deskSchedule.date), false);
         performanceLog("timeline balance floors");
         deskSchedule.logDeskData('after init floor balance at open');
-        if (dayLength > 8)
-            // deskSchedule.timelineBalanceFloors(new Date(deskSchedule.settings.closeTime(deskSchedule.date)).addTime(-3), deskSchedule.settings.closeTime(deskSchedule.date), false)
-            deskSchedule.timelineBalanceFloors(midDay, deskSchedule.settings.closeTime(deskSchedule.date), false);
-        // else deskSchedule.timelineBalanceFloors(midDay, deskSchedule.settings.closeTime(deskSchedule.date), false)
-        performanceLog("timeline balance floors");
-        deskSchedule.logDeskData('after init floor balance at close');
         deskSchedule.timelineBreakUpASRS();
         deskSchedule.logDeskData('after first passing breaking up ft asrs');
     }
@@ -268,6 +262,11 @@ function buildDeskSchedule(deskSchedDate) {
     performanceLog("timeline add stations");
     deskSchedule.timelineAssignPics();
     performanceLog("timeline assign PICs");
+    //replace undefined with available
+    deskSchedule.shifts.forEach(shift => {
+        shift.stationTimeline = shift.stationTimeline.map(station => station.name == deskSchedule.defaultStations.undefined.name ?
+            deskSchedule.defaultStations.available : station);
+    });
     //display timeline
     deskSchedule.displayTimeline();
     performanceLog("display timeline");
@@ -306,7 +305,7 @@ class DeskSchedule {
         this.eventsErrorLog = [];
         this.logDeskDataRecord = [];
         this.stations = settings.stations.map(station => {
-            return new Station(station.id, station.color, station.name, station.numOfStaff, station.floor, station.positionPriority, station.duration, station.hourLimit, station.hourLimitType, station.assignDuring, station.limitXHours, station.limitYHours, station.limitToStartTime ? station.limitToStartTime.HHMM24toDate(this.date) : null, station.limitToEndTime ? station.limitToEndTime.HHMM24toDate(this.date) : null, station.days);
+            return new Station(station.id, station.color, station.name, station.numOfStaff, station.floor, station.positionPriority, station.duration, station.hourLimit, station.hourLimitType, station.assignDuring, station.limitXHours, station.limitYHours, station.limitToStartTime ? station.limitToStartTime.HHMM24toDate(this.date) : null, station.limitToEndTime ? station.limitToEndTime.HHMM24toDate(this.date) : null, station.days, station.requiredTags ? station.requiredTags.split(',').map(e => e.trim()) : [], station.preferredTags ? station.preferredTags.split(',').map(e => e.trim()) : []);
         });
         if (this.settings.locationID == 5786790) {
             this.floors = [
@@ -377,7 +376,7 @@ class DeskSchedule {
             ];
         this.allOplNames = wiwData.users.map(user => user.first_name + ' ' + user.last_name);
         this.settings.stations.forEach(s => {
-            s.duration = !s.duration || Number.isNaN(s.duration) ? settings.assignmentLength : s.duration;
+            s.duration = !s.duration || Number.isNaN(s.duration) ? 2 : s.duration;
         });
         this.defaultStations = {
             undefined: new Station(NewUID(this.stations), "#cccccc", "undefined"),
@@ -410,13 +409,13 @@ class DeskSchedule {
         this.positionHierarchy = [
             { "id": 11534158, "name": "Branch Manager", "group": "Reference", "offDeskRatio": 30 / 40, "picDurationMax": 3 },
             { "id": 11534159, "name": "Assistant Branch Manager", "group": "Reference", "offDeskRatio": 20 / 40, "picDurationMax": 3 },
-            { "id": 11534161, "name": "Library Specialist", "group": "Reference", "offDeskRatio": 12 / 40, "picDurationMax": 2 },
+            { "id": 11534161, "name": "Library Specialist", "group": "Reference", "offDeskRatio": 10 / 40, "picDurationMax": 2 },
             { "id": 11566533, "name": "Part-Time Library Specialist", "group": "Reference", "offDeskRatio": 4 / 20, "picDurationMax": 2 },
-            { "id": 11534164, "name": "Associate Library Specialist", "group": "Reference", "offDeskRatio": 10 / 40, "picDurationMax": 2 },
-            { "id": 11656177, "name": "Part-Time Associate Library Specialist", "group": "Reference", "offDeskRatio": 4 / 20, "picDurationMax": 2 },
-            { "id": 11534162, "name": "Senior Clerk", "group": "Clerk", "offDeskRatio": 10 / 40, "picDurationMax": 0 },
-            { "id": 11534163, "name": "Clerk II", "group": "Clerk", "offDeskRatio": 10 / 40, "picDurationMax": 0 },
-            { "id": 11762122, "name": "Part-Time Clerk II", "group": "Clerk", "offDeskRatio": 4 / 20, "picDurationMax": 0 },
+            { "id": 11534164, "name": "Associate Library Specialist", "group": "Reference", "offDeskRatio": 5 / 40, "picDurationMax": 2 },
+            { "id": 11656177, "name": "Part-Time Associate Library Specialist", "group": "Reference", "offDeskRatio": 2 / 20, "picDurationMax": 2 },
+            { "id": 11534162, "name": "Senior Clerk", "group": "Clerk", "offDeskRatio": 5 / 40, "picDurationMax": 0 },
+            { "id": 11534163, "name": "Clerk II", "group": "Clerk", "offDeskRatio": 5 / 40, "picDurationMax": 0 },
+            { "id": 11762122, "name": "Part-Time Clerk II", "group": "Clerk", "offDeskRatio": 2 / 20, "picDurationMax": 0 },
             { "id": 11534165, "name": "Part-Time Library Aide", "group": "Aide", "offDeskRatio": 0 / 40, "picDurationMax": 0 },
             { "id": 11810398, "name": "Part-Time Applications Analyst", "group": "Departments", "offDeskRatio": 0 / 40, "picDurationMax": 0 },
             { "id": 11810399, "name": "Librarian II", "group": "Departments", "offDeskRatio": 0 / 40, "picDurationMax": 0 },
@@ -467,12 +466,14 @@ class DeskSchedule {
                 });
                 let startTime = new Date(s.start_time);
                 let endTime = new Date(s.end_time);
+                let idealEarlyMealHour = settings.idealEarlyMealHour.HHMM24toDate(this.date);
+                let idealLateMealHour = settings.idealLateMealHour.HHMM24toDate(this.date);
                 let idealMealTime = undefined;
                 //if working 8+ hours, assign whichever mealtime is closest to midpoint of shift
                 if (endTime.getHours() - startTime.getHours() >= 8) {
-                    let timeToEarlyMeal = Math.abs((endTime.getTime() + startTime.getTime()) / 2 - settings.idealEarlyMealHour.HHMM24toDate(this.date).getTime());
-                    let timeToLateMeal = Math.abs((endTime.getTime() + startTime.getTime()) / 2 - settings.idealLateMealHour.HHMM24toDate(this.date).getTime());
-                    idealMealTime = new Date(timeToEarlyMeal < timeToLateMeal ? settings.idealEarlyMealHour : settings.idealLateMealHour);
+                    let timeToEarlyMeal = Math.abs((endTime.getTime() + startTime.getTime()) / 2 - idealEarlyMealHour.getTime());
+                    let timeToLateMeal = Math.abs((endTime.getTime() + startTime.getTime()) / 2 - idealLateMealHour.getTime());
+                    idealMealTime = new Date(timeToEarlyMeal < timeToLateMeal ? idealEarlyMealHour : idealLateMealHour);
                 }
                 let tags = wiwTags.map(tagObj => tagObj.name);
                 let positionGroup;
@@ -835,8 +836,8 @@ class DeskSchedule {
             let nearestMealTime = Math.abs(idealEarlyMealHour.getTime() - time.getTime()) < Math.abs(idealLateMealHour.getTime() - time.getTime())
                 ? idealEarlyMealHour : idealLateMealHour;
             mealAssignmentTimeStart = new Date(nearestMealTime).addTime(-this.settings.idealMealTimePlusMinusHours);
-            if (time.getTime() != mealAssignmentTimeStart.getTime())
-                return; //only assign meals at start of block
+            if (time.getTime() != mealAssignmentTimeStart.getTime() - 30 * 60 * 1000)
+                return; //only assign meals half hour before start of block
             if (mealAssignmentTimeStart.getTime() < time.getTime())
                 mealAssignmentTimeStart = new Date(time);
             mealAssignmentTimeEnd = new Date(nearestMealTime).addTime(this.settings.idealMealTimePlusMinusHours);
@@ -887,11 +888,44 @@ class DeskSchedule {
                     if (availabilityTotal > 0)
                         highestAvailabilityTimes.push({ time: startTime, availabilityTotal: availabilityTotal });
                 }
-                //sort resulting array by availability total (tie broken by existing proximity to ideal order)
-                highestAvailabilityTimes.sort((a, b) => b.availabilityTotal - a.availabilityTotal);
                 //sort to avoid half hours if changeOnTheHour
                 if (this.settings.changeOnTheHour && this.settings.mealBreakLength % 1 == 0)
                     highestAvailabilityTimes.sort((a, b) => (a.time.getMinutes() == 0 ? 0 : 1) - (b.time.getMinutes() == 0 ? 0 : 1));
+                //sort to prefer mealbreaks that don't have only half hour of availability adjacent
+                highestAvailabilityTimes.sort((a, b) => {
+                    let aVal = 0;
+                    let prevTime = new Date(a.time).addTime(0, -30);
+                    let prevPrevTime = new Date(a.time).addTime(0, -60);
+                    let nextTime = new Date(a.time).addTime(0, 30);
+                    let nextNextTime = new Date(a.time).addTime(0, 60);
+                    if (shift.getStationAtTime(nextTime).name != this.defaultStations.undefined.name)
+                        aVal++;
+                    else if (shift.getStationAtTime(nextNextTime).name == this.defaultStations.undefined.name)
+                        aVal++;
+                    if (shift.getStationAtTime(prevTime).name != this.defaultStations.undefined.name) {
+                        if (shift.countHowLongAtCurrentStation(prevTime) > 0.5)
+                            aVal++;
+                    }
+                    else if (shift.getStationAtTime(prevPrevTime).name == this.defaultStations.undefined.name)
+                        aVal++;
+                    let bVal = 0;
+                    prevTime = new Date(b.time).addTime(0, -30);
+                    prevPrevTime = new Date(b.time).addTime(0, -60);
+                    nextTime = new Date(b.time).addTime(0, 30);
+                    if (shift.getStationAtTime(nextTime).name != this.defaultStations.undefined.name)
+                        bVal++;
+                    else if (shift.getStationAtTime(nextNextTime).name == this.defaultStations.undefined.name)
+                        bVal++;
+                    if (shift.getStationAtTime(prevTime).name != this.defaultStations.undefined.name) {
+                        if (shift.countHowLongAtCurrentStation(prevTime) > 0.5)
+                            bVal++;
+                    }
+                    else if (shift.getStationAtTime(prevPrevTime).name == this.defaultStations.undefined.name)
+                        bVal++;
+                    return bVal - aVal;
+                });
+                //sort resulting array by availability total (tie broken by existing proximity to ideal order)
+                highestAvailabilityTimes.sort((a, b) => b.availabilityTotal - a.availabilityTotal);
                 // this.ui.alert(time.toLocaleTimeString()+'- '+shift.name +'\n\n'+ highestAvailabilityTimes.map(hat=>`${hat.time.toLocaleTimeString()} - ${hat.availabilityTotal}`).join('\n'))
                 //assign staff to best meal time
                 if (highestAvailabilityTimes.length > 0
@@ -938,9 +972,12 @@ class DeskSchedule {
         this.updateFloorOverstaffCount(balanceTimeStart, balanceTimeEnd, useLowMinimums);
         //do rebalancing pass 20 times, or until no floors are disproportionately overstaffed above ideal counts AND any remainder is not on ASRS, or until no floors are below their minimums
         for (let i = 0; i < 20 &&
-            (!useLowMinimums && (maxDifference(this.floors.map(floor => floor.overstaffMin)) > 1)
+            ((!useLowMinimums && maxDifference(this.floors.map(floor => floor.overstaffMin)) > 1)
                 // || (!useLowMinimums && this.floors.some(floor=>floor.overstaffMin<this.getFloor("ASRS").overstaffMin))
-                || (!useLowMinimums && this.getFloor("ASRS").overstaffMin + this.getFloor("Genealogy").overstaffMin > this.getFloor("1st Floor").overstaffMin + this.getFloor("2nd Floor").overstaffMin)
+                || (!useLowMinimums &&
+                    Math.max(this.getFloor("ASRS").overstaffMin, this.getFloor("Genealogy").overstaffMin)
+                        >
+                            Math.min(this.getFloor("1st Floor").overstaffMin, this.getFloor("2nd Floor").overstaffMin))
                 // || (!useLowMinimums && ([this.getFloor("1st Floor"),this.getFloor("2nd Floor")].some(highPriorityFloor=>(highPriorityFloor.overstaffMin<this.getFloor("ASRS").overstaffMin || highPriorityFloor.overstaffMin<this.getFloor("Genealogy").overstaffMin))))
                 || (useLowMinimums && this.floors.some(floor => floor.overstaffMin < 0))); i++) { //or if ASRS is > other stations?
             // this.ui.alert(balanceTimeStart.toLocaleString() + " - maxdif:"+ maxDifference(this.floors.map(floor=>floor.overstaffMin)) +'\n'+this.floors.map((floor)=>floor.name +":    "+ floor.overstaffMin).join('\n'))
@@ -1011,6 +1048,8 @@ class DeskSchedule {
             this.floors.sort((a, b) => a.reassignStaffPriority - b.reassignStaffPriority);
             this.floors.sort((a, b) => a.overstaffMin - b.overstaffMin);
         }
+        if (!useLowMinimums) //if balancing for preferred count, afterwards do balance for minimums.
+            this.timelineBalanceFloors(balanceTimeStart, balanceTimeEnd, true, initialBalance);
     }
     timelineBreakUpASRS() {
         let longAsrsShifts = this.shifts.filter(shift => shift.floor.name == "ASRS" && (shift.endTime.getTime() - shift.startTime.getTime()) / 3600000 >= 6);
@@ -1023,11 +1062,16 @@ class DeskSchedule {
             this.updateFloorOverstaffCount(midShift, shiftToSplit.endTime, false, false);
             if (this.floors.some(floor => shiftToSplit.floor.overstaffMin - floor.overstaffMin > 1)
                 || (shiftToSplit.floor.name == "ASRS" && this.floors.some(floor => shiftToSplit.floor.overstaffMin - floor.overstaffMin > 0)))
+                this.updateFloorOverstaffCount(midShift, shiftToSplit.endTime, true, false);
+            if (this.floors.some(floor => shiftToSplit.floor.overstaffMin - floor.overstaffMin > 1)
+                || (shiftToSplit.floor.name == "ASRS" && this.floors.some(floor => shiftToSplit.floor.overstaffMin - floor.overstaffMin > 0)))
                 moveLastHalf = true;
             this.updateFloorOverstaffCount(shiftToSplit.startTime, midShift, false, false);
             if (this.floors.some(floor => shiftToSplit.floor.overstaffMin - floor.overstaffMin > 1)
                 || (shiftToSplit.floor.name == "ASRS" && this.floors.some(floor => shiftToSplit.floor.overstaffMin - floor.overstaffMin > 0)))
-                moveFirstHalf = true;
+                if (this.floors.some(floor => shiftToSplit.floor.overstaffMin - floor.overstaffMin > 1)
+                    || (shiftToSplit.floor.name == "ASRS" && this.floors.some(floor => shiftToSplit.floor.overstaffMin - floor.overstaffMin > 0)))
+                    moveFirstHalf = true;
             if (moveFirstHalf || moveLastHalf) {
                 if (moveFirstHalf) {
                     this.floors.sort((a, b) => a.reassignStaffPriority - b.reassignStaffPriority);
@@ -1046,6 +1090,7 @@ class DeskSchedule {
                     shiftToSplit.moveToFloor(needyFloor, midShift);
                 }
                 this.logDeskData(`moved split shift ${shiftToSplit.name}`);
+                // this.logDeskData(`moved split shift ${shiftToSplit.name}\n\n${JSON.stringify(this.floors)}`)
             }
             //if moving half of shift isn't need to balance floors, try to swap with another shift that needs splitting
             else if (this.trySwap(shiftToSplit, this.shifts.filter(shift => this.getPositionHierarchyIndex(shift.position) >= this.getPositionHierarchyIndex(this.getPositionByName("Associate Library Specialist").id)))) { }
@@ -1205,8 +1250,8 @@ class DeskSchedule {
                             adjustRating(shiftIndex, stationIndex, `currently assigned to this station and under duration (${station.duration})`, 2);
                         if (prevStation.name == station.name && timeOnCurrentStation == 0.5 && timeOnCurrentStation < prevStation.duration)
                             adjustRating(shiftIndex, stationIndex, "currently assigned to this station and under duration and only been on half hour", 3);
-                        if (prevStation.name != station.name && timeOnCurrentStation >= prevStation.duration && prevStation.duration > 0)
-                            adjustRating(shiftIndex, stationIndex, "not on this station and at/over duration " + timeOnCurrentStation + ' &#60; ' + prevStation.duration, 1);
+                        // if(prevStation.name != station.name && timeOnCurrentStation >= prevStation.duration && prevStation.duration>0)
+                        //   adjustRating(shiftIndex, stationIndex, "not on this station and at/over duration " +timeOnCurrentStation+' &#60; '+prevStation.duration, 1)
                         if (prevStation.name == station.name && timeOnCurrentStation >= prevStation.duration)
                             adjustRating(shiftIndex, stationIndex, "on this station and at/over duration " + timeOnCurrentStation + '&#62;=' + prevStation.duration, -1);
                         if (prevStation.name == station.name && timeOnCurrentStation - prevStation.duration >= 1)
@@ -1216,12 +1261,14 @@ class DeskSchedule {
                         if (prevStation.name == station.name &&
                             (nextTime.getTime() == this.settings.closeTime(this.date).getTime() || !this.stationIsWithinTimeLimits(station, nextTime)))
                             adjustRating(shiftIndex, stationIndex, "try to stay on current station for last half hour of day/station assignment", 1);
-                        if (nextStation.name == this.defaultStations.undefined.name)
-                            adjustRating(shiftIndex, stationIndex, "avaible for this and following half hour", 1);
                         let timeOnProposedStation = prevStation.name == station.name ? timeOnCurrentStation : 0;
                         let upcomingAvailability = shift.countAvailabilityLength(time, shift.endTime);
                         if (timeOnProposedStation + upcomingAvailability >= station.duration)
-                            adjustRating(shiftIndex, stationIndex, `avaible for full/remaining length of station (${timeOnProposedStation}+${upcomingAvailability})`, 1);
+                            adjustRating(shiftIndex, stationIndex, `available for full/remaining length of station (${timeOnProposedStation}+${upcomingAvailability})`, 2);
+                        else if (nextStation.name == this.defaultStations.undefined.name)
+                            adjustRating(shiftIndex, stationIndex, "not available for full length of station, but avaible for at least an hour", 1);
+                        if (upcomingAvailability == 0.5 && prevStation.name == station.name)
+                            adjustRating(shiftIndex, stationIndex, "only available for upcoming half hour, stay on current station", 3);
                         let position = this.positionHierarchy.find(pos => pos.id == shift.position);
                         let totalTimeOnPossibleStation = shift.countTotalTimeAtStation(station.name, time);
                         if (station.name == this.defaultStations.available.name) {
@@ -1232,7 +1279,9 @@ class DeskSchedule {
                                 let offDeskRatio = position.offDeskRatio;
                                 let shiftLength = (shift.endTime.getTime() - shift.startTime.getTime()) / 3600000;
                                 let targetOffDeskTimeTotal = shiftLength * offDeskRatio;
-                                let totalTimeOffDesk = shift.countTotalTimeAtStation(this.defaultStations.available.name, nextTime, this.settings.openTime(time));
+                                let totalTimeOffDesk = shift.countTotalTimeAtStation(this.defaultStations.available.name, nextTime, this.settings.openTime(time))
+                                    +
+                                        shift.countTotalTimeAtStation(this.defaultStations.programMeeting.name, nextTime, this.settings.openTime(time)) / 2;
                                 let odtHoursStillNeeded = targetOffDeskTimeTotal - totalTimeOffDesk;
                                 let undefinedHoursLeft = shift.countTotalTimeAtStation(this.defaultStations.undefined.name, shift.endTime, time);
                                 let ratio = undefinedHoursLeft == 0 ? 100000 : odtHoursStillNeeded / undefinedHoursLeft; //if there are no 
@@ -1243,9 +1292,13 @@ class DeskSchedule {
                             if (totalTimeOnPossibleStation <= 0)
                                 adjustRating(shiftIndex, stationIndex, "hasn't been on this station yet", 1);
                         }
+                        station.preferredTags.forEach(preferredTag => {
+                            if (shift.tags.includes(preferredTag))
+                                adjustRating(shiftIndex, stationIndex, `has preferred tag: "${preferredTag}"`, 10);
+                        });
                         //Central Specific
-                        if (this.settings.locationID == 5786790 && station.name.startsWith("Do Space") && shift.tags.includes("Do Space"))
-                            adjustRating(shiftIndex, stationIndex, "dospace tag required and present", 100);
+                        // if (this.settings.locationID == 5786790 && station.name.startsWith("Do Space") && shift.tags.includes("Do Space"))
+                        //   adjustRating(shiftIndex, stationIndex, "dospace tag required and present", 100)
                     }
                 }
                 //duplicate floorStations to have enough count
@@ -1323,9 +1376,10 @@ class DeskSchedule {
         //   currently undefined: ${currentStation.name == this.defaultStations.undefined.name}
         //   not in training: ${!shift.tags.includes("In training (do not assign to stations)")}
         //   numOfStaff not over max: ${stationCount < station.numOfStaff}`)
-        if ( //check if unassigned, not in training, under station count, and assigned to this floor
+        if ( //check if unassigned, not in training, has all required tags, under station count, and assigned to this floor
         currentStation.name == this.defaultStations.undefined.name
             && !shift.tags.includes("In training (do not assign to stations)")
+            && station.requiredTags.every(requiredTag => shift.tags.includes(requiredTag))
             && stationCount < station.numOfStaff) { /*continue*/ }
         else
             return false;
@@ -1592,7 +1646,7 @@ class DeskSchedule {
         Object.keys(this.floors).forEach((property, i) => {
             let floor = this.floors[property];
             let stationsFilteredForDisplay = this
-                .removeDuplicateStations(this.stations.filter(s => s.name != 'undefined' && (s.floor == undefined || s.floor == floor.name)))
+                .removeDuplicateStations(this.stations.filter(s => s.name != 'undefined' && (s.floor == undefined || s.floor == "" || s.floor == floor.name)))
                 //don't show off, or off floor unless we're at central
                 .filter(s => ![this.defaultStations.off.name, "Service Desk (Do Space)"].includes(s.name) && (this.settings.locationID == 5786790 || s.name != this.defaultStations.offFloorStation.name));
             displayCells.getAllByNameColumn('stationColor', '', stationsFilteredForDisplay.length)[i]
@@ -1847,7 +1901,7 @@ var DutyListLimitType;
 class Floor {
 }
 class Station {
-    constructor(id = null, color = "#ffffff", name, numOfStaff = 1, floor = null, positionPriority = [], duration = 2, hourLimit = null, hourLimitType = HourLimitType.none, assignDuring = AssignDuring.Alwayswhileopen, limitXHours = 0, limitYHours = 0, limitToStartTime = null, limitToEndTime = null, days = [1, 1, 1, 1, 1, 1, 1]) {
+    constructor(id = null, color = "#ffffff", name, numOfStaff = 1, floor = null, positionPriority = [], duration = 2, hourLimit = null, hourLimitType = HourLimitType.none, assignDuring = AssignDuring.Alwayswhileopen, limitXHours = 0, limitYHours = 0, limitToStartTime = null, limitToEndTime = null, days = [1, 1, 1, 1, 1, 1, 1], requiredTags = [], preferredTags = []) {
         this.id = null;
         this.color = color;
         this.name = name;
@@ -1862,7 +1916,9 @@ class Station {
         this.limitToStartTime = limitToStartTime;
         this.limitToEndTime = limitToEndTime;
         this.numOfStaff = numOfStaff;
-        this.days = days;
+        this.days = days,
+            this.requiredTags = requiredTags,
+            this.preferredTags = preferredTags;
     }
 }
 class SettingStation {
@@ -1947,6 +2003,17 @@ class Shift {
         let currentStation = this.getStationAtTime(time).name;
         if (currentStation !== stationName)
             return 0; //if 
+        let count = 0;
+        for (let prevTime = new Date(time); prevTime >= this.startTime; prevTime.addTime(0, -30)) {
+            if (this.getStationAtTime(prevTime).name === currentStation)
+                count += 0.5;
+            else
+                break;
+        }
+        return count;
+    }
+    countHowLongAtCurrentStation(time) {
+        let currentStation = this.getStationAtTime(time).name;
         let count = 0;
         for (let prevTime = new Date(time); prevTime >= this.startTime; prevTime.addTime(0, -30)) {
             if (this.getStationAtTime(prevTime).name === currentStation)

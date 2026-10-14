@@ -13,6 +13,9 @@
         half hour grace period shouldn't apply when only one person is on floor!
         don't split shifts if one half is all events/unavailable
         Friday morning DoSpace closure, change staffing count for different days of week
+        8 hr shift moved to asrs right at open, then shift isn't split
+        ft specs eligible for HOP
+        fine tune split midpoint-only look forward to next undefined time for split instead of moving to another floor in the middle of HOP
     ON
         Natalie believes names lower in alphabet are prioritized for off desk time
         lunches at 11 or 1130 is too early
@@ -41,9 +44,11 @@
     fallback or warning when staff isn't available for any of the meal range
     prioritize GEN staff when moving staff for coverage, don't move staff when it brings floor count to zero (CEN 8.12)
         or, should the swap staffing count range always expand to cover the length of the shift of the staff being considered for swap?
+    log who runs stuff
 
 ================ OPTIMIZATION ================
     at start of station assignment step, check for available count and skip if there's no space left to assign
+    often adding multiple countTotalTimeAtStation - change arg from single name to array of names?
 
 ======== wiw bugs? ========
     there are tags on users that don't exist in https://worktags.api.wheniwork-production.com/tags... could they have been assigned, then the tag deleted? see Julie's tag 4fec1268-8989-44a1-87d3-830de8d21462
