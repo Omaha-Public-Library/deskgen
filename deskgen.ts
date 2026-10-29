@@ -399,7 +399,7 @@ class DeskSchedule{
           reassignStaffPriority: 1,
           name: "1st Floor",
           preferredTag: "Service Desk",
-          minimumStaff: 2,
+          minimumStaff: 3,
           preferredStaff: 4,
           overstaffMin: 0,
           overstaffCounts: [],
@@ -411,7 +411,7 @@ class DeskSchedule{
           reassignStaffPriority: 4,
           name: "ASRS",
           preferredTag: null,
-          minimumStaff: 2,
+          minimumStaff: 1,
           preferredStaff: 2,
           overstaffMin: 0,
           overstaffCounts: [],
@@ -891,8 +891,8 @@ class DeskSchedule{
   }
   sortShiftsByFairRotation(shifts: Shift[]){
     this.sortShiftsByNameAlphabetically(shifts)
+    offset(shifts, this.date.getDayOfYear())
     if (this.date.getDayOfYear()%2==0) shifts.reverse()
-    shifts = offset(shifts, this.date.getDayOfYear())
   }
   sortShiftsForDisplay(shifts){
     this.sortShiftsByNameAlphabetically(shifts)
@@ -905,17 +905,17 @@ class DeskSchedule{
       (shiftA.isPIC === shiftB.isPIC) ? 0 : shiftA.isPIC? -1 : 1
     )
   }
-  sortShiftsByUserPositionPriority(shifts: Shift[], positionPriority: PositionPriority[]) {
-    if (positionPriority.length<2) {
-      this.sortShiftsByPositionHiearchyDesc(shifts)
-      return
-    }
-    shifts.sort((shiftA:Shift, shiftB:Shift)=>{
-      let iA = positionPriority.map(p=>this.getPositionByName(p.title).id).indexOf(shiftA.position)
-      let iB = positionPriority.map(p=>this.getPositionByName(p.title).id).indexOf(shiftB.position)
-      return iA - iB
-    })
-  }
+  // sortShiftsByUserPositionPriority(shifts: Shift[], positionPriority: PositionPriority[]) {
+  //   if (positionPriority.length<2) {
+  //     this.sortShiftsByPositionHiearchyDesc(shifts)
+  //     return
+  //   }
+  //   shifts.sort((shiftA:Shift, shiftB:Shift)=>{
+  //     let iA = positionPriority.map(p=>this.getPositionByName(p.title).id).indexOf(shiftA.position)
+  //     let iB = positionPriority.map(p=>this.getPositionByName(p.title).id).indexOf(shiftB.position)
+  //     return iA - iB
+  //   })
+  // }
   sortShiftsByWhetherAssignmentLengthReached(shifts: Shift[], stationBeingAssigned: string, time: Date){
     shifts.sort((shiftA, shiftB)=>{
       let prevTime = new Date(time).addTime(0,-30)
@@ -1325,7 +1325,7 @@ class DeskSchedule{
   }
 
   timelineAddStations(stations:Station[], shifts:Shift[], assignMeals:Boolean = true, balanceFloors:Boolean = true){
-    if(!this.settings.assignStations || this.shifts.length < 1) return
+    if(!this.settings.assignStations || shifts.length < 1) return
     log(`running timelineAddStations for stations:\n${stations.map(station=>station.name).join('\n')}`)
     
     for(let time = new Date(this.dayStartTime); time < this.dayEndTime; time.addTime(0, 30)){      
@@ -1333,7 +1333,7 @@ class DeskSchedule{
       let nextTime = new Date(time).addTime(0,30)//.clamp(this.dayStartTime, new Date(this.dayEndTime).addTime(0,-30))
       // console.log("prevTime, time, nextTime", prevTime, time, nextTime)
 
-      this.sortShiftsByFairRotation(this.shifts)
+      this.sortShiftsByFairRotation(shifts)
 
       //if reached start of mealtime block, add meals for that block
       if (assignMeals) this.timelineAddMeals(time)
@@ -1367,7 +1367,7 @@ class DeskSchedule{
           let onFloor = (station.floor == floor.name || station.floor == undefined || station.floor == "")
           let notDefault = (!Object.values(this.defaultStations).map(s=>s.name).includes(station.name) || station.name == this.defaultStations.available.name)
           let validTime = this.stationIsWithinTimeLimits(station, time)
-          let notOverStaffLimit = this.getStationCountAtTime(this.shifts, station, time) < station.numOfStaff //could this break with multiple stations of same name?
+          let notOverStaffLimit = this.getStationCountAtTime(shifts, station, time) < station.numOfStaff //could this break with multiple stations of same name?
           return onFloor && notDefault && validTime && notOverStaffLimit
         })
         if (floorShifts.length<=0 || floorStations.length<=0)
@@ -1410,8 +1410,10 @@ class DeskSchedule{
 
             adjustRating(shiftIndex, stationIndex, "floor priority adjustment", (floorStations.length-stationIndex)*1000)
 
-            if(station.positionPriority.find(pp=>pp.title == this.getPositionById(shift.position).name).priority > 1)
+            if(station.positionPriority.find(pp=>pp.title == this.getPositionById(shift.position).name).priority == 2)
               adjustRating(shiftIndex, stationIndex, `position ${this.getPositionById(shift.position).name} is preferred for this station`, 2)
+            if(station.positionPriority.find(pp=>pp.title == this.getPositionById(shift.position).name).priority == 3)
+              adjustRating(shiftIndex, stationIndex, `position ${this.getPositionById(shift.position).name} is backup only for this station`, -500)
 
             if(prevStation.name == station.name && timeOnCurrentStation < prevStation.duration)
               adjustRating(shiftIndex, stationIndex, `currently assigned to this station and under duration (${station.duration})`, 2)
@@ -1574,7 +1576,7 @@ class DeskSchedule{
     ){/*continue*/} else return false
 
     //ForXhoursperdayforeachstaff
-    if(station.hourLimitType == HourLimitType.ForXhoursperdayforeachstaff && this.getTotalStationCount(shift, station.name, time) >= station.duration)
+    if(station.hourLimitType == HourLimitType.ForXhoursperdayforeachstaff && this.getTotalStationCount(shift, station.name, time) >= station.hourLimit)
       return false
 
     return true
@@ -1813,7 +1815,7 @@ class DeskSchedule{
         // ?.setValues(floorShifts.map(s=>[this.shortenFullName(s.name)]))
         ?.setValues(floorShifts.map(s=>[this.shortenFullName(s.name)
           +(s.tags.includes("Genealogy")?'ᴳ':'')
-          +(s.tags.includes("Do Space")?'ᴰ':'')
+          +(this.settings.locationID == 5786790 && s.tags.includes("Do Space")?'ᴰ':'')
           +([11534158, 11534159].includes(s.position)?'*':'')
         ]))
       this.displayCells.getAllByNameColumn('shiftTime', '', floorShifts.length)[i]
@@ -1962,7 +1964,9 @@ class DeskSchedule{
       let listDutiesCells = displayCells.getAllByName('dutyTitle')
       let listStaffCells = displayCells.getAllByName('dutyStaff')
       let listCheckCells = displayCells.getAllByName('dutyCheck')
-      let numOfCompleteGroups = Math.min(filteredDutyLists.length, listTitleCells.length, listDutiesCells.length, listStaffCells.length, listCheckCells.length)
+      let numOfCompleteGroups = 0
+      if (filteredDutyLists.length>0 && (!listTitleCells || !listDutiesCells || !listStaffCells || !listCheckCells))  this.ui.alert("Error: There is one or more lists of duties in the settings, but nowhere in the template to place them (missing/incomplete display cell group).\n\nContact Corson candroski@omahalibrary.org for help setting up your template.")
+      else numOfCompleteGroups = Math.min(filteredDutyLists.length, listTitleCells.length, listDutiesCells.length, listStaffCells.length, listCheckCells.length)
 
       //add rows for each duty list, only adding length of longest list in same row as others
       let indOfGroupsInRow:number[]= []
@@ -2217,7 +2221,7 @@ class SettingStation{
 
 class PositionPriority{
   title:string
-  priority: 0 | 1 | 2
+  priority: 0 | 3 | 1 | 2
 }
 
 class ShiftEvent{
@@ -2852,7 +2856,10 @@ function getLatest(dates: Date[]):Date{
   return dates[0]
 }
 
-function offset(arr:any[], offset:number):any[]{ return [...arr.slice(offset%arr.length), ...arr.slice(0,offset%arr.length)] }
+function offset(arr:any[], offset:number):any[]{
+  arr.push(...arr.splice(0,offset%arr.length))
+  return arr
+}
 
 function shuffle(array:any[]):void { //from https://stackoverflow.com/questions/2450954/how-to-randomize-shuffle-a-javascript-array
   let currentIndex = array.length;

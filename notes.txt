@@ -17,7 +17,6 @@
         ft specs eligible for HOP
         fine tune split midpoint-only look forward to next undefined time for split instead of moving to another floor in the middle of HOP
     ON
-        Natalie believes names lower in alphabet are prioritized for off desk time
         lunches at 11 or 1130 is too early
 
 ================ BUGS/TO TEST ========
