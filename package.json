@@ -2,5 +2,12 @@
   "dependencies": {
     "@types/google-apps-script": "^2.0.8",
     "@types/sortablejs": "^1.15.9"
+  },
+  "scripts": {
+    "watch":"start npm run watchTs & start npm run watchSettings & npm run watchGAS",
+    "watchTs":"tsc --watch",
+    "watchSettings":"cd deskgen_settings && npx vite build --watch & cd ..",
+    "watchGas":"clasp push --project .clasp.dev.json --watch",
+    "deploy":"cd deskgen_settings && npx vite build && cd .. && tsc && clasp push --project .clasp.dev.json && multi-clasp push --force"
   }
 }

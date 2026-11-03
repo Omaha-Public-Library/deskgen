@@ -1,0 +1,7 @@
+{
+  "files": ["../deskgen.d.ts"],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
+}

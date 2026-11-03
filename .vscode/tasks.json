@@ -1,0 +1,38 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "watch",
+			"dependsOrder": "parallel",
+			"dependsOn": [
+				"watchTs",
+				"watchSettings",
+				"watchGas"
+			]
+		},
+		{
+			"label": "watchTs",
+			"type": "npm",
+			"script": "watchTs",
+			"presentation": {
+                "panel": "dedicated"
+            }
+		},
+		{
+			"label": "watchSettings",
+			"type": "npm",
+			"script": "watchSettings",
+			"presentation": {
+                "panel": "dedicated"
+            }
+		},
+		{
+			"label": "watchGas",
+			"type": "npm",
+			"script": "watchGas",
+			"presentation": {
+                "panel": "dedicated"
+            }
+		},
+	]
+}

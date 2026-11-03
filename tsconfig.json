@@ -3,4 +3,8 @@
         "target":"es2021",
         "skipLibCheck":true
     },
+    "files": [
+        "deskgen.ts",
+        "deskgen.d.ts"
+    ]
 }
