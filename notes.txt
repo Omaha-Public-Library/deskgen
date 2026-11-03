@@ -24,7 +24,7 @@
     floor split shifts incorrectly count upcoming undefined slots across splits, leading them to be really highly prioritized right before split. Need to get count for all shifts with same name, add?
 
 ================ FEATURE WISHLIST ================
-    duties - assign two people, limit to days of week
+    duties - assign two people
     warnings - no meal, no Manager/ABM on floor/in building, way under time off desk, no one eligible for duty - 
     auto hide settings+template, below floor minimums
     longterm archive management, better failsafes, delete archived sheets at certain age?
@@ -44,6 +44,8 @@
     prioritize GEN staff when moving staff for coverage, don't move staff when it brings floor count to zero (CEN 8.12)
         or, should the swap staffing count range always expand to cover the length of the shift of the staff being considered for swap?
     log who runs stuff
+    have events check for station name that matches event name, and use that station color on calendar - would allow calendar to schedule one-off/non weekly/irregular stations
+    improve duty assignment - sort duties in list by most limiting desc - pic req, all except aides, etc - to keep 
 
 ================ OPTIMIZATION ================
     at start of station assignment step, check for available count and skip if there's no space left to assign

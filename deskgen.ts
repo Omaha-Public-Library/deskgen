@@ -11,8 +11,17 @@ function onOpen(){
   if(Session.getActiveUser().getEmail() === "candroski@omahalibrary.org")
     SpreadsheetApp.getUi().createMenu('🪛 DeskGen Admin')
       .addItem('archive past schedules', 'archivePastSchedules')
+      .addItem('Schedule info', 'scheduleInfoSidebar')
       .addToUi()
 }
+
+// function scheduleInfoSidebar(){
+//   let displayCells: DisplayCells = new DisplayCells(SpreadsheetApp.getActiveSpreadsheet().getActiveSheet())
+//   // displayCells.getByName('scheduleInfo').getValue()
+
+//   const html = HtmlService.createHtmlOutput(`<b>wowee!</b> its html\n\n${displayCells.getByName('scheduleInfo').getValue()}`).setTitle('Schedule Info')
+//   SpreadsheetApp.getUi().showSidebar(html)
+// }
 
 function openArchive(){
   let settings = new Settings(new Date())
@@ -822,10 +831,12 @@ class DeskSchedule{
     displayCells.update(this.deskSheet)
     performanceLog("display events - add rows, update DCs")
 
-    // happeningTodayRichTextArray.forEach((rt,i)=>{
-    //   this.deskSheet.getRange(htDisplayCell.getRow()+i, htDisplayCell.getColumn(), 1, this.deskSheet.getDataRange().getNumColumns()-(htDisplayCell.getColumn()-1))
-    //   .merge()
-    // })
+    if (this.settings.locationID != 5786790){
+      happeningTodayRichTextArray.forEach((rt,i)=>{
+        this.deskSheet.getRange(htDisplayCell.getRow()+i, htDisplayCell.getColumn(), 1, this.deskSheet.getDataRange().getNumColumns()-(htDisplayCell.getColumn()-1))
+        .merge()
+      })
+    }
     performanceLog("display events - merge RTVs")
 
     this.deskSheet.getRange(htDisplayCell.getRow(), htDisplayCell.getColumn(), happeningTodayRichTextArray.length)
@@ -1408,6 +1419,9 @@ class DeskSchedule{
               continue
             }
 
+            let onStation = prevStation.name == station.name
+            let overDuration = onStation && timeOnCurrentStation >= prevStation.duration
+
             adjustRating(shiftIndex, stationIndex, "floor priority adjustment", (floorStations.length-stationIndex)*1000)
 
             if(station.positionPriority.find(pp=>pp.title == this.getPositionById(shift.position).name).priority == 2)
@@ -1415,36 +1429,36 @@ class DeskSchedule{
             if(station.positionPriority.find(pp=>pp.title == this.getPositionById(shift.position).name).priority == 3)
               adjustRating(shiftIndex, stationIndex, `position ${this.getPositionById(shift.position).name} is backup only for this station`, -500)
 
-            if(prevStation.name == station.name && timeOnCurrentStation < prevStation.duration)
+            if(onStation && timeOnCurrentStation < prevStation.duration)
               adjustRating(shiftIndex, stationIndex, `currently assigned to this station and under duration (${station.duration})`, 2)
 
-            if(prevStation.name == station.name && timeOnCurrentStation == 0.5 && timeOnCurrentStation < prevStation.duration)
-              adjustRating(shiftIndex, stationIndex, "currently assigned to this station and under duration and only been on half hour", 3)
+            if(onStation && timeOnCurrentStation == 0.5 && timeOnCurrentStation < prevStation.duration)
+              adjustRating(shiftIndex, stationIndex, "currently assigned to this station and under duration and only been on half hour", 4)
 
             // if(prevStation.name != station.name && timeOnCurrentStation >= prevStation.duration && prevStation.duration>0)
             //   adjustRating(shiftIndex, stationIndex, "not on this station and at/over duration " +timeOnCurrentStation+' &#60; '+prevStation.duration, 1)
-
-            if(prevStation.name == station.name && timeOnCurrentStation >= prevStation.duration)
+            
+            if(overDuration)
               adjustRating(shiftIndex, stationIndex, "on this station and at/over duration " +timeOnCurrentStation+'&#62;='+prevStation.duration, -1)
 
-            if(prevStation.name == station.name && timeOnCurrentStation - prevStation.duration >= 1)
+            if(overDuration && timeOnCurrentStation - prevStation.duration >= 1)
               adjustRating(shiftIndex, stationIndex, "on this station and 1hr+ over duration " +timeOnCurrentStation+'&#62;='+prevStation.duration, -2)
 
-            if(this.settings.changeOnTheHour && time.getMinutes()!=0 && prevStation.name == station.name)
+            if(this.settings.changeOnTheHour && time.getMinutes()!=0 && onStation)
                 adjustRating(shiftIndex, stationIndex, "changeOnTheHour setting is on, try to stay on current station at :30", 1)
 
-            if(prevStation.name == station.name &&
+            if(onStation &&
               (nextTime.getTime() == this.settings.closeTime(this.date).getTime() || !this.stationIsWithinTimeLimits(station, nextTime)))
                 adjustRating(shiftIndex, stationIndex, "try to stay on current station for last half hour of day/station assignment", 1)
 
-            let timeOnProposedStation = prevStation.name == station.name ? timeOnCurrentStation : 0
+            let timeOnProposedStation = onStation ? timeOnCurrentStation : 0
             let upcomingAvailability = shift.countAvailabilityLength(time, shift.endTime)
-            if(timeOnProposedStation + upcomingAvailability >= station.duration)
-              adjustRating(shiftIndex, stationIndex, `available for full/remaining length of station (${timeOnProposedStation}+${upcomingAvailability})`, 2)
-            else if(nextStation.name==this.defaultStations.undefined.name)
+            if(!overDuration && timeOnProposedStation + upcomingAvailability >= station.duration)
+              adjustRating(shiftIndex, stationIndex, `available for full/remaining length of station (${timeOnProposedStation}+${upcomingAvailability}>${station.duration})`, 2)
+            else if(!overDuration && nextStation.name==this.defaultStations.undefined.name)
               adjustRating(shiftIndex, stationIndex, "not available for full length of station, but avaible for at least an hour", 1)
 
-            if(upcomingAvailability == 0.5 && prevStation.name == station.name)
+            if(upcomingAvailability == 0.5 && onStation)
               adjustRating(shiftIndex, stationIndex, "only available for upcoming half hour, stay on current station", 3)
 
             let position = this.positionHierarchy.find(pos=>pos.id==shift.position)
@@ -1937,17 +1951,19 @@ class DeskSchedule{
 
         dutyList.duties.forEach((duty) => {
           //find first shift in shiftsWithinTimeLimit who meets staffType.... why am I finding and not just filtering sWTL?
-          let firstEligibleShift = this.shifts.find(shift=>
-            shiftsWithinTimeLimit
+          let firstEligibleShift = this.shifts.find(shift=>{
+            let eligibleStaff = shiftsWithinTimeLimit
               .filter(s=>{
-                if     (duty.staffType=="All staff") return true
+                if     (duty.staffType=="All staff" || duty.staffType=="Aides preferred") return true
                 else if(duty.staffType=="Aides only" && s.position == 11534165) return true
                 else if(duty.staffType=="All except Aides" && s.position != 11534165) return true
                 else if(duty.staffType=="PICs only" && s.isPIC) return true
                 return false
               })
-              .some(s=>s?.name == shift?.name)
-          )
+            let eligibleAides = shiftsWithinTimeLimit.filter(s=>s.position == 11534165)
+            if (duty.staffType=="Aides preferred" && eligibleAides.length>0) return eligibleAides.some(s=>s?.name == shift?.name)
+            return eligibleStaff.some(s=>s?.user_id == shift?.user_id)
+          })
           if(firstEligibleShift != undefined){
             //assign first eligible staff
             duty.staffName = firstEligibleShift==undefined ? "" : firstEligibleShift?.name //+ (dutiesStaffShifts[0].isPIC?'*':'')
