@@ -1,3 +1,4 @@
+//deployed 11/4 3pm
 var verboseLog = false;
 function onOpen() {
     SpreadsheetApp.getUi().createMenu('🌱 DeskGen') //🖋️✒️🪺🌱🦆🐣🌻⚡✨
@@ -295,11 +296,6 @@ function buildDeskSchedule(deskSchedDate) {
 }
 class DeskSchedule {
     constructor(date, wiwData, gCalEvents, settings, deskSheet, displayCells) {
-        this.eventsErrorLog = []; //test if this works?
-        this.annotationEvents = [];
-        this.annotationShifts = [];
-        this.annotationUser = [];
-        this.logDeskDataRecord = [];
         this.settings = settings;
         this.deskSheet = deskSheet;
         this.displayCells = displayCells;
@@ -443,7 +439,6 @@ class DeskSchedule {
             //custom, not in WIW, for annotation events
             { "id": 0, "name": "Annotation Event" }
         ];
-        var eventErrorLog = [];
         this.ui = SpreadsheetApp.getUi();
         wiwData.shifts /*.concat(annotationShifts)*/.forEach(s => {
             let eventsFormatted = [];
@@ -502,19 +497,6 @@ class DeskSchedule {
                 }
             }
         });
-        if (eventErrorLog.length > 0) {
-            log('eventErrorLog:\n' + eventErrorLog);
-            this.ui.alert(`Cannot parse events:
-        -----
-        ${eventErrorLog.join(',\n\n')}
-        -----
-        Events must be formatted as TITLE @ STARTTIME - ENDTIME. Multiple events must be separated by a new line.
-        
-        Example:
-
-        Martha mtg @ 2:30 - 3:30
-        Creighton Zine class/program @ 4-5`);
-        }
         this.shifts.forEach(s => {
             if (s.startTime != undefined && s.endTime != undefined) {
                 if (s.startTime < this.dayStartTime)
@@ -1393,7 +1375,7 @@ class DeskSchedule {
         else
             return false;
         //ForXhoursperdayforeachstaff
-        if (station.hourLimitType == HourLimitType.ForXhoursperdayforeachstaff && this.getTotalStationCount(shift, station.name, time) >= station.hourLimit)
+        if (station.hourLimitType == "For X hours per day for each staff" && this.getTotalStationCount(shift, station.name, time) >= station.hourLimit)
             return false;
         return true;
     }
@@ -1403,17 +1385,17 @@ class DeskSchedule {
             return false;
         //check assignduring
         let withinLimit = false;
-        if (station.assignDuring == AssignDuring.Alwayswhileopen
+        if (station.assignDuring == "While open"
             && this.settings.openTime(this.date).getTime() <= time.getTime()
             && time.getTime() < this.settings.closeTime(this.date).getTime())
             withinLimit = true;
-        else if (station.assignDuring == AssignDuring.Always)
+        else if (station.assignDuring == "Always")
             withinLimit = true;
-        else if (station.assignDuring == AssignDuring.SpecificTime
+        else if (station.assignDuring == "Specific Time"
             && (time >= station.limitToStartTime || !station.limitToStartTime)
             && (time < station.limitToEndTime || !station.limitToEndTime))
             withinLimit = true;
-        else if (station.assignDuring == AssignDuring.XtoYhoursafteropen) {
+        else if (station.assignDuring == "X to Y hours after open") {
             let startTimeFromOpen = new Date(this.settings.openTime(this.date));
             let endTimeFromOpen = new Date(this.settings.openTime(this.date));
             startTimeFromOpen.addTime(0, station.limitXHours * 60);
@@ -1421,7 +1403,7 @@ class DeskSchedule {
             if ((time >= startTimeFromOpen || !station.limitXHours) && (time < endTimeFromOpen || !station.limitYHours))
                 withinLimit = true;
         }
-        else if (station.assignDuring == AssignDuring.XtoYhoursbeforeclose) {
+        else if (station.assignDuring == "X to Y hours before close") {
             let startTimeFromClose = new Date(this.settings.closeTime(this.date));
             let endTimeFromClose = new Date(this.settings.closeTime(this.date));
             startTimeFromClose.addTime(0, -Math.abs(station.limitXHours * 60));
@@ -1433,14 +1415,14 @@ class DeskSchedule {
         else
             return false;
         //check hourlimit
-        if (station.hourLimitType == HourLimitType.none || !station.hourLimit)
+        if (station.hourLimitType == "None" || !station.hourLimit)
             return true;
-        if (station.hourLimitType == HourLimitType.ForXhoursperdaytotal
+        if (station.hourLimitType == "For X hours per day total"
             && this.settings.openTime(this.date).getTime() <= time.getTime()
             && time.getTime() < this.settings.closeTime(this.date).getTime()
             && this.getTotalStationCountAllStaff(station.name, time) < station.duration)
             return true;
-        if (station.hourLimitType == HourLimitType.ForXhoursperdayforeachstaff
+        if (station.hourLimitType == "For X hours per day for each staff"
             && this.settings.openTime(this.date).getTime() <= time.getTime()
             && time.getTime() < this.settings.closeTime(this.date).getTime()
             // && this.getTotalStationCount(shift, station.name, time) < station.duration
@@ -1680,7 +1662,7 @@ class DeskSchedule {
             filteredDutyLists.forEach(dutyList => {
                 dutyList.startTime = this.dayStartTime;
                 dutyList.endTime = this.dayEndTime;
-                if (dutyList.limitType == DutyListLimitType.XtoYhoursbeforeopen) {
+                if (dutyList.limitType == "before open") {
                     let xy = [
                         new Date(this.settings.openTime(this.date)).addTime(0, -dutyList.limitXHours * 60),
                         new Date(this.settings.openTime(this.date)).addTime(0, -dutyList.limitYHours * 60)
@@ -1688,7 +1670,7 @@ class DeskSchedule {
                     dutyList.startTime = getEarliest(xy);
                     dutyList.endTime = getLatest(xy);
                 }
-                else if (dutyList.limitType == DutyListLimitType.XtoYhoursafteropen) {
+                else if (dutyList.limitType == "after open") {
                     let xy = [
                         new Date(this.settings.openTime(this.date)).addTime(0, dutyList.limitXHours * 60),
                         new Date(this.settings.openTime(this.date)).addTime(0, dutyList.limitYHours * 60)
@@ -1696,7 +1678,7 @@ class DeskSchedule {
                     dutyList.startTime = getEarliest(xy);
                     dutyList.endTime = getLatest(xy);
                 }
-                else if (dutyList.limitType == DutyListLimitType.XtoYhoursbeforeclose) {
+                else if (dutyList.limitType == "before close") {
                     let xy = [
                         new Date(this.settings.closeTime(this.date)).addTime(0, -dutyList.limitXHours * 60),
                         new Date(this.settings.closeTime(this.date)).addTime(0, -dutyList.limitYHours * 60)
@@ -1896,30 +1878,8 @@ class DeskSchedule {
         }
     }
 }
-var HourLimitType;
-(function (HourLimitType) {
-    HourLimitType["none"] = "None";
-    HourLimitType["ForXhoursperdaytotal"] = "For X hours per day total";
-    HourLimitType["ForXhoursperdayforeachstaff"] = "For X hours per day for each staff";
-})(HourLimitType || (HourLimitType = {}));
-var AssignDuring;
-(function (AssignDuring) {
-    AssignDuring["Alwayswhileopen"] = "While open";
-    AssignDuring["Always"] = "Always";
-    AssignDuring["SpecificTime"] = "Specific Time";
-    AssignDuring["XtoYhoursafteropen"] = "X to Y hours after open";
-    AssignDuring["XtoYhoursbeforeclose"] = "X to Y hours before close";
-})(AssignDuring || (AssignDuring = {}));
-var DutyListLimitType;
-(function (DutyListLimitType) {
-    DutyListLimitType["XtoYhoursafteropen"] = "after open";
-    DutyListLimitType["XtoYhoursbeforeopen"] = "before open";
-    DutyListLimitType["XtoYhoursbeforeclose"] = "before close";
-})(DutyListLimitType || (DutyListLimitType = {}));
-class Floor {
-}
 class Station {
-    constructor(id = null, color = "#ffffff", name, numOfStaff = 1, floor = null, positionPriority = [], duration = 2, hourLimit = null, hourLimitType = HourLimitType.none, assignDuring = AssignDuring.Alwayswhileopen, limitXHours = 0, limitYHours = 0, limitToStartTime = null, limitToEndTime = null, days = [1, 1, 1, 1, 1, 1, 1], requiredTags = [], preferredTags = []) {
+    constructor(id = null, color = "#ffffff", name, numOfStaff = 1, floor = null, positionPriority = [], duration = 2, hourLimit = null, hourLimitType = "None", assignDuring = "While open", limitXHours = 0, limitYHours = 0, limitToStartTime = null, limitToEndTime = null, days = [1, 1, 1, 1, 1, 1, 1], requiredTags = [], preferredTags = []) {
         this.id = null;
         this.color = color;
         this.name = name;
@@ -1938,10 +1898,6 @@ class Station {
             this.requiredTags = requiredTags,
             this.preferredTags = preferredTags;
     }
-}
-class SettingStation {
-}
-class PositionPriority {
 }
 class ShiftEvent {
     constructor(title, startTime, endTime, gCalUrl) {
@@ -2259,14 +2215,10 @@ class DisplayCells {
             return matches.map(match => this.deskSheet.getRange(match.row, match.col, numRows, numColumns));
     }
 }
-class Duty {
-}
 function log(arg) {
     if (verboseLog) {
         console.log.apply(console, arguments);
     }
-}
-class DutyList {
 }
 class Settings {
     constructor(date) {
@@ -2290,7 +2242,6 @@ class Settings {
             return value;
         }
         verboseLog = this.verboseLog;
-        // console.log("loaded settings:", this)
     }
     openTime(date) {
         return this.openHours[date.getDay()].open.HHMM24toDate(date);

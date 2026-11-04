@@ -1,10 +1,12 @@
 {
     "compilerOptions": {
         "target":"es2021",
-        "skipLibCheck":true
+        "skipLibCheck":true,
+        "outFile": "deskgen.js",
     },
     "files": [
         "deskgen.ts",
-        "deskgen.d.ts"
+        "deskgen.d.ts",
+        "munkres.ts"
     ]
 }

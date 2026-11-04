@@ -1,7 +1,7 @@
 <script lang="ts">
     import {dndzone, dragHandle, dragHandleZone, SHADOW_ITEM_MARKER_PROPERTY_NAME} from "svelte-dnd-action";
-    import { flip } from 'svelte/animate'
-    import { derived } from 'svelte/store';
+    // import { flip } from 'svelte/animate'
+    // import { derived } from 'svelte/store';
 
     let prevSettings = ""
     let filterDays = $state([1,1,1,1,1,1,1])
@@ -53,21 +53,7 @@
     function handleSortDuties(e:CustomEvent, index:number) {
         settings.dutyLists[index].duties = e.detail.items;
     }
-    // let stationsAndHeaders = $derived(settings.stations.reduce((result, station, index)=>{
 
-    //     if (index===0 || station.floor != settings.stations[index-1].floor){
-    //         result.push({id: station.id+1000, header:true, floor:station.floor}, station)
-    //     }
-    //     else result.push(station)
-    //     return result
-    // }, []))
-    // function headerCount(index){
-    //     let count = 0
-    //     for (let i=0; i<index; i++){
-    //         if (stationsAndHeaders[i].header) count++
-    //     }
-    //     return count
-    // }
     function openTab(evt:Event, tabName:string) {//https://www.w3schools.com/howto/howto_js_tabs.asp
       var i, tabcontent, tablinks;
       tabcontent = document.getElementsByClassName("tabcontent");
@@ -81,13 +67,23 @@
       document.getElementById(tabName)!.style.display = "block";
       (evt.currentTarget as HTMLElement)?.classList.add("openTab");
     }
+
+    // var settings:Settings = $state(
+    //     {"assignStations":true,"changeOnTheHour":true,"generatePicAssignments":true,"groupPicsAtTop":true,"mealBreakLength":0.5,"idealEarlyMealHour":"12:30","idealLateMealHour":"16:30","idealMealTimePlusMinusHours":1,"addNamesToEvents":true,"alwaysShowBranchManager":false,"alwaysShowAssistantBranchManager":false,"alwaysShowAllStaff":false,"earliestDisplayTime":"08:30","locationID":"5786790","googleCalendarID":"c_58a901ccaed9ff183473c5f5dd70b7bb32ee02b8c9d316ae22affeade0c51ada@group.calendar.google.com","verboseLog":true,"archiveSheetURL":"https://docs.google.com/spreadsheets/d/1zvXLoW9BLsjZAbr2FvkZA6ogI1gnXNG5H7na_XasSWw/edit","openHours":[{"day":"Sunday","open":"09:00","close":"17:00"},{"day":"Monday","open":"09:00","close":"20:00"},{"day":"Tuesday","open":"09:00","close":"20:00"},{"day":"Wednesday","open":"09:00","close":"20:00"},{"day":"Thursday","open":"09:00","close":"20:00"},{"day":"Friday","open":"09:00","close":"17:00"},{"day":"Saturday","open":"09:00","close":"17:00"}],"dutyLists":[{"title":"Gen Open 🌞","floor":"Genealogy","duties":[{"title":"Grab Floor PIC Phone","staffType":"PICs only","id":0},{"title":"Cleaning Report","staffType":"All staff","id":1},{"title":"","staffType":"All staff","id":2}],"limitXHours":"0.5","limitYHours":"0","limitType":"before open","id":0,"days":[1,1,1,1,1,1,1]},{"title":"2nd Open 🌞","floor":"2nd Floor","duties":[{"title":"Grab Floor PIC Phone","staffType":"PICs only","id":0},{"title":"Assign DoSpace Duties","staffType":"All staff","id":1},{"title":"Cleaning Report","staffType":"All staff","id":2},{"title":"Print Pick","staffType":"All staff","id":3}],"limitXHours":"0.5","limitYHours":"0","limitType":"before open","id":1,"days":[1,1,1,1,1,1,1]},{"title":"1st Open 🌞","floor":"1st Floor","duties":[{"title":"Balance Register","staffType":"All staff","id":0},{"title":"Assign Unlock Duty (E, W, Garden)","staffType":"All staff","id":1},{"title":"Grab Floor PIC Phone & Expired Holds","staffType":"All staff","id":2},{"title":"Cleaning Report","staffType":"All staff","id":3},{"title":"Print Pick List","staffType":"All staff","id":4}],"limitXHours":"0.5","limitYHours":"0","limitType":"before open","id":2,"days":[1,1,1,1,1,1,1]},{"title":"ASRS Open🌞","floor":"ASRS","duties":[{"title":"Grab Pickup Window Phone","staffType":"All staff","id":0},{"title":"Make carts and take upstairs","staffType":"All staff","id":1},{"title":"HOP take OWH to 2nd floor","staffType":"All staff","id":2}],"limitXHours":"0.5","limitYHours":"0","limitType":"before open","id":3,"days":[1,1,1,1,1,1,1]},{"title":"Gen Close🌜","floor":"Genealogy","duties":[{"title":"Closing Role H","staffType":"All staff","id":0},{"title":"Closing Role O","staffType":"All staff","id":1}],"limitXHours":"0.5","limitYHours":"0","limitType":"before close","id":4,"days":[1,1,1,1,1,1,1]},{"title":"2nd Close🌜","floor":"2nd Floor","duties":[{"title":"Closing Role D","staffType":"All staff","id":0},{"title":"Closing Role E","staffType":"All staff","id":1},{"title":"Closing Role F","staffType":"All staff","id":2},{"title":"Closing Role G","staffType":"All staff","id":3}],"limitXHours":"0.5","limitYHours":"0","limitType":"before close","id":5,"days":[1,1,1,1,1,1,1]},{"title":"1st Close🌜","floor":"1st Floor","duties":[{"title":"Closing Role A","staffType":"All staff","id":0},{"title":"Closing Role B","staffType":"All staff","id":1},{"title":"Closing Role C","staffType":"All staff","id":2}],"limitXHours":"0.5","limitYHours":"0","limitType":"before close","id":6,"days":[1,1,1,1,1,1,1]},{"title":"ASRS Close🌜","floor":"ASRS","duties":[{"title":"Closing Role I","staffType":"All staff","id":0},{"title":"Closing Role J","staffType":"All staff","id":1}],"limitXHours":"0.5","limitYHours":"0","limitType":"before close","id":7,"days":[1,1,1,1,1,1,1]}],"stations":[{"color":"#fd5335","name":"HOP","floor":"","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":0},{"title":"Part-Time Library Specialist","priority":0},{"title":"Associate Library Specialist","priority":0},{"title":"Part-Time Associate Library Specialist","priority":0},{"title":"Senior Clerk","priority":0},{"title":"Clerk II","priority":0},{"title":"Part-Time Clerk II","priority":0},{"title":"Part-Time Library Aide","priority":0}],"duration":2,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1,"id":0,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#4285f4","name":"Mobile Station","floor":"Genealogy","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":0},{"title":"Clerk II","priority":0},{"title":"Part-Time Clerk II","priority":0},{"title":"Part-Time Library Aide","priority":0}],"duration":2,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":2,"id":6,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#ffffff","name":"Available","floor":"Genealogy","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":99,"id":3,"hourLimitType":"None","hourLimit":null,"assignDuring":"Always","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#cfe9c3","name":"Do Space/Roving","floor":"2nd Floor","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1,"id":4,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,0,1],"requiredTags":"Do Space","preferredTags":""},{"color":"#cfe9c3","name":"Do Space/Roving","floor":"2nd Floor","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":"12:00","limitToEndTime":"17:00","numOfStaff":0,"id":5,"hourLimitType":"None","hourLimit":null,"assignDuring":"Specific Time","days":[0,0,0,0,0,1,0],"requiredTags":"Do Space","preferredTags":""},{"color":"#6dae51","name":"Service Desk (Do Space)","floor":"2nd Floor","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":2,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1,"id":31,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":"Do Space"},{"color":"#6dae51","name":"Service Desk","floor":"2nd Floor","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":2,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1,"id":7,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#b89fd0","name":"Children's Mobile","floor":"2nd Floor","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1,"id":10,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#bfcbf7","name":"Shelving","floor":"2nd Floor","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":0},{"title":"Library Specialist","priority":0},{"title":"Part-Time Library Specialist","priority":0},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":0},{"title":"Clerk II","priority":0},{"title":"Part-Time Clerk II","priority":0},{"title":"Part-Time Library Aide","priority":0}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":99,"id":12,"hourLimitType":"For X hours per day for each staff","hourLimit":1,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#ffffff","name":"Available","floor":"2nd Floor","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":99,"id":13,"hourLimitType":"None","hourLimit":null,"assignDuring":"Always","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#6dae51","name":"Service Desk","floor":"1st Floor","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":2,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":2,"id":14,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#4285f4","name":"Mobile Station","floor":"1st Floor","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1,"id":16,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#4285f4","name":"Mobile Station","floor":"1st Floor","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":"10:00","limitToEndTime":"20:00","numOfStaff":1,"id":20,"hourLimitType":"None","hourLimit":null,"assignDuring":"Specific Time","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#bfcbf7","name":"Shelving","floor":"1st Floor","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":0},{"title":"Library Specialist","priority":0},{"title":"Part-Time Library Specialist","priority":0},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":0},{"title":"Clerk II","priority":0},{"title":"Part-Time Clerk II","priority":0},{"title":"Part-Time Library Aide","priority":0}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":99,"id":22,"hourLimitType":"For X hours per day for each staff","hourLimit":1,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#ffffff","name":"Available","floor":"1st Floor","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":99,"id":23,"hourLimitType":"None","hourLimit":null,"assignDuring":"Always","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#8e7cc3","name":"ASRS/Drive Up/Phones","floor":"ASRS","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":0},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":0},{"title":"Clerk II","priority":0},{"title":"Part-Time Clerk II","priority":0},{"title":"Part-Time Library Aide","priority":0}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1,"id":24,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#c27ba0","name":"Lockers","floor":"ASRS","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":"14:00","limitToEndTime":"15:00","numOfStaff":1,"id":25,"hourLimitType":"None","hourLimit":null,"assignDuring":"Specific Time","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#c27ba0","name":"Book Drops","floor":"ASRS","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":0},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":0},{"title":"Clerk II","priority":0},{"title":"Part-Time Clerk II","priority":0},{"title":"Part-Time Library Aide","priority":0}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":"10:00","limitToEndTime":"11:00","numOfStaff":1,"id":26,"hourLimitType":"None","hourLimit":null,"assignDuring":"Specific Time","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#75a7b8","name":"Pick List","floor":"ASRS","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":0},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":0},{"title":"Clerk II","priority":0},{"title":"Part-Time Clerk II","priority":0},{"title":"Part-Time Library Aide","priority":0}],"duration":1,"limitXHours":4,"limitYHours":3,"limitToStartTime":"19:00","limitToEndTime":"20:00","numOfStaff":1,"id":27,"hourLimitType":"None","hourLimit":null,"assignDuring":"X to Y hours before close","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#bfcbf7","name":"Sorter/Shelving","floor":"ASRS","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":0},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":0},{"title":"Clerk II","priority":0},{"title":"Part-Time Clerk II","priority":0},{"title":"Part-Time Library Aide","priority":0}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":99,"id":29,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#ffffff","name":"Available","floor":"ASRS","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":99,"id":30,"hourLimitType":"None","hourLimit":null,"assignDuring":"Always","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""}],"showTimingDetails":true}
+    // );
+    // loadSettings() //for testing with dummy data
+    //     switch between these two ^v for offline ^ testing
+    var settings:Settings = $state(undefined)
+    google.script.run.withSuccessHandler(loadSettings).getSettingsJSON()
+
     let settingsString = $derived(JSON.stringify(settings))
     let settingsHaveChanged = $derived(settingsString !== prevSettings)
     let expanded: HTMLElement | null = null
     let expandedButton: HTMLElement | null = null
     
-    function closeExpanded(target:EventTarget){
-        if (expanded && !checkParent(expanded, target) && !(target as HTMLElement)?.classList.contains("stationButtonSel")){
+    function closeExpanded(target:EventTarget|null){
+        if (target==null) return
+        if (expanded && !checkParent(expanded, target as HTMLElement) && !(target as HTMLElement)?.classList.contains("stationButtonSel")){
             expanded.style.display = "none"
             expandedButton?.classList.remove("stationButtonSel")
             expandedButton?.classList.add("stationButton")
@@ -122,19 +118,20 @@
         expandedButton = eventButton
     }
     function sortFloors(){
-        settings.stations.sort( (a,b) => {return floors.indexOf(a.floor||"") - floors.indexOf(b.floor||"")} )
+        settings?.stations.sort( (a,b) => {return floors.indexOf(a.floor||"") - floors.indexOf(b.floor||"")} )
     }
     $effect(sortFloors)
 
-    function dateToHHMM(date: Date){
+    function dateToHHMM(date: Date|string){
         let d = new Date(date)
         return d.getHours().toString().padStart(2, "0")+':'+d.getMinutes().toString().padStart(2, "0")
     }
-    function simplifyTime(time:string):string{
+    function simplifyTime(time:string|null):string{
+        if(time==null)return "invalid time"
         let ap = parseInt(time?.split(":")[0] as string)>12 ? "p" : "a"
         return ap == "a" ? time?.replace(":00", "") + "a" : ((parseInt(time?.split(":")[0] as string) - 12) +":"+ (time?.split(":")[1] as string)+"p")?.replace(":00", "")
     }
-    function htmlTimeValToDisplayString(hhmmString: string){
+    function htmlTimeValToDisplayString(hhmmString: string|null){
         let date:Date|number = new Date("0 "+hhmmString)
         if (date instanceof Date && !isNaN(date as unknown as number))
             return date.toLocaleTimeString([],{ hour: "2-digit", minute: "2-digit" })
@@ -152,18 +149,17 @@
         var luma = 0.2126 * r + 0.7152 * g + 0.0722 * b; // per ITU-R BT.709
         return luma
     }
-
-    function shiftItem(arr:[], index:number, change:number){
+    function shiftItem(arr:any[], index:number, change:number){
         let item = arr[index]
         arr.splice(index, 1)
         arr.splice(index + change, 0, item)
     }
-    function dupItem(arr:[], index:number){
+    function dupItem(arr:any[], index:number){
         let newitem = JSON.parse(JSON.stringify(arr[index]))//Object.assign({}, arr[index])
         newitem.id = NewUID(arr)
         arr.splice(index + 1, 0, newitem)
     }
-    function delItem(arr:[], index:number){
+    function delItem(arr:any[], index:number){
         arr.splice(index, 1)
     }
     function addStation(){
@@ -220,9 +216,9 @@
             "limitToEndTime": null,
             "numOfStaff": 1,
             "id": NewUID(settings.stations),
-            "hourLimitType": "None",
+            "hourLimitType": "None" as HourLimitType,
             "hourLimit": null,
-            "assignDuring": "Always",
+            "assignDuring": "Always" as AssignDuring,
             "days": [1,1,1,1,1,1,1],
             "requiredTags": "",
             "preferredTags": ""
@@ -237,14 +233,12 @@
         return 0
     }
 
-    function loadSettings(json=undefined){
-        // console.log(json)
+    function loadSettings(json:string){
 
-        if (json) {
-            prevSettings = json.repeat(1) //clone string
-            settings = JSON.parse(json)
-        }
-        else prevSettings = JSON.stringify(settings)
+        prevSettings = json.repeat(1) //clone string
+        // var settings:Settings = JSON.parse(json)
+        settings = JSON.parse(json)
+
 
         //clean up old settings format
         if(settings.idealEarlyMealHour.includes("Z")) settings.idealEarlyMealHour = dateToHHMM(settings.idealEarlyMealHour)
@@ -261,7 +255,7 @@
         if ("assignmentLength" in settings) delete settings.assignmentLength
         if (!("showTimingDetails" in settings)) settings.showTimingDetails = false
 
-        settings.stations.forEach((station) => {
+        settings.stations.forEach((station:SettingPreclean) => {
             if (!("id" in station)) station.id = NewUID(settings.stations)
             if(station.limitToStartTime?.includes("Z")) station.limitToStartTime = dateToHHMM(station.limitToStartTime)
             if(station.limitToEndTime?.includes("Z")) station.limitToEndTime = dateToHHMM(station.limitToEndTime)
@@ -291,7 +285,7 @@
             if (!("assignDuring" in station)){
                 if (station.limitType != "Specific Time")
                     station.assignDuring = station.limitType
-                else if (station.durationType == "While Open" || station.durationType == "Always")
+                else if (station.durationType == "While open" || station.durationType == "Always")
                     station.assignDuring = station.durationType
                 else if (station.limitToStartTime != null && station.limitToEndTime != null)
                     station.assignDuring = "Specific Time"
@@ -315,22 +309,30 @@
             if (!("requiredTags" in station)) station.requiredTags = ""
             if (!("preferredTags" in station)) station.preferredTags = ""
         })
-        settings.dutyLists.forEach((dutyList) => {
+        settings.dutyLists.forEach((dutyList:DutyListPreclean) => {
             if (!("id" in dutyList)) dutyList.id = NewUID(settings.dutyLists)
             if (!("days" in dutyList) || dutyList.days.length!=7) dutyList.days = [1,1,1,1,1,1,1]
-            dutyList.duties.forEach((duty) => {
+            dutyList.duties.forEach((duty:DutyPreclean) => {
                 if (!("id" in duty)) duty.id = NewUID(dutyList.duties)
             })
+            if ("startTime" in dutyList) {
+                delete dutyList.startTime
+            }
+            if ("endTime" in dutyList) {
+                delete dutyList.endTime
+            }
         })
+        // return settings
     }
     function saveSettings(){
         saving = true
-        document.getElementById("save").disabled = true
+        let saveButton = document.getElementById("save") as HTMLButtonElement
+        if (saveButton) saveButton.disabled = true
         google.script.run.withSuccessHandler(google.script.host.close)
             .saveSettings(JSON.stringify(settings, (k,v) => v === undefined ? null : v))
     }
 
-    function checkParent(parent, child) {
+    function checkParent(parent:HTMLElement, child:HTMLElement) {
         let node = child.parentNode;
 
         // keep iterating unless null
@@ -380,16 +382,8 @@
         return positionHierarchy.map(p=>p.name).indexOf(title)
     }
 
-    // let settings:any = $state(
-    //     {"assignStations":true,"changeOnTheHour":true,"generatePicAssignments":true,"groupPicsAtTop":true,"mealBreakLength":0.5,"idealEarlyMealHour":"12:30","idealLateMealHour":"16:30","idealMealTimePlusMinusHours":1,"addNamesToEvents":true,"alwaysShowBranchManager":false,"alwaysShowAssistantBranchManager":false,"alwaysShowAllStaff":false,"earliestDisplayTime":"08:30","locationID":"5786790","googleCalendarID":"c_58a901ccaed9ff183473c5f5dd70b7bb32ee02b8c9d316ae22affeade0c51ada@group.calendar.google.com","verboseLog":true,"archiveSheetURL":"https://docs.google.com/spreadsheets/d/1zvXLoW9BLsjZAbr2FvkZA6ogI1gnXNG5H7na_XasSWw/edit","openHours":[{"day":"Sunday","open":"09:00","close":"17:00"},{"day":"Monday","open":"09:00","close":"20:00"},{"day":"Tuesday","open":"09:00","close":"20:00"},{"day":"Wednesday","open":"09:00","close":"20:00"},{"day":"Thursday","open":"09:00","close":"20:00"},{"day":"Friday","open":"09:00","close":"17:00"},{"day":"Saturday","open":"09:00","close":"17:00"}],"dutyLists":[{"title":"Gen Open 🌞","floor":"Genealogy","duties":[{"title":"Grab Floor PIC Phone","staffType":"PICs only","id":0},{"title":"Cleaning Report","staffType":"All staff","id":1},{"title":"","staffType":"All staff","id":2}],"limitXHours":"0.5","limitYHours":"0","limitType":"before open","id":0,"days":[1,1,1,1,1,1,1]},{"title":"2nd Open 🌞","floor":"2nd Floor","duties":[{"title":"Grab Floor PIC Phone","staffType":"PICs only","id":0},{"title":"Assign DoSpace Duties","staffType":"All staff","id":1},{"title":"Cleaning Report","staffType":"All staff","id":2},{"title":"Print Pick","staffType":"All staff","id":3}],"limitXHours":"0.5","limitYHours":"0","limitType":"before open","id":1,"days":[1,1,1,1,1,1,1]},{"title":"1st Open 🌞","floor":"1st Floor","duties":[{"title":"Balance Register","staffType":"All staff","id":0},{"title":"Assign Unlock Duty (E, W, Garden)","staffType":"All staff","id":1},{"title":"Grab Floor PIC Phone & Expired Holds","staffType":"All staff","id":2},{"title":"Cleaning Report","staffType":"All staff","id":3},{"title":"Print Pick List","staffType":"All staff","id":4}],"limitXHours":"0.5","limitYHours":"0","limitType":"before open","id":2,"days":[1,1,1,1,1,1,1]},{"title":"ASRS Open🌞","floor":"ASRS","duties":[{"title":"Grab Pickup Window Phone","staffType":"All staff","id":0},{"title":"Make carts and take upstairs","staffType":"All staff","id":1},{"title":"HOP take OWH to 2nd floor","staffType":"All staff","id":2}],"limitXHours":"0.5","limitYHours":"0","limitType":"before open","id":3,"days":[1,1,1,1,1,1,1]},{"title":"Gen Close🌜","floor":"Genealogy","duties":[{"title":"Closing Role H","staffType":"All staff","id":0},{"title":"Closing Role O","staffType":"All staff","id":1}],"limitXHours":"0.5","limitYHours":"0","limitType":"before close","id":4,"days":[1,1,1,1,1,1,1]},{"title":"2nd Close🌜","floor":"2nd Floor","duties":[{"title":"Closing Role D","staffType":"All staff","id":0},{"title":"Closing Role E","staffType":"All staff","id":1},{"title":"Closing Role F","staffType":"All staff","id":2},{"title":"Closing Role G","staffType":"All staff","id":3}],"limitXHours":"0.5","limitYHours":"0","limitType":"before close","id":5,"days":[1,1,1,1,1,1,1]},{"title":"1st Close🌜","floor":"1st Floor","duties":[{"title":"Closing Role A","staffType":"All staff","id":0},{"title":"Closing Role B","staffType":"All staff","id":1},{"title":"Closing Role C","staffType":"All staff","id":2}],"limitXHours":"0.5","limitYHours":"0","limitType":"before close","id":6,"days":[1,1,1,1,1,1,1]},{"title":"ASRS Close🌜","floor":"ASRS","duties":[{"title":"Closing Role I","staffType":"All staff","id":0},{"title":"Closing Role J","staffType":"All staff","id":1}],"limitXHours":"0.5","limitYHours":"0","limitType":"before close","id":7,"days":[1,1,1,1,1,1,1]}],"stations":[{"color":"#fd5335","name":"HOP","floor":"","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":0},{"title":"Part-Time Library Specialist","priority":0},{"title":"Associate Library Specialist","priority":0},{"title":"Part-Time Associate Library Specialist","priority":0},{"title":"Senior Clerk","priority":0},{"title":"Clerk II","priority":0},{"title":"Part-Time Clerk II","priority":0},{"title":"Part-Time Library Aide","priority":0}],"duration":2,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1,"id":0,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#4285f4","name":"Mobile Station","floor":"Genealogy","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":0},{"title":"Clerk II","priority":0},{"title":"Part-Time Clerk II","priority":0},{"title":"Part-Time Library Aide","priority":0}],"duration":2,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":2,"id":6,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#ffffff","name":"Available","floor":"Genealogy","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":99,"id":3,"hourLimitType":"None","hourLimit":null,"assignDuring":"Always","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#cfe9c3","name":"Do Space/Roving","floor":"2nd Floor","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1,"id":4,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,0,1],"requiredTags":"Do Space","preferredTags":""},{"color":"#cfe9c3","name":"Do Space/Roving","floor":"2nd Floor","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":"12:00","limitToEndTime":"17:00","numOfStaff":0,"id":5,"hourLimitType":"None","hourLimit":null,"assignDuring":"Specific Time","days":[0,0,0,0,0,1,0],"requiredTags":"Do Space","preferredTags":""},{"color":"#6dae51","name":"Service Desk (Do Space)","floor":"2nd Floor","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":2,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1,"id":31,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":"Do Space"},{"color":"#6dae51","name":"Service Desk","floor":"2nd Floor","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":2,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1,"id":7,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#b89fd0","name":"Children's Mobile","floor":"2nd Floor","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1,"id":10,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#bfcbf7","name":"Shelving","floor":"2nd Floor","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":0},{"title":"Library Specialist","priority":0},{"title":"Part-Time Library Specialist","priority":0},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":0},{"title":"Clerk II","priority":0},{"title":"Part-Time Clerk II","priority":0},{"title":"Part-Time Library Aide","priority":0}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":99,"id":12,"hourLimitType":"For X hours per day for each staff","hourLimit":1,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#ffffff","name":"Available","floor":"2nd Floor","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":99,"id":13,"hourLimitType":"None","hourLimit":null,"assignDuring":"Always","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#6dae51","name":"Service Desk","floor":"1st Floor","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":2,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":2,"id":14,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#4285f4","name":"Mobile Station","floor":"1st Floor","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1,"id":16,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#4285f4","name":"Mobile Station","floor":"1st Floor","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":"10:00","limitToEndTime":"20:00","numOfStaff":1,"id":20,"hourLimitType":"None","hourLimit":null,"assignDuring":"Specific Time","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#bfcbf7","name":"Shelving","floor":"1st Floor","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":0},{"title":"Library Specialist","priority":0},{"title":"Part-Time Library Specialist","priority":0},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":0},{"title":"Clerk II","priority":0},{"title":"Part-Time Clerk II","priority":0},{"title":"Part-Time Library Aide","priority":0}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":99,"id":22,"hourLimitType":"For X hours per day for each staff","hourLimit":1,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#ffffff","name":"Available","floor":"1st Floor","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":99,"id":23,"hourLimitType":"None","hourLimit":null,"assignDuring":"Always","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#8e7cc3","name":"ASRS/Drive Up/Phones","floor":"ASRS","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":0},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":0},{"title":"Clerk II","priority":0},{"title":"Part-Time Clerk II","priority":0},{"title":"Part-Time Library Aide","priority":0}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":1,"id":24,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#c27ba0","name":"Lockers","floor":"ASRS","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":"14:00","limitToEndTime":"15:00","numOfStaff":1,"id":25,"hourLimitType":"None","hourLimit":null,"assignDuring":"Specific Time","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#c27ba0","name":"Book Drops","floor":"ASRS","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":0},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":0},{"title":"Clerk II","priority":0},{"title":"Part-Time Clerk II","priority":0},{"title":"Part-Time Library Aide","priority":0}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":"10:00","limitToEndTime":"11:00","numOfStaff":1,"id":26,"hourLimitType":"None","hourLimit":null,"assignDuring":"Specific Time","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#75a7b8","name":"Pick List","floor":"ASRS","positionPriority":[{"title":"Branch Manager","priority":0},{"title":"Assistant Branch Manager","priority":0},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":0},{"title":"Clerk II","priority":0},{"title":"Part-Time Clerk II","priority":0},{"title":"Part-Time Library Aide","priority":0}],"duration":1,"limitXHours":4,"limitYHours":3,"limitToStartTime":"19:00","limitToEndTime":"20:00","numOfStaff":1,"id":27,"hourLimitType":"None","hourLimit":null,"assignDuring":"X to Y hours before close","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#bfcbf7","name":"Sorter/Shelving","floor":"ASRS","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":0},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":0},{"title":"Clerk II","priority":0},{"title":"Part-Time Clerk II","priority":0},{"title":"Part-Time Library Aide","priority":0}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":99,"id":29,"hourLimitType":"None","hourLimit":null,"assignDuring":"While open","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""},{"color":"#ffffff","name":"Available","floor":"ASRS","positionPriority":[{"title":"Branch Manager","priority":1},{"title":"Assistant Branch Manager","priority":1},{"title":"Library Specialist","priority":1},{"title":"Part-Time Library Specialist","priority":1},{"title":"Associate Library Specialist","priority":1},{"title":"Part-Time Associate Library Specialist","priority":1},{"title":"Senior Clerk","priority":1},{"title":"Clerk II","priority":1},{"title":"Part-Time Clerk II","priority":1},{"title":"Part-Time Library Aide","priority":1}],"duration":1,"limitXHours":null,"limitYHours":null,"limitToStartTime":null,"limitToEndTime":null,"numOfStaff":99,"id":30,"hourLimitType":"None","hourLimit":null,"assignDuring":"Always","days":[1,1,1,1,1,1,1],"requiredTags":"","preferredTags":""}],"showTimingDetails":true}
-    // );
-    // loadSettings() //for testing with dummy data
-        //switch between these two ^v for offline ^ testing
-    var settings:any = $state(null)
-    google.script.run.withSuccessHandler(loadSettings).getSettingsJSON();
-
     let reasonToBlockSave = $derived(
-        settings.stations.some(station=>station.assignDuring==assignDuringOptions[2] && (!(/^\d{1,2}\:?\d{2}$/.test(station.limitToStartTime)) || !(/^\d{1,2}\:?\d{2}$/.test(station.limitToEndTime)))) ? "Fix invalid dates\n(marked red)" : null
+        settings.stations?.some(station=>station.assignDuring==assignDuringOptions[2] && (station.limitToEndTime==null || station.limitToStartTime==null || !(/^\d{1,2}\:?\d{2}$/.test(station.limitToStartTime)) || !(/^\d{1,2}\:?\d{2}$/.test(station.limitToEndTime)))) ? "Fix invalid dates\n(marked red)" : null
     )
     
 </script>
@@ -553,13 +547,7 @@
         border-radius: 4px;
         z-index: 2;
     }
-    .floatmenu>div{
-        /* padding:4px */
-    }
-    #stationsList{
-        /* padding: 4px 0; */
-    }
-    #stationsList>div:nth-child(even), table tr:nth-child(even), #settingsTab li:nth-child(even){
+    #stationsList>div:nth-child(even), table tr:nth-child(even){
         background-color: rgb(231, 231, 231);
     }
     .stationContainer{
@@ -755,10 +743,10 @@ role="navigation" aria-label="Main">
 </div>
 
 <div class="tab">
-    <button class="tablinks openTab" onclick={()=>openTab(event, 'stationsTab')}>Stations</button>
-    <button class="tablinks" onclick={()=>openTab(event, 'dutiesTab')}>Duties</button>
-    <button class="tablinks" onclick={()=>openTab(event, 'openHoursTab')}>Open Hours</button>
-    <button class="tablinks" onclick={()=>openTab(event, 'settingsTab')}>Other</button>
+    <button class="tablinks openTab" onclick={event=>openTab(event, 'stationsTab')}>Stations</button>
+    <button class="tablinks" onclick={event=>openTab(event, 'dutiesTab')}>Duties</button>
+    <button class="tablinks" onclick={event=>openTab(event, 'openHoursTab')}>Open Hours</button>
+    <button class="tablinks" onclick={event=>openTab(event, 'settingsTab')}>Other</button>
 </div>
 
 <div id="settingsTab" class="tabcontent">
@@ -767,16 +755,16 @@ role="navigation" aria-label="Main">
         {#if !["openHours", "dutyLists", "stations", "showTimingDetails"].includes(key)}
             <tr><td style="cursor: help" title={settingsTooltips.find(obj=>obj.name==key)?.tooltip}>{camelcaseToString(key)}<!--  ({typeof value}) : --></td> 
                 {#if typeof value == "boolean"}
-                    <td><input type="checkbox" bind:checked={settings[key]} /></td>
+                    <td><input type="checkbox" bind:checked={settings[key as keyof Settings] as boolean} /></td>
                 {:else if typeof value == "string"}
                     {#if (/^\d{1,2}\:?\d{2}$/.test(value))}
-                        <td><input type="time" step="1800" bind:value={settings[key]} /></td>
+                        <td><input type="time" step="1800" bind:value={settings[key as keyof Settings]} /></td>
                     {:else}
-                        <td><input bind:value={settings[key]} /></td>
+                        <td><input bind:value={settings[key as keyof Settings]} /></td>
                     {/if}
                 {:else if typeof value == "number"}
                     <!-- {#if value.includes("")} -->
-                    <td><input type="number" step="0.5" bind:value={settings[key]} /></td>
+                    <td><input type="number" step="0.5" bind:value={settings[key as keyof Settings]} /></td>
                     <!-- {/if} -->
                 {/if}
             </tr>
@@ -823,15 +811,15 @@ role="navigation" aria-label="Main">
     {@const textCol = brightness(settings.stations[index].color) > 215 ? "black!important" : "white"}
     {@const startTimes = [...new Set(settings.openHours.map(oh=>oh.open).filter((oh,i)=>settings.stations[index].days[i]==1 && filterDays[i]==1))]}
     {@const endTimes = [...new Set(settings.openHours.map(oh=>oh.close).filter((oh,i)=>settings.stations[index].days[i]==1 && filterDays[i]==1))]}
-    {@const invalidTime = station.assignDuring==assignDuringOptions[2] && (!(/^\d{1,2}\:?\d{2}$/.test(station.limitToStartTime)) || !(/^\d{1,2}\:?\d{2}$/.test(station.limitToEndTime)))}
+    {@const invalidTime = station.assignDuring==assignDuringOptions[2] && (station.limitToEndTime==null || station.limitToStartTime==null || !(/^\d{1,2}\:?\d{2}$/.test(station.limitToStartTime)) || !(/^\d{1,2}\:?\d{2}$/.test(station.limitToEndTime)))}
         {#if !settings.showTimingDetails || settings.stations[index].days.some((day, i)=> (day==1 && filterDays[i]==1) ) || settings.stations[index].days.join('')=="0000000"}
 
-        <div class="{station.floor == "" ? (settings.locationID == "5786790" ? "AllFloors" : "") : station.floor.replaceAll(' ', '')} stationContainer" style="--hoverColor: {station.color=="#ffffff"?"#999":station.color}">
+        <div class="{station.floor == "" ? (settings.locationID == 5786790 ? "AllFloors" : "") : station.floor.replaceAll(' ', '')} stationContainer" style="--hoverColor: {station.color=="#ffffff"?"#999":station.color}">
         <!-- ; filter: opacity({station.numOfStaff===0?"25":"100"}%) -->
             <span class="handle" use:dragHandle>⠿</span>
             <span>  <input type="color" bind:value={station.color}>     </span>
             <span style={settings.showTimingDetails ? "flex-basis:140px":"flex-grow:1"}>  <input bind:value={station.name} style="width:95%"/>                 </span>
-            {#if settings.locationID == "5786790"}
+            {#if settings.locationID == 5786790}
             <span>  <select bind:value={station.floor}>
                     <option class="stationButtonSel"></option>
                     {#each floors as floor}
@@ -908,10 +896,10 @@ role="navigation" aria-label="Main">
                         Assign during: <select  bind:value={station.assignDuring}>{#each assignDuringOptions as assignDuring}<option>{assignDuring}</option>{/each}</select>
                         {#if station.assignDuring=="Specific Time"}
                             <br>Start time: <input type="time" step="1800"
-                                style={!(/^\d{1,2}\:?\d{2}$/.test(station.limitToStartTime)) ? "background-color: #fd5335;color: white;":""}
+                                style={station.limitToStartTime==null || !(/^\d{1,2}\:?\d{2}$/.test(station.limitToStartTime)) ? "background-color: #fd5335;color: white;":""}
                                 bind:value={station.limitToStartTime}>
                             <br>End Time: <input type="time" step="1800"
-                                style={!(/^\d{1,2}\:?\d{2}$/.test(station.limitToEndTime)) ? "background-color: #fd5335;color: white;":""}
+                                style={station.limitToEndTime == null || !(/^\d{1,2}\:?\d{2}$/.test(station.limitToEndTime)) ? "background-color: #fd5335;color: white;":""}
                                 bind:value={station.limitToEndTime}>
                         {/if}
                         {#if station.assignDuring?.includes("X to Y")}
@@ -993,11 +981,11 @@ role="navigation" aria-label="Main">
                         {simplifyTime(settings.stations[index].limitToStartTime)} - {simplifyTime(settings.stations[index].limitToEndTime)}
                     </div>
                     <div style="position: absolute; width:{
-                        (  parseFloat(settings.stations[index].limitToEndTime?.replace(":00","")?.replace(":30",".5"))
-                         - parseFloat(settings.stations[index].limitToStartTime?.replace(":00","")?.replace(":30",".5")) )
+                        (  parseFloat(settings.stations[index].limitToEndTime?.replace(":00","")?.replace(":30",".5")||"0")
+                         - parseFloat(settings.stations[index].limitToStartTime?.replace(":00","")?.replace(":30",".5")||"0") )
                         / (20-8.5) * 100
                     }%;height:100%;top:0;left:{
-                        (parseFloat(settings.stations[index].limitToStartTime?.replace(":00","")?.replace(":30",".5")) - 8.5) / (20-8.5) * 100
+                        (parseFloat(settings.stations[index].limitToStartTime?.replace(":00","")?.replace(":30",".5")||"0") - 8.5) / (20-8.5) * 100
                     }%;padding:0;background-color:{settings.stations[index].color+"ff"}"></div>
                 {/if}
                 {#if settings.stations[index].assignDuring==assignDuringOptions[3]}
@@ -1006,9 +994,9 @@ role="navigation" aria-label="Main">
                     </div>
                     {#each startTimes as startTime}
                         <div style="position: absolute; width:{
-                            Math.abs(settings.stations[index].limitXHours - settings.stations[index].limitYHours) / (20-8.5) * 100
+                            Math.abs((settings.stations[index].limitXHours||0) - (settings.stations[index].limitYHours||0)) / (20-8.5) * 100
                         }%;height:100%;top:0;left:{
-                            (parseFloat(startTime?.replace(":00","")?.replace(":30",".5")) + Math.min(settings.stations[index].limitXHours, settings.stations[index].limitYHours) - 8.5) / (20-8.5) * 100
+                            (parseFloat(startTime?.replace(":00","")?.replace(":30",".5")) + Math.min(settings.stations[index].limitXHours||0, settings.stations[index].limitYHours||0) - 8.5) / (20-8.5) * 100
                         }%;padding:0;background-color:{settings.stations[index].color+(startTimes.length<2?"ff":"77")}"></div>
                     {/each}
                 {/if}
@@ -1018,9 +1006,9 @@ role="navigation" aria-label="Main">
                     </div>
                     {#each endTimes as endTime}
                         <div style="position: absolute; width:{
-                            Math.abs(settings.stations[index].limitXHours - settings.stations[index].limitYHours) / (20-8.5) * 100
+                            Math.abs((settings.stations[index].limitXHours||0) - (settings.stations[index].limitYHours||0)) / (20-8.5) * 100
                         }%;height:100%;top:0;left:{
-                            (parseFloat(endTime.replace(":00","").replace(":30",".5")) - Math.max(settings.stations[index].limitXHours, settings.stations[index].limitYHours) - 8.5) / (20-8.5) * 100
+                            (parseFloat(endTime.replace(":00","").replace(":30",".5")) - Math.max(settings.stations[index].limitXHours||0, settings.stations[index].limitYHours||0) - 8.5) / (20-8.5) * 100
                         }%;padding:0;background-color:{settings.stations[index].color+(endTimes.length<2?"ff":"77")}"></div>
                     {/each}
                 {/if}
@@ -1047,7 +1035,7 @@ role="navigation" aria-label="Main">
                     <button class="stationDup" title="Duplicate station" onclick={ ()=> dupItem(settings.dutyLists, index)}>⧉</button>
                     <button class="stationDel" title="Delete duty list" onclick={ ()=> delItem(settings.dutyLists, index)}>⨯</button>
                 </div>
-                {#if settings.locationID == "5786790"}
+                {#if settings.locationID == 5786790}
                     <div style="padding: 2px 2px 2px 32px">
                         <span>Floor: </span><select bind:value={dutyList.floor}>
                             <option class="stationButtonSel"></option>
@@ -1096,7 +1084,7 @@ role="navigation" aria-label="Main">
             <button class="dutyAdd" onclick={ ()=> dutyList.duties.push({"title":"","staffType":"All staff","id":NewUID(dutyList.duties)})}>Add duty</button>
         </div>
     {/each}
-    <button class="dutyListAdd flexItem" onclick={ ()=> settings.dutyLists.push({"title":"Duty List","floor":"","duties":[{"title":"","staffType":"All staff","id":0}],"limitXHours":"0.5","limitYHours":"0","limitType":"before open","id":NewUID(settings.dutyLists),"days":[1,1,1,1,1,1,1]})}>Add list</button>
+    <button class="dutyListAdd flexItem" onclick={ ()=> settings.dutyLists.push({"title":"Duty List","floor":"","duties":[{"title":"","staffType":"All staff","id":0}],"limitXHours":0.5,"limitYHours":0,"limitType":"before open","id":NewUID(settings.dutyLists),"days":[1,1,1,1,1,1,1]})}>Add list</button>
     </div>
 </div>
 
@@ -1114,17 +1102,6 @@ role="navigation" aria-label="Main">
       </tbody>
     </table>
 </div>
-
-<!-- <div style="grid-column: 2;">
-    <p>..............................</p>
-</div> -->
-
-<!-- <div style="grid-column: 3; word-break: break-all;"> -->
-    <!-- <p>{settingsHaveChanged}</p> -->
-    <!-- <p>{prevSettings}</p> -->
-    <!-- <br><br> -->
-    <!-- <p>{settingsString}</p> -->
-<!-- </div> -->
 
 {/if}
 </div>

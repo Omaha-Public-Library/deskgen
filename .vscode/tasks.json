@@ -34,5 +34,13 @@
                 "panel": "dedicated"
             }
 		},
+		{
+			"label": "deploy",
+			"type": "npm",
+			"script": "deploy",
+			"presentation": {
+                "panel": "dedicated"
+            }
+		},
 	]
 }
